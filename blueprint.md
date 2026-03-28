@@ -1,61 +1,37 @@
-# Blueprint: TestGROUND
+# Blueprint: TestGROUND & Intranet Board
 
 ## Overview
 
-TestGROUND is a web application that allows users to take various fun and insightful tests. The application is built with modern, framework-less web technologies, including Web Components (Shadow DOM), to ensure it is modular, maintainable, and performant.
+TestGROUND is a web application that allows users to take various fun and insightful tests (MBTI). In addition, it now features an **Internal Bulletin Board** for company employees, built with React and Firebase Firestore.
 
-## Design and Style Guide
+## Features
 
-*   **Aesthetics:** Clean, modern, and engaging with a visually balanced layout and polished styles.
-*   **Color Palette:**
-    *   Primary Background: Very light gray (`#f8f9fa`) with a subtle noise texture (5% opacity).
-    *   Header/Footer: Deep dark slate blue (`#2c3e50`).
-    *   Primary Text: Dark gray (`#343a40`).
-    *   Accent Color: Vibrant coral (`#ff6b6b`) with a hover state (`#ff4757`).
-*   **Typography:**
-    *   Headings: 'Poppins', a bold and friendly sans-serif font.
-    *   Body Text: 'Lato', a clean and readable sans-serif font.
-*   **Layout:**
-    *   Fully responsive and mobile-first.
-    *   A main `app-shell` component manages the header, main content, and footer.
-    *   A central content area with a max-width of 1200px.
-*   **Iconography:** Interactive and illustrative icons for test cards (e.g., 🧠 for MBTI).
-*   **Interactivity:** 
-    *   Buttons and cards have smooth transitions (`cubic-bezier(0.25, 0.8, 0.25, 1)`).
-    *   Hover effects include subtle lifting (transform) and deepening of shadows.
-    *   Animations for question transitions (fade-in) and result display (scale-in).
+### 1. TestGROUND (Web Components)
+*   MBTI Personality Test with English/Korean support.
+*   Affiliate Inquiry Form (Formspree).
 
-## Feature Set
+### 2. Intranet Bulletin Board (React + Firebase)
+*   **Post List:** View registered post titles, authors, and timestamps.
+*   **Write Post:** Create new posts with title, author, and content.
+*   **Post Detail & Comments:** View full post content and add/view comments directly.
+*   **Design:** Clean, professional intranet aesthetic with custom CSS.
 
-*   **Test Selection:** A home screen displaying available tests in a polished card format.
-*   **Multilingual Support:** Toggle between English and Korean modes directly from the header.
-*   **Affiliate Inquiry Form:** A dedicated contact form powered by Formspree for partnership inquiries.
-*   **MBTI Test:**
-    *   8-question version (expandable) focusing on the four dichotomies (E/I, S/N, T/F, J/P).
-    *   Progress tracking (e.g., "Question 1 of 8" or "질문 1 / 8").
-    *   Calculation of the 16 personality types with descriptive results in both languages.
-    *   "Take Again" and "Back to Home" navigation.
+## Technology Stack
 
-## Component Architecture (Web Components)
-
-*   `<app-shell>`: The root component that structures the application layout, manages high-level view routing (Home, MBTI, Inquiry), and handles language state.
-*   `<test-card>`: A reusable component to display test summaries or feature cards with an icon, title, and description.
-*   `<mbti-test>`: A self-contained component that manages the state and logic of the MBTI test.
-*   `<inquiry-form>`: A contact form component that submits data to a Formspree endpoint (`https://formspree.io/f/xwvwvbqz`).
+*   **Framework:** React (for the Board feature)
+*   **Database:** Firebase Firestore
+*   **Styling:** Modern CSS (Logical properties, Container queries, :has())
+*   **Languages:** English/Korean Support (for TestGROUND)
 
 ## Current Progress
 
-1.  **Fixed Visibility:** Removed the global `opacity: .3` and implemented the noise texture correctly on a pseudo-element.
-2.  **Encapsulated Styles:** Moved component-specific styles into their respective Shadow DOMs.
-3.  **Enhanced MBTI Test:** Increased question count to 8 and added detailed result descriptions for all 16 types.
-4.  **Multilingual Support:** Implemented a full i18n system for English and Korean modes.
-5.  **Affiliate Inquiry:** Added a partnership inquiry form integrated with Formspree.
-
-
+1.  **MBTI Test & Inquiry:** Fully functional and deployed to GitHub.
+2.  **React Setup:** Initializing `package.json` and React entry points.
+3.  **Firebase Integration:** Setting up `firebase.js` for Firestore access.
+4.  **Board UI:** Implementing Post List, Create Post, and Post Detail components.
 
 ## Next Steps
 
-*   [ ] **Add More Tests:** Implement a "Career Match" or "Quick IQ" test to expand the platform.
-*   [ ] **Persistence:** Use `localStorage` to save user results.
-*   [ ] **Sharing:** Add a feature to share test results (e.g., "I got INTJ on TestGROUND!").
-*   [ ] **Visual Polish:** Add more subtle animations and perhaps a loading state between views.
+*   [ ] Implement Board feature in React.
+*   [ ] Connect Firestore for real-time updates.
+*   [ ] Add basic authentication or user identification for "Author" fields.

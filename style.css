@@ -1,40 +1,201 @@
 :root {
-    --primary-bg: #f8f9fa;
-    --header-footer-bg: #2c3e50;
-    --primary-text: #343a40;
-    --accent-color: #ff6b6b;
-    --accent-hover: #ff4757;
-    --card-bg: #ffffff;
-    --shadow-color: rgba(0, 0, 0, 0.1);
-    --font-heading: 'Poppins', sans-serif;
-    --font-body: 'Lato', sans-serif;
-    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --primary-color: #2c3e50;
+  --secondary-color: #34495e;
+  --accent-color: #3498db;
+  --bg-color: #f4f7f6;
+  --white: #ffffff;
+  --border-color: #dcdde1;
+  --text-color: #2f3640;
+  --gray: #7f8c8d;
+  --transition: all 0.2s ease;
 }
 
 body {
-    margin: 0;
-    font-family: var(--font-body);
-    background-color: var(--primary-bg);
-    color: var(--primary-text);
-    min-height: 100vh;
-    position: relative;
-    overflow-x: hidden;
+  margin: 0;
+  font-family: 'Noto Sans KR', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
-body::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 800 800' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.05;
-    pointer-events: none;
-    z-index: -1;
+.navbar {
+  background-color: var(--primary-color);
+  color: var(--white);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-app-shell {
-    display: block;
-    min-height: 100vh;
+.nav-brand {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.main-content {
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0.7rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: var(--transition);
+}
+
+.btn-primary:hover {
+  background-color: #2980b9;
+}
+
+.btn-secondary {
+  background-color: var(--gray);
+  color: white;
+  border: none;
+  padding: 0.7rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+
+.post-list {
+  background: var(--white);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.list-header {
+  display: grid;
+  grid-template-columns: 1fr 150px 200px;
+  padding: 1rem;
+  background: #f8f9fa;
+  font-weight: bold;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.list-item {
+  display: grid;
+  grid-template-columns: 1fr 150px 200px;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.list-item:hover {
+  background: #f1f2f6;
+}
+
+.list-item .title {
+  font-weight: 500;
+}
+
+.list-item .author, .list-item .time {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+/* Form Styles */
+.form-container, .detail-container {
+  background: var(--white);
+  padding: 2.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+/* Detail Styles */
+.post-content h1 {
+  margin-top: 1.5rem;
+  color: var(--primary-color);
+}
+
+.post-meta {
+  color: var(--gray);
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.content-body {
+  line-height: 1.8;
+  white-space: pre-wrap;
+  min-height: 200px;
+  margin: 2rem 0;
+}
+
+/* Comments */
+.comments-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid #eee;
+}
+
+.comment-list {
+  margin-bottom: 2rem;
+}
+
+.comment-item {
+  padding: 1rem;
+  border-bottom: 1px solid #f1f1f1;
+  font-size: 0.95rem;
+}
+
+.comment-time {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--gray);
+  margin-top: 0.3rem;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.comment-author-input {
+  width: 200px;
+}
+
+.loading {
+  text-align: center;
+  padding: 5rem;
+  font-size: 1.2rem;
+  color: var(--gray);
 }
