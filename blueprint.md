@@ -28,17 +28,18 @@ TestGROUND is a web application that allows users to take various fun and insigh
 ## Feature Set
 
 *   **Test Selection:** A home screen displaying available tests in a polished card format.
+*   **Multilingual Support:** Toggle between English and Korean modes directly from the header.
 *   **MBTI Test:**
     *   8-question version (expandable) focusing on the four dichotomies (E/I, S/N, T/F, J/P).
-    *   Progress tracking (e.g., "Question 1 of 8").
-    *   Calculation of the 16 personality types with descriptive results.
+    *   Progress tracking (e.g., "Question 1 of 8" or "질문 1 / 8").
+    *   Calculation of the 16 personality types with descriptive results in both languages.
     *   "Take Again" and "Back to Home" navigation.
 
 ## Component Architecture (Web Components)
 
-*   `<app-shell>`: The root component that structures the application layout and manages high-level view routing.
+*   `<app-shell>`: The root component that structures the application layout, manages high-level view routing, and handles language state.
 *   `<test-card>`: A reusable component to display test summaries with an icon, title, and description.
-*   `<mbti-test>`: A self-contained component that manages the state and logic of the MBTI test, including scoring and result mapping.
+*   `<mbti-test>`: A self-contained component that manages the state and logic of the MBTI test, including scoring and result mapping based on the current language.
 
 ## Current Progress
 
@@ -46,6 +47,8 @@ TestGROUND is a web application that allows users to take various fun and insigh
 2.  **Encapsulated Styles:** Moved component-specific styles into their respective Shadow DOMs for true encapsulation while leveraging global CSS variables for theming.
 3.  **Enhanced MBTI Test:** Increased question count to 8 and added detailed result descriptions for all 16 types.
 4.  **Improved Navigation:** Added a "Back to Home" option from the test result screen.
+5.  **Multilingual Support:** Implemented a full i18n system for English and Korean modes, including a language toggle in the header.
+
 
 ## Next Steps
 
