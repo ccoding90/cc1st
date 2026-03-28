@@ -3,12 +3,18 @@ const I18N = {
         title: "TestGROUND",
         mbtiTitle: "MBTI Personality Test",
         mbtiDesc: "Discover your 4-letter personality type and understand your unique perspective on the world.",
+        inquiryTitle: "Affiliate Inquiry",
+        inquiryDesc: "Interested in partnering with TestGROUND? Send us a message!",
         footer: "© 2026 TestGROUND • Built with Modern Web Standards",
         question: "Question",
         of: "of",
         yourResult: "Your Result",
         takeAgain: "Take the Test Again",
         backHome: "Back to Home",
+        send: "Send Message",
+        emailLabel: "Your Email",
+        messageLabel: "Your Message",
+        successMsg: "Thank you! Your message has been sent.",
         mbtiQuestions: [
             { q: "At a social event, do you usually...", a: ["Talk to many people, including strangers", "Talk to a few people you already know"], type: ["E", "I"] },
             { q: "Do you tend to focus more on...", a: ["Facts and details of the present", "Possibilities and future connections"], type: ["S", "N"] },
@@ -42,12 +48,18 @@ const I18N = {
         title: "테스트그라운드",
         mbtiTitle: "MBTI 성격 유형 테스트",
         mbtiDesc: "당신의 4글자 성격 유형을 발견하고 세상을 바라보는 당신만의 독특한 관점을 이해해보세요.",
+        inquiryTitle: "제휴 문의",
+        inquiryDesc: "테스트그라운드와 파트너가 되고 싶으신가요? 메시지를 남겨주세요!",
         footer: "© 2026 테스트그라운드 • 현대적 웹 표준으로 제작됨",
         question: "질문",
         of: "/",
         yourResult: "테스트 결과",
         takeAgain: "테스트 다시 하기",
         backHome: "홈으로 돌아가기",
+        send: "메시지 보내기",
+        emailLabel: "이메일 주소",
+        messageLabel: "문의 내용",
+        successMsg: "감사합니다! 메시지가 성공적으로 전송되었습니다.",
         mbtiQuestions: [
             { q: "사교 모임에서 당신은 보통...", a: ["낯선 사람을 포함해 많은 사람들과 대화한다", "이미 알고 있는 몇몇 사람들과 대화한다"], type: ["E", "I"] },
             { q: "당신은 어디에 더 집중하는 편인가요?", a: ["현재의 사실과 세부 사항", "미래의 가능성과 연결고리"], type: ["S", "N"] },
@@ -118,6 +130,24 @@ const GLOBAL_STYLES = `
     button:active {
         transform: translateY(0);
     }
+
+    input, textarea {
+        width: 100%;
+        padding: 0.8rem;
+        margin-bottom: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-family: var(--font-body);
+        box-sizing: border-box;
+    }
+
+    label {
+        display: block;
+        text-align: left;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+        color: var(--primary-text);
+    }
 `;
 
 class AppShell extends HTMLElement {
@@ -170,6 +200,7 @@ class AppShell extends HTMLElement {
                     font-family: var(--font-heading);
                     font-size: 1.8rem;
                     letter-spacing: 1px;
+                    cursor: pointer;
                 }
                 main {
                     flex: 1;
@@ -197,7 +228,7 @@ class AppShell extends HTMLElement {
                 }
             </style>
             <header>
-                <h1>${t.title}</h1>
+                <h1 id="logo">${t.title}</h1>
                 <div class="lang-toggle">
                     <button class="lang-btn ${currentLang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
                     <button class="lang-btn ${currentLang === 'ko' ? 'active' : ''}" data-lang="ko">KO</button>
@@ -211,6 +242,8 @@ class AppShell extends HTMLElement {
             </footer>
         `;
 
+        this.shadowRoot.getElementById('logo').addEventListener('click', () => this.showTestList());
+
         this.shadowRoot.querySelectorAll('.lang-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 currentLang = e.target.dataset.lang;
@@ -223,17 +256,31 @@ class AppShell extends HTMLElement {
     showTestList() {
         const t = I18N[currentLang];
         this.shadowRoot.getElementById('content').innerHTML = `
-            <test-card 
-                title="${t.mbtiTitle}" 
-                description="${t.mbtiDesc}" 
-                icon="🧠">
-            </test-card>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; width: 100%;">
+                <test-card 
+                    id="mbti-card"
+                    title="${t.mbtiTitle}" 
+                    description="${t.mbtiDesc}" 
+                    icon="🧠">
+                </test-card>
+                <test-card 
+                    id="inquiry-card"
+                    title="${t.inquiryTitle}" 
+                    description="${t.inquiryDesc}" 
+                    icon="🤝">
+                </test-card>
+            </div>
         `;
-        this.shadowRoot.querySelector('test-card').addEventListener('click', () => this.showMbtiTest());
+        this.shadowRoot.getElementById('mbti-card').addEventListener('click', () => this.showMbtiTest());
+        this.shadowRoot.getElementById('inquiry-card').addEventListener('click', () => this.showInquiryForm());
     }
 
     showMbtiTest() {
         this.shadowRoot.getElementById('content').innerHTML = `<mbti-test></mbti-test>`;
+    }
+
+    showInquiryForm() {
+        this.shadowRoot.getElementById('content').innerHTML = `<inquiry-form></inquiry-form>`;
     }
 }
 
@@ -263,9 +310,10 @@ class TestCard extends HTMLElement {
                     cursor: pointer;
                     transition: var(--transition);
                     width: 100%;
-                    max-width: 500px;
+                    max-width: 400px;
                     text-align: center;
                     border: 1px solid rgba(0,0,0,0.05);
+                    box-sizing: border-box;
                 }
                 :host(:hover) {
                     transform: translateY(-8px);
@@ -451,3 +499,63 @@ class MbtiTest extends HTMLElement {
 }
 
 customElements.define('mbti-test', MbtiTest);
+
+class InquiryForm extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+
+    connectedCallback() {
+        this.render();
+    }
+
+    render() {
+        const t = I18N[currentLang];
+        this.shadowRoot.innerHTML = `
+            <style>
+                ${GLOBAL_STYLES}
+                .form-container {
+                    padding: 2.5rem;
+                    background: var(--card-bg);
+                    border-radius: 16px;
+                    box-shadow: 0 10px 30px var(--shadow-color);
+                    text-align: center;
+                    width: 100%;
+                    max-width: 600px;
+                    box-sizing: border-box;
+                    animation: fadeIn 0.5s ease-out;
+                }
+                h2 {
+                    font-family: var(--font-heading);
+                    color: var(--primary-text);
+                    margin-bottom: 1.5rem;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+            <div class="form-container">
+                <h2>${t.inquiryTitle}</h2>
+                <form action="https://formspree.io/f/xwvwvbqz" method="POST">
+                    <label>${t.emailLabel}</label>
+                    <input type="email" name="email" required placeholder="example@email.com">
+                    
+                    <label>${t.messageLabel}</label>
+                    <textarea name="message" rows="5" required placeholder="Enter your inquiry details..."></textarea>
+                    
+                    <button type="submit">${t.send}</button>
+                    <button type="button" id="back-btn" style="background-color: #6c757d;">${t.backHome}</button>
+                </form>
+            </div>
+        `;
+
+        this.shadowRoot.getElementById('back-btn').addEventListener('click', () => {
+            const appShell = document.querySelector('app-shell');
+            if (appShell) appShell.showTestList();
+        });
+    }
+}
+
+customElements.define('inquiry-form', InquiryForm);

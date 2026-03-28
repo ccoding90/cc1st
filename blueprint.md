@@ -29,6 +29,7 @@ TestGROUND is a web application that allows users to take various fun and insigh
 
 *   **Test Selection:** A home screen displaying available tests in a polished card format.
 *   **Multilingual Support:** Toggle between English and Korean modes directly from the header.
+*   **Affiliate Inquiry Form:** A dedicated contact form powered by Formspree for partnership inquiries.
 *   **MBTI Test:**
     *   8-question version (expandable) focusing on the four dichotomies (E/I, S/N, T/F, J/P).
     *   Progress tracking (e.g., "Question 1 of 8" or "질문 1 / 8").
@@ -37,17 +38,19 @@ TestGROUND is a web application that allows users to take various fun and insigh
 
 ## Component Architecture (Web Components)
 
-*   `<app-shell>`: The root component that structures the application layout, manages high-level view routing, and handles language state.
-*   `<test-card>`: A reusable component to display test summaries with an icon, title, and description.
-*   `<mbti-test>`: A self-contained component that manages the state and logic of the MBTI test, including scoring and result mapping based on the current language.
+*   `<app-shell>`: The root component that structures the application layout, manages high-level view routing (Home, MBTI, Inquiry), and handles language state.
+*   `<test-card>`: A reusable component to display test summaries or feature cards with an icon, title, and description.
+*   `<mbti-test>`: A self-contained component that manages the state and logic of the MBTI test.
+*   `<inquiry-form>`: A contact form component that submits data to a Formspree endpoint (`https://formspree.io/f/xwvwvbqz`).
 
 ## Current Progress
 
 1.  **Fixed Visibility:** Removed the global `opacity: .3` and implemented the noise texture correctly on a pseudo-element.
-2.  **Encapsulated Styles:** Moved component-specific styles into their respective Shadow DOMs for true encapsulation while leveraging global CSS variables for theming.
+2.  **Encapsulated Styles:** Moved component-specific styles into their respective Shadow DOMs.
 3.  **Enhanced MBTI Test:** Increased question count to 8 and added detailed result descriptions for all 16 types.
-4.  **Improved Navigation:** Added a "Back to Home" option from the test result screen.
-5.  **Multilingual Support:** Implemented a full i18n system for English and Korean modes, including a language toggle in the header.
+4.  **Multilingual Support:** Implemented a full i18n system for English and Korean modes.
+5.  **Affiliate Inquiry:** Added a partnership inquiry form integrated with Formspree.
+
 
 
 ## Next Steps
