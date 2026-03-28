@@ -1,37 +1,46 @@
-# Blueprint: TestGROUND & Intranet Board
+# Blueprint: CCGG
 
 ## Overview
 
-TestGROUND is a web application that allows users to take various fun and insightful tests (MBTI). In addition, it now features an **Internal Bulletin Board** for company employees, built with React and Firebase Firestore.
+CCGG is a unified internal platform that combines fun personality insights with essential company tools. It integrates a 10-question MBTI test, a partnership inquiry system, and a real-time bulletin board into a single, cohesive React application.
 
-## Features
+## Core Features
 
-### 1. TestGROUND (Web Components)
-*   MBTI Personality Test with English/Korean support.
-*   Affiliate Inquiry Form (Formspree).
+### 1. Navigation System
+*   **Sticky Navbar:** Always-on-top menu with links to all main sections.
+*   **Routing:** Powered by `react-router-dom` for smooth, single-page transitions.
 
-### 2. Intranet Bulletin Board (React + Firebase)
-*   **Post List:** View registered post titles, authors, and timestamps.
-*   **Write Post:** Create new posts with title, author, and content.
-*   **Post Detail & Comments:** View full post content and add/view comments directly.
-*   **Design:** Clean, professional intranet aesthetic with custom CSS.
+### 2. MBTI Test (10 Questions)
+*   **Bilingual:** Full support for English and Korean.
+*   **Logic:** Calculates 16 personality types based on user responses.
+*   **UI:** Animated transitions (FadeIn, ScaleIn) for a modern feel.
 
-## Technology Stack
+### 3. Affiliate Inquiry
+*   **Formspree Integration:** Direct-to-email inquiry submission.
+*   **Multilingual:** Localized labels and placeholders.
 
-*   **Framework:** React (for the Board feature)
+### 4. Freedom Board (자유게시판)
+*   **Firebase Firestore:** Real-time database for posts and comments.
+*   **Post Management:** Create and view posts with author tracking.
+*   **Comment System:** Built-in discussion threads for each post.
+
+## Technical Architecture
+
+*   **Framework:** React 19
+*   **Router:** React Router 7
 *   **Database:** Firebase Firestore
-*   **Styling:** Modern CSS (Logical properties, Container queries, :has())
-*   **Languages:** English/Korean Support (for TestGROUND)
+*   **Styling:** Custom CSS with modern variables and animations.
+*   **Fonts:** Poppins (Heading), Lato (Body), Noto Sans KR (Korean support).
 
 ## Current Progress
 
-1.  **MBTI Test & Inquiry:** Fully functional and deployed to GitHub.
-2.  **React Setup:** Initializing `package.json` and React entry points.
-3.  **Firebase Integration:** Setting up `firebase.js` for Firestore access.
-4.  **Board UI:** Implementing Post List, Create Post, and Post Detail components.
+1.  **Unified Platform:** Integrated previously separate features into a single React app.
+2.  **Navigation:** Implemented a fixed top navbar for [MBTI 테스트], [제휴 문의], [자유게시판].
+3.  **Error Resolution:** Fixed the "White Screen" rendering error by properly structuring the `src` directory and components.
+4.  **Branding:** Updated the document title and logo to **CCGG**.
 
 ## Next Steps
 
-*   [ ] Implement Board feature in React.
-*   [ ] Connect Firestore for real-time updates.
-*   [ ] Add basic authentication or user identification for "Author" fields.
+*   [ ] **Authentication:** Add employee login for the Freedom Board.
+*   [ ] **Search:** Implement a search feature for board posts.
+*   [ ] **Dark Mode:** Add a toggle for dark/light themes.
