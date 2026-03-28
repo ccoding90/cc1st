@@ -56,39 +56,24 @@ body {
   box-sizing: border-box;
 }
 
-/* --- MBTI 전용 스타일 (Isolation) --- */
-.mbti-wrapper .question-container {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 30px;
-  box-shadow: var(--card-shadow);
-  text-align: left;
-}
+/* --- 인스타그램 스타일 (테스트 UI) --- */
+.test-wrapper { max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; }
+.test-title { font-size: 1.5rem; font-weight: 800; color: #262626; margin-bottom: 25px; }
+.test-card, .result-card { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.progress-bar { height: 6px; background: #eee; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+.progress-bar div { height: 100%; background: var(--accent-color); transition: 0.3s; }
+.question-text { font-size: 1.25rem; font-weight: 700; margin-bottom: 25px; }
+.option-btn { width: 100%; padding: 18px; margin: 10px 0; border: 1px solid #eee; border-radius: 15px; background: #fff; font-size: 16px; cursor: pointer; transition: 0.2s; }
+.option-btn:hover { background: #f9f9f9; border-color: #ddd; }
+.celeb-img { width: 220px; height: 220px; object-fit: cover; border-radius: 50%; margin: 0 auto 20px; display: block; border: 4px solid #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+.type-code { font-size: 2rem; font-weight: 900; color: var(--accent-color); margin: 0; }
+.celeb-name { font-size: 1.5rem; margin: 10px 0; }
+.btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.share-btn, .retry-btn { padding: 14px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; }
+.share-btn { background: var(--accent-color); color: white; }
+.retry-btn { background: #eee; color: #333; }
 
-.mbti-wrapper .mbti-question {
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin-bottom: 30px;
-  line-height: 1.4;
-}
-
-.mbti-wrapper .btn-option {
-  width: 100%;
-  padding: 16px 20px;
-  margin-bottom: 12px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.mbti-wrapper .btn-option:hover { background: var(--secondary-bg); border-color: var(--text-secondary); }
-
-/* --- FEED & CONTACT & BLOG 공통 입력창 및 카드 스타일 --- */
+/* --- 기존 스타일 유지 --- */
 .feed-wrapper input, .feed-wrapper textarea,
 .contact-wrapper input, .contact-wrapper textarea,
 .blog-wrapper .post-item {
@@ -109,7 +94,6 @@ body {
   border-color: var(--accent-color);
 }
 
-/* 블로그 전용 */
 .blog-wrapper .blog-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -126,9 +110,8 @@ body {
   }
 }
 
-/* --- 카드 및 게시물 공통 --- */
 .feed-wrapper .post-item, .feed-wrapper .form-container, .feed-wrapper .detail-container,
-.contact-wrapper .form-container, .mbti-wrapper .result-container, .blog-wrapper .card {
+.contact-wrapper .form-container, .blog-wrapper .card {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -158,7 +141,6 @@ body {
   cursor: pointer;
 }
 
-/* --- 애니메이션 --- */
 .animate-in {
   animation: slideUp 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
 }
