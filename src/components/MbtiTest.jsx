@@ -8,7 +8,7 @@ const QUESTIONS = [
   // S vs N
   { q: "영화나 소설을 볼 때...", a: ["현실적인 스토리가 좋다", "상상력을 자극하는 판타지가 좋다"], type: ["S", "N"] },
   { q: "길을 찾을 때...", a: ["지도나 표지판을 꼼꼼히 본다", "대략적인 방향만 보고 감으로 간다"], type: ["S", "N"] },
-  { q: "사과를 보면 드는 생각은?", a: ["빨갛고 맛있겠다 (사실)", "뉴턴, 스티브 잡스 (연상)"], type: ["S", "N"] },
+  { q: "사과를 보면 드는 생각은?", a: ["빨갛고 맛있겠다 (사실)", "뉴턴, 스티브 잡스, 백설공주 (연상)"], type: ["S", "N"] },
   // T vs F
   { q: "친구가 고민을 털어놓을 때...", a: ["해결책을 제시해준다", "공감해주고 위로해준다"], type: ["T", "F"] },
   { q: "결정을 내릴 때 중요한 건...", a: ["객관적인 사실과 논리", "상황과 사람들의 감정"], type: ["T", "F"] },
@@ -52,6 +52,33 @@ const MbtiTest = () => {
     }
   };
 
+  const handleShare = async () => {
+    const resKey = calculateResult();
+    const result = DESCRIPTIONS[resKey];
+    const shareText = `내 MBTI 결과는 ${result.title}! ${result.desc} 너도 테스트 해봐!`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'MBTI 테스트 결과',
+          text: shareText,
+          url: shareUrl,
+        });
+        console.log('결과 공유 성공');
+      } catch (error) {
+        console.error('결과 공유 실패:', error);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        alert('결과가 클립보드에 복사되었습니다! 친구들에게 공유해보세요.');
+      } catch (error) {
+        console.error('클립보드 복사 실패:', error);
+      }
+    }
+  };
+
   const calculateResult = () => {
     return (answers.E >= answers.I ? 'E' : 'I') +
            (answers.S >= answers.N ? 'S' : 'N') +
@@ -75,7 +102,10 @@ const MbtiTest = () => {
               <span key={idx} style={{ background: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '0.85rem', border: '1px solid #eee' }}>{trait}</span>
             ))}
           </div>
-          <button className="btn-primary" onClick={() => window.location.reload()}>다시 테스트하기</button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn-primary" onClick={handleShare} style={{ flex: 1, background: '#333' }}>결과 공유하기 📤</button>
+            <button className="btn-primary" onClick={() => window.location.reload()} style={{ flex: 1 }}>다시 하기</button>
+          </div>
         </div>
       </div>
     );

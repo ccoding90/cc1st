@@ -22,6 +22,15 @@ A high-end internal platform featuring an interactive MBTI test, a community fee
 3. **Professional Inquiry Form:**
    - Bilingual support (KR/EN).
    - Modernized form UI with polished inputs.
+4. **Celebrity Ideal Type Test (Gemini Pro Optimized):**
+   - 10-question romantic preference diagnostic.
+   - Matching logic based on E/I, F/T, J/P traits.
+   - Visual result cards with celebrity matching (Cha Eun-woo, Jennie, Timothée Chalamet, Zendaya).
+
+## Current Plan: Update Celebrity Ideal Type Test
+1. **Update `CelebrityTest.jsx`**: [Completed] Replaced existing component with the new optimized version.
+2. **UI Refinement**: [Completed] Verified `App.jsx` navigation and routing.
+3. **Validation**: [Completed] Confirmed the question flow and result calculation within the intranet layout.
 
 ## Maintenance & Stability
 - Corrected MIME type issues by setting `"type": "module"`.
