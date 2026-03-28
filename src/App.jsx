@@ -1,17 +1,19 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, Link } from 'react-router-dom';
 import MbtiTest from './components/MbtiTest';
 import InquiryForm from './components/InquiryForm';
 import Board from './components/Board';
+import MbtiBlog from './components/MbtiBlog';
 
 const App = () => {
   return (
     <Router>
       <div className="app-container">
         <nav className="navbar">
-          <div className="nav-brand">CCGG</div>
+          <Link to="/" className="nav-brand" style={{ textDecoration: 'none' }}>CCGG</Link>
           <div className="nav-links">
             <NavLink to="/mbti" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>MBTI 테스트</NavLink>
+            <NavLink to="/blog" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>MBTI 블로그</NavLink>
             <NavLink to="/board" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>자유게시판</NavLink>
             <NavLink to="/inquiry" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>제휴 문의</NavLink>
           </div>
@@ -21,6 +23,7 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Navigate to="/mbti" replace />} />
             <Route path="/mbti" element={<div className="mbti-wrapper"><MbtiTest /></div>} />
+            <Route path="/blog" element={<div className="blog-wrapper"><MbtiBlog /></div>} />
             <Route path="/inquiry" element={<div className="contact-wrapper"><InquiryForm /></div>} />
             <Route path="/board" element={<div className="feed-wrapper"><Board /></div>} />
           </Routes>

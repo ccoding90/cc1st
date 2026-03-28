@@ -88,9 +88,10 @@ body {
 
 .mbti-wrapper .btn-option:hover { background: var(--secondary-bg); border-color: var(--text-secondary); }
 
-/* --- FEED & CONTACT 공통 입력창 스타일 (Modern & Minimal) --- */
+/* --- FEED & CONTACT & BLOG 공통 입력창 및 카드 스타일 --- */
 .feed-wrapper input, .feed-wrapper textarea,
-.contact-wrapper input, .contact-wrapper textarea {
+.contact-wrapper input, .contact-wrapper textarea,
+.blog-wrapper .post-item {
   width: 100%;
   padding: 14px 16px;
   border: 1px solid var(--border);
@@ -100,28 +101,34 @@ body {
   color: var(--text-main);
   box-sizing: border-box;
   transition: all 0.2s ease;
-  margin-bottom: 15px;
 }
 
-.feed-wrapper input:focus, .feed-wrapper textarea:focus,
-.contact-wrapper input:focus, .contact-wrapper textarea:focus {
-  outline: none;
+.blog-wrapper .post-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 4px rgba(0, 149, 246, 0.1);
 }
 
-.feed-wrapper label, .contact-wrapper label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+/* 블로그 전용 */
+.blog-wrapper .blog-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 600px) {
+  .blog-wrapper .post-item {
+    flex-direction: column !important;
+  }
+  .blog-wrapper .post-item img {
+    width: 100% !important;
+    height: 200px !important;
+  }
 }
 
 /* --- 카드 및 게시물 공통 --- */
 .feed-wrapper .post-item, .feed-wrapper .form-container, .feed-wrapper .detail-container,
-.contact-wrapper .form-container, .mbti-wrapper .result-container {
+.contact-wrapper .form-container, .mbti-wrapper .result-container, .blog-wrapper .card {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
