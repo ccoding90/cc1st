@@ -78,7 +78,7 @@ body {
   box-sizing: border-box;
 }
 
-/* Cards */
+/* Common Card Style (Instagram look) */
 .card, .form-container, .question-container, .post-item, .detail-container, .result-container {
   background: #ffffff;
   border: 1px solid var(--border);
@@ -89,33 +89,97 @@ body {
   text-align: left;
 }
 
-/* Forms */
-.form-group {
-  margin-bottom: 16px;
-}
-
-label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-  color: var(--text-main);
-}
-
-input, textarea {
+/* MBTI UI Upgrade */
+.progress-bar-container {
   width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background-color: var(--secondary-bg);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  box-sizing: border-box;
+  height: 4px;
+  background: #efefef;
+  border-radius: 2px;
+  margin-bottom: 30px;
+  overflow: hidden;
 }
 
-input:focus, textarea:focus {
-  outline: none;
+.progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
+.mbti-question {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 40px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.btn-option {
+  width: 100%;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-option:hover {
+  background: var(--secondary-bg);
   border-color: var(--text-secondary);
+}
+
+.btn-option:active {
+  transform: scale(0.98);
+}
+
+/* Result Screen */
+.result-container {
+  padding: 0;
+  overflow: hidden;
+  text-align: center;
+}
+
+.type-code {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--accent-color);
+  display: block;
+  margin-bottom: 10px;
+}
+
+/* Board UI */
+.feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.post-item {
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.post-item:active {
+  transform: scale(0.98);
+}
+
+.post-user {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.post-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-left: 8px;
 }
 
 /* Buttons */
@@ -145,61 +209,6 @@ input:focus, textarea:focus {
   cursor: pointer;
 }
 
-/* Board Feed */
-.feed-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.post-item {
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
-.post-item:active {
-  transform: scale(0.98);
-}
-
-.post-user {
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.post-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-left: 8px;
-}
-
-.post-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 12px 0 8px 0;
-}
-
-.post-summary {
-  font-size: 0.95rem;
-  color: #444;
-  line-height: 1.5;
-  margin: 0;
-}
-
-/* MBTI Result (이미 고정됨) */
-.result-container {
-  padding: 0;
-  overflow: hidden;
-  text-align: center;
-}
-
-.type-code {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--accent-color);
-  display: block;
-}
-
 /* Animations */
 .animate-in {
   animation: slideUp 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
@@ -208,4 +217,12 @@ input:focus, textarea:focus {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Footer */
+.app-footer {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }

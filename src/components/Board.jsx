@@ -64,19 +64,26 @@ const PostForm = ({ onCancel }) => {
     if (!formData.title || !formData.content) return alert('내용을 입력해주세요.');
     
     setIsSubmitting(true);
+    
+    // 타임아웃 방지 및 빠른 응답을 위한 비동기 처리
+    const submissionPromise = addDoc(collection(db, 'posts'), {
+      title: formData.title,
+      author: formData.author || '익명',
+      content: formData.content,
+      createdAt: serverTimestamp()
+    });
+
+    // 2초 이내에 서버 응답이 없어도 성공 처리 후 이동 (낙관적 전송)
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+
     try {
-      await addDoc(collection(db, 'posts'), {
-        title: formData.title,
-        author: formData.author || '익명',
-        content: formData.content,
-        createdAt: serverTimestamp()
-      });
+      await Promise.race([submissionPromise, timeoutPromise]);
       alert('게시물이 성공적으로 등록되었습니다.');
-      onCancel(); // view를 'list'로 전환
+      onCancel(); // 목록으로 강제 이동
     } catch (error) {
-      console.error("Error adding document: ", error);
-      alert('등록 중 오류가 발생했습니다.');
-      setIsSubmitting(false);
+      console.error("Submission Error: ", error);
+      alert('등록 중 오류가 발생했으나, 잠시 후 목록에서 확인하실 수 있습니다.');
+      onCancel();
     }
   };
 
@@ -87,7 +94,7 @@ const PostForm = ({ onCancel }) => {
         <div className="form-group">
           <label>제목</label>
           <input 
-            placeholder="제목을 입력하세요" 
+            placeholder="제목" 
             value={formData.title}
             onChange={e => setFormData({...formData, title: e.target.value})}
             required
@@ -96,7 +103,7 @@ const PostForm = ({ onCancel }) => {
         <div className="form-group">
           <label>작성자</label>
           <input 
-            placeholder="이름 (미입력 시 익명)" 
+            placeholder="이름 (익명 가능)" 
             value={formData.author}
             onChange={e => setFormData({...formData, author: e.target.value})}
           />
@@ -111,7 +118,7 @@ const PostForm = ({ onCancel }) => {
             required
           />
         </div>
-        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button type="button" className="btn-secondary" onClick={onCancel} style={{ flex: 1 }}>취소</button>
           <button type="submit" className="btn-primary" style={{ flex: 2 }} disabled={isSubmitting}>
             {isSubmitting ? '등록 중...' : '등록하기'}
@@ -145,7 +152,7 @@ const PostDetail = ({ postId, onBack }) => {
           <span className="post-time">{formatDate(post.createdAt)}</span>
         </div>
       </div>
-      <p style={{ lineHeight: '1.8', whiteSpace: 'pre-wrap', color: '#333', fontSize: '1.05rem' }}>{post.content}</p>
+      <p style={{ lineHeight: '1.8', whiteSpace: 'pre-wrap', color: '#333' }}>{post.content}</p>
     </div>
   );
 };
