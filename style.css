@@ -1,25 +1,24 @@
 :root {
-  --primary-color: #ffffff;
-  --secondary-color: #fafafa;
+  --primary-bg: #ffffff;
+  --secondary-bg: #fafafa;
   --accent-color: #0095f6;
   --accent-hover: #1877f2;
-  --bg-color: #fafafa;
-  --white: #ffffff;
-  --border-color: #dbdbdb;
-  --text-color: #262626;
-  --gray: #8e8e8e;
-  --transition: all 0.2s ease-in-out;
+  --text-main: #262626;
+  --text-secondary: #8e8e8e;
+  --border: #dbdbdb;
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   --font-heading: 'Poppins', 'Noto Sans KR', sans-serif;
   --font-body: 'Lato', 'Noto Sans KR', sans-serif;
-  --shadow: 0 4px 12px rgba(0,0,0,0.05);
+  --radius: 12px;
 }
 
 body {
   margin: 0;
+  padding: 0;
+  background-color: var(--secondary-bg);
+  color: var(--text-main);
   font-family: var(--font-body);
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-container {
@@ -28,280 +27,200 @@ body {
   min-height: 100vh;
 }
 
-/* Navbar */
+/* Header (Instagram Style) */
 .navbar {
-  background-color: var(--white);
-  color: var(--text-color);
-  padding: 0 2rem;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
   height: 60px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 20px;
   position: sticky;
   top: 0;
   z-index: 1000;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .nav-brand {
-  font-size: 1.5rem;
-  font-weight: 800;
   font-family: var(--font-heading);
-  letter-spacing: -1px;
-  color: var(--text-color);
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: -0.5px;
+  color: var(--text-main);
 }
 
 .nav-links {
   display: flex;
-  gap: 1.5rem;
-  height: 100%;
+  gap: 20px;
 }
 
 .nav-item {
-  color: var(--text-color);
   text-decoration: none;
-  font-weight: 400;
-  display: flex;
-  align-items: center;
-  padding: 0 0.5rem;
-  transition: var(--transition);
-  opacity: 0.6;
-}
-
-.nav-item:hover {
-  opacity: 1;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
 }
 
 .nav-item.active {
-  font-weight: 700;
   opacity: 1;
+  font-weight: 700;
 }
 
-/* Main Content */
+/* Main Content Wrapper */
 .main-content {
   flex: 1;
-  padding: 1.5rem;
   max-width: 600px;
+  width: 100%;
   margin: 0 auto;
-  width: 100%;
+  padding: 20px;
   box-sizing: border-box;
 }
 
-/* Forms & Inputs */
-.form-group {
-  margin-bottom: 1rem;
+/* Common Card Style */
+.card, .form-container, .question-container, .post-item, .detail-container, .result-container {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+/* MBTI UI Upgrade */
+.progress-bar-container {
+  width: 100%;
+  height: 4px;
+  background: #efefef;
+  border-radius: 2px;
+  margin-bottom: 30px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
+.mbti-question {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 40px;
+  line-height: 1.4;
+}
+
+.btn-option {
+  width: 100%;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
   text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--gray);
+.btn-option:hover {
+  background: var(--secondary-bg);
+  border-color: var(--text-secondary);
 }
 
-input, textarea {
-  width: 100%;
-  padding: 0.8rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background-color: var(--secondary-color);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  box-sizing: border-box;
-  transition: var(--transition);
+.btn-option::after {
+  content: '→';
+  opacity: 0;
+  transition: 0.2s;
 }
 
-input:focus, textarea:focus {
-  outline: none;
-  border-color: var(--gray);
+.btn-option:hover::after {
+  opacity: 1;
+  transform: translateX(5px);
 }
 
 /* Buttons */
 .btn-primary {
-  background-color: var(--accent-color);
-  color: white;
+  background: var(--accent-color);
+  color: #fff;
   border: none;
-  padding: 0.6rem 1.2rem;
+  padding: 12px 24px;
   border-radius: 8px;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
-  transition: var(--transition);
-  font-size: 0.9rem;
+  transition: background 0.2s;
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-hover);
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background-color: transparent;
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  padding: 0.6rem 1.2rem;
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  padding: 12px 24px;
   border-radius: 8px;
-  cursor: pointer;
   font-weight: 600;
+  cursor: pointer;
 }
 
-/* Cards (Post Style) */
-.card, .post-item, .question-container, .form-container {
-  background: var(--white);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  overflow: hidden;
-}
-
-.form-container, .question-container {
-  padding: 2rem;
-}
-
-/* Board Styling (Social Style) */
-.board-header {
+/* Board (Feed Style) */
+.feed-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.board-header h2 {
-  font-size: 1.2rem;
-  margin: 0;
+  margin-bottom: 20px;
 }
 
 .post-item {
-  padding: 1rem;
   cursor: pointer;
-  transition: var(--transition);
-  text-align: left;
+  transition: transform 0.2s;
+  padding: 20px;
 }
 
-.post-item:hover {
-  background-color: var(--secondary-color);
+.post-item:active {
+  transform: scale(0.98);
 }
 
-.post-item .post-title {
+.post-user {
   font-weight: 700;
-  font-size: 1rem;
-  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
   display: block;
 }
 
-.post-item .post-meta {
-  font-size: 0.8rem;
-  color: var(--gray);
+.post-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
 
-/* Detail View */
-.detail-container {
-  background: var(--white);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: left;
-}
-
-.post-content h1 {
-  font-size: 1.5rem;
-  margin-top: 0;
-}
-
-.content-body {
-  white-space: pre-wrap;
-  line-height: 1.6;
-  margin: 1.5rem 0;
-}
-
-.comments-section {
-  border-top: 1px solid var(--border-color);
-  padding-top: 1rem;
-  margin-top: 1rem;
-}
-
-.comment-item {
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-
-.comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
+.post-summary {
+  font-size: 0.95rem;
+  color: #444;
+  line-height: 1.5;
 }
 
 /* Animations */
-.animate-fadeIn {
-  animation: fadeIn 0.4s ease-out;
+.animate-in {
+  animation: slideUp 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-pacity: 1; transform: translateY(0); }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* MBTI Specific */
-.progress {
-  color: var(--gray);
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
-}
-
-.type-code {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--accent-color);
-  display: block;
-  margin-bottom: 1.5rem;
-}
-
-/* Board Styles (inherited from previous version with adjustments) */
-.post-list {
-  background: var(--white);
-  border-radius: 12px;
-  overflow: hidden;
-  margin-top: 1rem;
-}
-
-.list-header {
-  display: grid;
-  grid-template-columns: 1fr 150px 200px;
-  padding: 1.2rem;
-  background: #f8f9fa;
-  font-weight: bold;
-  border-bottom: 2px solid var(--border-color);
-}
-
-.list-item {
-  display: grid;
-  grid-template-columns: 1fr 150px 200px;
-  padding: 1.2rem;
-  border-bottom: 1px solid #f1f1f1;
-  cursor: pointer;
-  transition: var(--transition);
-  text-align: left;
-}
-
-.list-item:hover {
-  background: #fcfcfc;
-  color: var(--accent-color);
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Footer */
 .app-footer {
-  padding: 2rem;
+  padding: 40px 20px;
   text-align: center;
-  color: var(--gray);
-  font-size: 0.9rem;
-  background: var(--white);
-  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
