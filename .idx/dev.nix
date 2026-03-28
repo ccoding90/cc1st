@@ -8,7 +8,7 @@
     pkgs.nodejs_22
     pkgs.python31pkgs.python311
     pkgs.imagemagick
-    pkgs.python311Packages.pillow
+    pkgs.python311Packages.pillow2
   ];
   # Sets environment variables in the workspace
   env = {};
