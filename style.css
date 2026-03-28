@@ -226,3 +226,51 @@ body {
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
+
+.footer-links {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.footer-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.footer-links a:hover {
+  text-decoration: underline;
+}
+
+/* Ad Slots (Better Ads Standards Compliant) */
+.ad-slot {
+  width: 100%;
+  background: #f0f0f0;
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  color: #ccc;
+  font-size: 0.7rem;
+  transition: height 0.3s ease;
+}
+
+.top-ad {
+  min-height: 90px;
+  max-height: 100px; /* Limit height to avoid high ad density */
+}
+
+.bottom-ad {
+  min-height: 100px;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 600px) {
+  .top-ad {
+    min-height: 50px; /* Responsive height for mobile */
+  }
+}
