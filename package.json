@@ -1,6 +1,7 @@
 {
   "name": "testground-intranet",
   "version": "1.0.0",
+  "type": "module",
   "description": "Internal Bulletin Board for employees using React and Firebase Firestore",
   "main": "index.js",
   "scripts": {
