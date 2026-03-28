@@ -79,11 +79,11 @@ export default function CelebrityTest() {
   const progressPercent = ((currentQuestion) / questions.length) * 100;
 
   return (
-    <div className="test-wrapper">
+    <div className="test-wrapper animate-in">
       <h2 className="test-title">💘 나와 찰떡인 연예인 이상형 테스트</h2>
 
       {!showResult ? (
-        <div className="test-card animate-in">
+        <div className="test-card">
           <div className="progress-bar"><div style={{ width: `${progressPercent}%` }} /></div>
           <p className="progress-text">진행도: {currentQuestion + 1} / {questions.length}</p>
           <h3 className="question-text">{questions[currentQuestion].text}</h3>
@@ -96,7 +96,7 @@ export default function CelebrityTest() {
           </div>
         </div>
       ) : (
-        <div className="result-card animate-in">
+        <div className="result-card">
           <h3 className="result-header">당신의 완벽한 이상형은 바로...</h3>
           <img src={matchedCeleb.image} alt={matchedCeleb.name} className="celeb-img" />
           <h2 className="celeb-name">{matchedCeleb.name} {matchedCeleb.emoji}</h2>
