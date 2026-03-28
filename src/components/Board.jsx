@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 
 const formatDate = (timestamp) => {
-  if (!timestamp) return '...';
+  if (!timestamp || typeof timestamp.toDate !== 'function') return '...';
   const date = timestamp.toDate();
   return date.toLocaleString();
 };
