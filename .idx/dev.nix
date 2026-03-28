@@ -6,9 +6,9 @@
   # Use https://search.nixos.org/packages to find packages
   packages = [
     pkgs.nodejs_22
-    pkgs.python31pkgs.python311
+    pkgs.python31pkgs.python
     pkgs.imagemagick
-    pkgs.python311Packages.pillow2
+    pkgs.python311Packages.pillow
   ];
   # Sets environment variables in the workspace
   env = {};

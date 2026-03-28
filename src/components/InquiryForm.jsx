@@ -23,15 +23,23 @@ const InquiryForm = () => {
     }[lang];
 
     return (
-        <div className="inquiry-page animate-fadeIn">
-            <div className="lang-toggle-container">
-                <button className={`lang-btn ${lang === 'en' ? 'active' : ''}`} onClick={() => setLang('en')}>EN</button>
-                <button className={`lang-btn ${lang === 'ko' ? 'active' : ''}`} onClick={() => setLang('ko')}>KO</button>
+        <div className="inquiry-page animate-in">
+            <div className="lang-toggle-container" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '16px' }}>
+                <button 
+                  className={`lang-btn ${lang === 'en' ? 'active' : ''}`} 
+                  onClick={() => setLang('en')}
+                  style={{ background: lang === 'en' ? 'var(--accent-color)' : 'transparent', color: lang === 'en' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                >EN</button>
+                <button 
+                  className={`lang-btn ${lang === 'ko' ? 'active' : ''}`} 
+                  onClick={() => setLang('ko')}
+                  style={{ background: lang === 'ko' ? 'var(--accent-color)' : 'transparent', color: lang === 'ko' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                >KO</button>
             </div>
             <div className="form-container">
-                <div className="form-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem' }}>{t.title}</h2>
-                    <p style={{ color: '#8e8e8e', fontSize: '0.9rem' }}>{t.desc}</p>
+                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 10px 0' }}>{t.title}</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>{t.desc}</p>
                 </div>
                 <form action="https://formspree.io/f/xwvwvbqz" method="POST">
                     <div className="form-group">
@@ -40,15 +48,15 @@ const InquiryForm = () => {
                     </div>
                     <div className="form-group">
                         <label>{t.messageLabel}</label>
-                        <textarea name="message" rows="6" required placeholder="여기에 문의 내용을 상세히 적어주세요..."></textarea>
+                        <textarea name="message" rows="8" required placeholder="문의하실 내용을 상세히 적어주세요..."></textarea>
                     </div>
-                    <button type="submit" className="btn-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '1rem' }}>
+                    <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
                         {t.send}
                     </button>
                 </form>
             </div>
-            <div style={{ textAlign: 'center', marginTop: '2rem', color: '#8e8e8e', fontSize: '0.8rem' }}>
-                <p>평일 기준 24시간 이내에 답변해 드립니다.</p>
+            <div style={{ textAlign: 'center', marginTop: '30px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                <p>보내주신 문의는 담당자가 확인 후 영업일 기준 24시간 내에 답변드립니다.</p>
             </div>
         </div>
     );
