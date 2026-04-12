@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 메인 페이지 -->
+  <url>
+    <loc>https://ccgg.web.app/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <!-- 이달의 테스트 허브 -->
+  <url>
+    <loc>https://ccgg.web.app/trending</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <!-- 기존 테스트 -->
+  <url>
+    <loc>https://ccgg.web.app/mbti</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/celebrity</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- 신규 테스트 -->
+  <url>
+    <loc>https://ccgg.web.app/love-language</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/mental-age</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/kpop-fan</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/color-test</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/stress-type</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-04-01</lastmod>
+  </url>
+  <!-- 블로그 & 커뮤니티 -->
+  <url>
+    <loc>https://ccgg.web.app/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/board</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <!-- 정보 페이지 -->
+  <url>
+    <loc>https://ccgg.web.app/about</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://ccgg.web.app/inquiry</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

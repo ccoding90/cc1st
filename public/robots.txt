@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# 사이트맵 위치 (실제 도메인으로 업데이트 필요)
+Sitemap: https://ccgg.web.app/sitemap.xml
