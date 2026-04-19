@@ -160,11 +160,17 @@ function NovelCard({ novel, onClick }) {
   );
 }
 
-// ── NovelForm (신규 작품 등록) ────────────────────────────────
-function NovelForm({ onCancel }) {
+// ── NovelForm (신규 등록 / 정보 수정 겸용) ───────────────────
+// novelId 가 있으면 수정 모드, 없으면 신규 등록 모드
+function NovelForm({ onCancel, novelId = null, initialData = null }) {
+  const isEdit = !!novelId;
   const [form, setForm] = useState({
-    title: '', description: '', genre: '로맨스', status: '연재중',
-    coverEmoji: '📖', coverColor: COVER_COLORS[0],
+    title:      initialData?.title       ?? '',
+    description:initialData?.description ?? '',
+    genre:      initialData?.genre       ?? '로맨스',
+    status:     initialData?.status      ?? '연재중',
+    coverEmoji: initialData?.coverEmoji  ?? '📖',
+    coverColor: initialData?.coverColor  ?? COVER_COLORS[0],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -173,21 +179,33 @@ function NovelForm({ onCancel }) {
     if (!form.title.trim()) return alert('제목을 입력해주세요.');
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'novels'), {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        genre: form.genre,
-        status: form.status,
-        coverEmoji: form.coverEmoji,
-        coverColor: form.coverColor,
-        chapterCount: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      if (isEdit) {
+        await updateDoc(doc(db, 'novels', novelId), {
+          title:       form.title.trim(),
+          description: form.description.trim(),
+          genre:       form.genre,
+          status:      form.status,
+          coverEmoji:  form.coverEmoji,
+          coverColor:  form.coverColor,
+          updatedAt:   serverTimestamp(),
+        });
+      } else {
+        await addDoc(collection(db, 'novels'), {
+          title:        form.title.trim(),
+          description:  form.description.trim(),
+          genre:        form.genre,
+          status:       form.status,
+          coverEmoji:   form.coverEmoji,
+          coverColor:   form.coverColor,
+          chapterCount: 0,
+          createdAt:    serverTimestamp(),
+          updatedAt:    serverTimestamp(),
+        });
+      }
       onCancel();
     } catch (err) {
       console.error(err);
-      alert('등록 중 오류가 발생했습니다.');
+      alert('저장 중 오류가 발생했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -195,7 +213,9 @@ function NovelForm({ onCancel }) {
 
   return (
     <div className="form-container animate-in">
-      <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '22px' }}>📝 새 작품 등록</h3>
+      <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '22px' }}>
+        {isEdit ? '✏️ 작품 정보 수정' : '📝 새 작품 등록'}
+      </h3>
       <form onSubmit={handleSubmit}>
 
         {/* 커버 색상 */}
@@ -281,7 +301,7 @@ function NovelForm({ onCancel }) {
             border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '0.95rem',
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}>
-            {submitting ? '등록 중...' : '작품 등록하기 ✓'}
+            {submitting ? '저장 중...' : (isEdit ? '수정 저장하기 ✓' : '작품 등록하기 ✓')}
           </button>
         </div>
       </form>
@@ -291,23 +311,24 @@ function NovelForm({ onCancel }) {
 
 // ── NovelDetail (목차 페이지) ────────────────────────────────
 function NovelDetail({ novelId, onBack, onSelectChapter }) {
-  const [novel, setNovel]     = useState(null);
+  const [novel, setNovel]       = useState(null);
   const [chapters, setChapters] = useState([]);
-  const [showChapterForm, setShowChapterForm] = useState(false);
+  // subView: null | 'editNovel' | 'newChapter' | { editChapter: chapterObj }
+  const [subView, setSubView]   = useState(null);
 
   useEffect(() => {
-    (async () => {
-      const snap = await getDoc(doc(db, 'novels', novelId));
+    const unsub = onSnapshot(doc(db, 'novels', novelId), snap => {
       if (snap.exists()) setNovel({ id: snap.id, ...snap.data() });
-    })();
+    });
 
     const q = query(
       collection(db, 'novels', novelId, 'chapters'),
       orderBy('number', 'asc')
     );
-    return onSnapshot(q, snap =>
+    const unsubChapters = onSnapshot(q, snap =>
       setChapters(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
+    return () => { unsub(); unsubChapters(); };
   }, [novelId]);
 
   const handleDeleteNovel = async () => {
@@ -330,11 +351,27 @@ function NovelDetail({ novelId, onBack, onSelectChapter }) {
     ? Math.max(...chapters.map(c => c.number)) + 1
     : 1;
 
-  if (showChapterForm) return (
+  // ── 서브뷰 렌더 ──
+  if (subView === 'editNovel' && novel) return (
+    <NovelForm
+      novelId={novelId}
+      initialData={novel}
+      onCancel={() => setSubView(null)}
+    />
+  );
+  if (subView === 'newChapter') return (
     <ChapterForm
       novelId={novelId}
       nextNumber={nextNumber}
-      onCancel={() => setShowChapterForm(false)}
+      onCancel={() => setSubView(null)}
+    />
+  );
+  if (subView?.editChapter) return (
+    <ChapterForm
+      novelId={novelId}
+      chapterId={subView.editChapter.id}
+      initialData={subView.editChapter}
+      onCancel={() => setSubView(null)}
     />
   );
 
@@ -390,9 +427,9 @@ function NovelDetail({ novelId, onBack, onSelectChapter }) {
       </div>
 
       {/* 관리자 버튼 */}
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginBottom: '16px', flexWrap: 'wrap' }}>
         <button
-          onClick={() => { if (verifyAdmin()) setShowChapterForm(true); }}
+          onClick={() => { if (verifyAdmin()) setSubView('newChapter'); }}
           style={{
             padding: '8px 16px', background: '#6c5ce7', color: '#fff',
             border: 'none', borderRadius: '8px', fontWeight: 700,
@@ -400,6 +437,16 @@ function NovelDetail({ novelId, onBack, onSelectChapter }) {
           }}
         >
           ✍️ 새 화 추가
+        </button>
+        <button
+          onClick={() => { if (verifyAdmin()) setSubView('editNovel'); }}
+          style={{
+            padding: '8px 14px', background: 'white', color: '#6c5ce7',
+            border: '1px solid #6c5ce7', borderRadius: '8px',
+            fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+          }}
+        >
+          ✏️ 작품 정보 수정
         </button>
         <button onClick={handleDeleteNovel} style={{
           padding: '8px 14px', background: 'white', color: '#e74c3c',
@@ -426,6 +473,7 @@ function NovelDetail({ novelId, onBack, onSelectChapter }) {
             chapter={ch}
             novelId={novelId}
             onClick={() => onSelectChapter(ch.id)}
+            onEdit={() => { if (verifyAdmin()) setSubView({ editChapter: ch }); }}
           />
         ))
       )}
@@ -434,7 +482,7 @@ function NovelDetail({ novelId, onBack, onSelectChapter }) {
 }
 
 // ── ChapterRow ───────────────────────────────────────────────
-function ChapterRow({ chapter, novelId, onClick }) {
+function ChapterRow({ chapter, novelId, onClick, onEdit }) {
   const handleDelete = async (e) => {
     e.stopPropagation();
     if (!verifyAdmin()) return;
@@ -481,26 +529,46 @@ function ChapterRow({ chapter, novelId, onClick }) {
         </div>
       </div>
 
-      {/* 삭제 버튼 */}
-      <button
-        onClick={handleDelete}
-        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-        onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-        style={{
-          flexShrink: 0, padding: '5px 10px', background: 'transparent',
-          color: '#e74c3c', border: '1px solid #e74c3c',
-          borderRadius: '6px', fontSize: '0.73rem', cursor: 'pointer', opacity: 0.5,
-        }}
-      >
-        삭제
-      </button>
+      {/* 수정 · 삭제 버튼 */}
+      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onEdit}
+          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+          style={{
+            padding: '5px 10px', background: 'transparent',
+            color: '#6c5ce7', border: '1px solid #6c5ce7',
+            borderRadius: '6px', fontSize: '0.73rem', cursor: 'pointer', opacity: 0.5,
+          }}
+        >
+          ✏️ 수정
+        </button>
+        <button
+          onClick={handleDelete}
+          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+          style={{
+            padding: '5px 10px', background: 'transparent',
+            color: '#e74c3c', border: '1px solid #e74c3c',
+            borderRadius: '6px', fontSize: '0.73rem', cursor: 'pointer', opacity: 0.5,
+          }}
+        >
+          🗑️ 삭제
+        </button>
+      </div>
     </div>
   );
 }
 
-// ── ChapterForm (새 화 작성) ─────────────────────────────────
-function ChapterForm({ novelId, nextNumber, onCancel }) {
-  const [form, setForm] = useState({ number: nextNumber, title: '', content: '' });
+// ── ChapterForm (새 화 작성 / 기존 화 수정 겸용) ─────────────
+// chapterId 가 있으면 수정 모드, 없으면 신규 작성 모드
+function ChapterForm({ novelId, nextNumber = 1, chapterId = null, initialData = null, onCancel }) {
+  const isEdit = !!chapterId;
+  const [form, setForm] = useState({
+    number:  initialData?.number  ?? nextNumber,
+    title:   initialData?.title   ?? '',
+    content: initialData?.content ?? '',
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -508,20 +576,33 @@ function ChapterForm({ novelId, nextNumber, onCancel }) {
     if (!form.content.trim()) return alert('본문을 입력해주세요.');
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'novels', novelId, 'chapters'), {
-        number:    form.number,
-        title:     form.title.trim(),
-        content:   form.content.trim(),
-        createdAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, 'novels', novelId), {
-        chapterCount: increment(1),
-        updatedAt:    serverTimestamp(),
-      });
+      if (isEdit) {
+        // 수정 모드: 화 내용 업데이트
+        await updateDoc(doc(db, 'novels', novelId, 'chapters', chapterId), {
+          number:  form.number,
+          title:   form.title.trim(),
+          content: form.content.trim(),
+        });
+        await updateDoc(doc(db, 'novels', novelId), {
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // 신규 작성 모드
+        await addDoc(collection(db, 'novels', novelId, 'chapters'), {
+          number:    form.number,
+          title:     form.title.trim(),
+          content:   form.content.trim(),
+          createdAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, 'novels', novelId), {
+          chapterCount: increment(1),
+          updatedAt:    serverTimestamp(),
+        });
+      }
       onCancel();
     } catch (err) {
       console.error(err);
-      alert('등록 중 오류가 발생했습니다.');
+      alert('저장 중 오류가 발생했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -530,7 +611,7 @@ function ChapterForm({ novelId, nextNumber, onCancel }) {
   return (
     <div className="form-container animate-in">
       <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '22px' }}>
-        ✍️ {form.number}화 작성
+        {isEdit ? `✏️ ${form.number}화 수정` : `✍️ ${form.number}화 작성`}
       </h3>
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -570,7 +651,7 @@ function ChapterForm({ novelId, nextNumber, onCancel }) {
             border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '0.95rem',
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}>
-            {submitting ? '등록 중...' : `${form.number}화 등록하기 ✓`}
+            {submitting ? '저장 중...' : (isEdit ? `${form.number}화 수정 저장 ✓` : `${form.number}화 등록하기 ✓`)}
           </button>
         </div>
       </form>
@@ -584,6 +665,7 @@ function ChapterReader({ novelId, initialChapterId, onBack }) {
   const [chapter, setChapter]     = useState(null);
   const [allChapters, setAllChapters] = useState([]);
   const [novelTitle, setNovelTitle]   = useState('');
+  const [editing, setEditing]         = useState(false);
 
   // 전체 챕터 목록 1회 로드
   useEffect(() => {
@@ -618,13 +700,41 @@ function ChapterReader({ novelId, initialChapterId, onBack }) {
     <div style={{ textAlign: 'center', padding: '80px', color: '#bbb' }}>불러오는 중...</div>
   );
 
+  // 읽기 뷰에서 수정 모드로 전환
+  if (editing) return (
+    <ChapterForm
+      novelId={novelId}
+      chapterId={currentId}
+      initialData={chapter}
+      onCancel={() => {
+        setEditing(false);
+        // 수정 후 최신 내용 다시 로드
+        setChapter(null);
+        getDoc(doc(db, 'novels', novelId, 'chapters', currentId))
+          .then(snap => { if (snap.exists()) setChapter({ id: snap.id, ...snap.data() }); });
+      }}
+    />
+  );
+
   return (
     <div className="animate-in" style={{ maxWidth: '700px', margin: '0 auto' }}>
-      {/* 뒤로가기 */}
-      <button className="btn-secondary" onClick={onBack}
-        style={{ marginBottom: '20px', fontSize: '0.85rem', padding: '7px 14px' }}>
-        ← 목차로
-      </button>
+      {/* 상단 버튼 행 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <button className="btn-secondary" onClick={onBack}
+          style={{ fontSize: '0.85rem', padding: '7px 14px' }}>
+          ← 목차로
+        </button>
+        <button
+          onClick={() => { if (verifyAdmin()) setEditing(true); }}
+          style={{
+            padding: '7px 14px', background: 'white', color: '#6c5ce7',
+            border: '1px solid #6c5ce7', borderRadius: '8px',
+            fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+          }}
+        >
+          ✏️ 이 화 수정
+        </button>
+      </div>
 
       {/* 챕터 헤더 */}
       <div style={{
@@ -640,9 +750,7 @@ function ChapterReader({ novelId, initialChapterId, onBack }) {
         <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#6c5ce7', fontWeight: 700 }}>
           {chapter.number}화
         </p>
-        <h2 style={{
-          margin: '0 0 10px', fontWeight: 800, fontSize: '1.35rem', color: '#1a1a1a', lineHeight: 1.4
-        }}>
+        <h2 style={{ margin: '0 0 10px', fontWeight: 800, fontSize: '1.35rem', color: '#1a1a1a', lineHeight: 1.4 }}>
           {chapter.title || `${chapter.number}화`}
         </h2>
         <p style={{ margin: 0, fontSize: '0.76rem', color: '#ccc' }}>
