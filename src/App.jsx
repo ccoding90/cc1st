@@ -11,6 +11,9 @@ import ColorTest from './components/ColorTest';
 import MentalAgeTest from './components/MentalAgeTest';
 import KpopFanTest from './components/KpopFanTest';
 import StressTypeTest from './components/StressTypeTest';
+import InvestmentTypeTest from './components/InvestmentTypeTest';
+import GatsaengTest from './components/GatsaengTest';
+import DatingStyleTest from './components/DatingStyleTest';
 import AboutPage from './components/AboutPage';
 import PrivacyPolicy from './components/PrivacyPolicy';
 
@@ -44,6 +47,10 @@ const App = () => {
             <Route path="/mental-age" element={<div className="mbti-wrapper"><MentalAgeTest /></div>} />
             <Route path="/kpop-fan" element={<div className="mbti-wrapper"><KpopFanTest /></div>} />
             <Route path="/stress-type" element={<div className="mbti-wrapper"><StressTypeTest /></div>} />
+            {/* 4월 신규 테스트 */}
+            <Route path="/investment-type" element={<div className="mbti-wrapper"><InvestmentTypeTest /></div>} />
+            <Route path="/gatsaeng-test" element={<div className="mbti-wrapper"><GatsaengTest /></div>} />
+            <Route path="/dating-style" element={<div className="mbti-wrapper"><DatingStyleTest /></div>} />
             {/* 블로그 & 커뮤니티 */}
             <Route path="/blog" element={<div className="blog-wrapper"><MbtiBlog /></div>} />
             <Route path="/board" element={<div className="feed-wrapper"><Board /></div>} />

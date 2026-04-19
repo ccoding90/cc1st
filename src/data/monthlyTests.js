@@ -4,9 +4,42 @@
 export const MONTHLY_TESTS = {
   '2026-04': {
     label: '2026년 4월',
-    description: '봄의 설렘이 가득한 이달의 인기 테스트 🌸',
+    description: '4월 최신 트렌드 테스트 3종 업데이트! 주식·갓생·연애 🌸',
     emoji: '🌸',
     tests: [
+      {
+        id: 'investment-type',
+        title: '주식 투자 유형 테스트',
+        description: '나의 투자 성향은? 성장주·가치투자·ETF·트렌드형 중 어떤 유형인지 알아보세요.',
+        emoji: '📈',
+        tags: ['주식', '투자', '재테크'],
+        path: '/investment-type',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 1
+      },
+      {
+        id: 'gatsaeng-test',
+        title: '갓생 레벨 테스트',
+        description: '나는 얼마나 갓생살고 있을까? 2026 MZ세대 최고 트렌드 갓생 지수 체크!',
+        emoji: '🔥',
+        tags: ['갓생', '자기계발', 'MZ'],
+        path: '/gatsaeng-test',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 2
+      },
+      {
+        id: 'dating-style',
+        title: '연애 리얼리티 유형 테스트',
+        description: '하트시그널 속 나는 어떤 유형? 로맨티스트·전략가·직진형·관찰형 중 나는?',
+        emoji: '💘',
+        tags: ['연애', '하트시그널', '심리'],
+        path: '/dating-style',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 3
+      },
       {
         id: 'love-language',
         title: '러브 랭귀지 테스트',
@@ -15,8 +48,8 @@ export const MONTHLY_TESTS = {
         tags: ['연애', '심리', '관계'],
         path: '/love-language',
         isAvailable: true,
-        isNew: true,
-        searchRank: 1
+        isNew: false,
+        searchRank: 4
       },
       {
         id: 'mental-age',
@@ -26,8 +59,8 @@ export const MONTHLY_TESTS = {
         tags: ['심리', '성격', '유머'],
         path: '/mental-age',
         isAvailable: true,
-        isNew: true,
-        searchRank: 2
+        isNew: false,
+        searchRank: 5
       },
       {
         id: 'kpop-fan',
@@ -37,8 +70,8 @@ export const MONTHLY_TESTS = {
         tags: ['K-POP', '음악', '팬덤'],
         path: '/kpop-fan',
         isAvailable: true,
-        isNew: true,
-        searchRank: 3
+        isNew: false,
+        searchRank: 6
       },
       {
         id: 'mbti',
@@ -49,18 +82,7 @@ export const MONTHLY_TESTS = {
         path: '/mbti',
         isAvailable: true,
         isNew: false,
-        searchRank: 4
-      },
-      {
-        id: 'celebrity',
-        title: '연예인 이상형 테스트',
-        description: '나와 찰떡인 연예인 이상형은 누구? 차은우? 젠데이아?',
-        emoji: '💘',
-        tags: ['연애', '이상형', '연예인'],
-        path: '/celebrity',
-        isAvailable: true,
-        isNew: false,
-        searchRank: 5
+        searchRank: 7
       }
     ]
   },
