@@ -53,6 +53,7 @@ export default function AboutPage() {
       <div className="about-section">
         <h2>📋 제공 중인 테스트</h2>
         <ul className="about-test-list">
+          <li><Link to="/insight">심리 인사이트 블로그</Link> — 러브 랭귀지·색채 심리·투자 심리학 등 심층 아티클</li>
           <li><Link to="/mbti">MBTI 성격 유형 테스트</Link> — 16가지 성격 유형으로 나를 알아보세요</li>
           <li><Link to="/celebrity">연예인 이상형 테스트</Link> — 나와 찰떡인 연예인 이상형을 알아보세요</li>
           <li><Link to="/love-language">러브 랭귀지 테스트</Link> — 내가 사랑을 표현하고 받는 방식을 알아보세요</li>
