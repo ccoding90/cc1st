@@ -127,6 +127,7 @@ const RESULTS = {
 };
 
 export default function MentalAgeTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ T10: 0, T20: 0, T30: 0, T40: 0, T50: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -165,6 +166,41 @@ export default function MentalAgeTest() {
   };
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">🧠 심리 나이 테스트</h1>
+        <p className="intro-subtitle">당신의 마음은 몇 살인가요? 생각과 행동 패턴으로 알아보는 심리적 나이</p>
+
+        <div className="intro-section">
+          <h2>심리 나이란 무엇인가요?</h2>
+          <p>심리 나이(Mental Age)는 실제 나이와 무관하게 일상적인 사고방식, 감정 반응, 행동 패턴이 몇 살에 가까운지를 나타내는 심리학적 개념입니다. 20대이지만 노련하고 안정적인 40대의 사고방식을 가진 사람이 있는가 하면, 50대임에도 10대처럼 호기심 넘치고 자유로운 마음으로 사는 사람도 있습니다.</p>
+          <p>심리 나이는 좋고 나쁨의 문제가 아닙니다. 각 심리 나이마다 고유한 매력과 강점이 있으며, 자신의 심리 나이를 이해하면 왜 특정 상황에서 특정한 반응을 보이는지, 어떤 환경에서 가장 편안함을 느끼는지를 파악하는 데 도움이 됩니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>심리 나이별 특징</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>10대 마음</strong><p>열정적이고 즉흥적. 새로운 것에 빠르게 흥미를 느끼고, 현재의 감정에 충실하게 반응합니다.</p></div>
+            <div className="intro-card"><strong>20대 마음</strong><p>자유롭고 탐험적. 다양한 경험을 추구하며, 변화와 도전을 두려워하지 않는 에너지가 있습니다.</p></div>
+            <div className="intro-card"><strong>30대 마음</strong><p>균형과 성취를 중시. 현실적이면서도 꿈을 포기하지 않는, 가장 활동적인 심리 연령대입니다.</p></div>
+            <div className="intro-card"><strong>40대 마음</strong><p>안정과 깊이를 추구. 인간관계의 질을 중시하고, 쉽게 흔들리지 않는 단단한 내면을 가집니다.</p></div>
+            <div className="intro-card"><strong>50대+ 마음</strong><p>여유와 지혜. 사소한 것에 흔들리지 않고, 삶을 넓은 시각으로 바라보는 성숙한 태도를 가집니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>총 10문항으로 구성되어 있으며, 일상에서 자신의 실제 행동과 생각에 가장 가까운 답을 선택해주세요. 소요 시간은 약 2분입니다. 결과는 참고용이며 절대적인 기준이 아닙니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="test-wrapper animate-in">

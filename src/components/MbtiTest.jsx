@@ -243,6 +243,7 @@ const DESCRIPTIONS = {
 };
 
 const MbtiTest = () => {
+  const [started, setStarted] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState({ E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -404,6 +405,53 @@ const MbtiTest = () => {
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">MBTI 성격 유형 테스트</h1>
+        <p className="intro-subtitle">나는 어떤 사람일까? 12문항으로 알아보는 성격 유형 검사</p>
+
+        <div className="intro-section">
+          <h2>MBTI란 무엇인가?</h2>
+          <p>MBTI(Myers-Briggs Type Indicator)는 심리학자 칼 구스타프 융의 심리 유형론을 바탕으로, 캐서린 쿡 브릭스와 이사벨 브릭스 마이어스 모녀가 개발한 성격 유형 지표입니다. 1940년대 처음 개발된 이후 꾸준히 연구·개선되어 오늘날 전 세계에서 가장 널리 사용되는 성격 유형 검사 중 하나가 되었습니다.</p>
+          <p>MBTI는 단순한 흥미 위주 테스트가 아닙니다. 자기 자신을 더 깊이 이해하고, 타인과의 차이를 받아들이며, 커리어·연애·대인관계에서 더 나은 선택을 할 수 있도록 돕는 실용적인 자기 이해 도구로 활용됩니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>4가지 선호 지표</h2>
+          <div className="intro-grid">
+            <div className="intro-card">
+              <strong>E / I — 에너지 방향</strong>
+              <p>외향(E)은 사람·활동에서 에너지를 충전하고, 내향(I)은 혼자만의 사색에서 에너지를 회복합니다. 사교적인지의 여부가 아닌 에너지의 원천이 핵심입니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>S / N — 인식 기능</strong>
+              <p>감각(S)은 현재의 구체적 사실을 신뢰하고, 직관(N)은 패턴·가능성·미래에 주목합니다. 같은 상황도 전혀 다르게 '보는' 방식입니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>T / F — 판단 기능</strong>
+              <p>사고(T)는 논리와 객관적 분석으로 결론을 내리고, 감정(F)은 인간적 가치와 관계의 조화를 고려합니다. 옳고 그름보다 결정 방식의 차이입니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>J / P — 생활 양식</strong>
+              <p>판단(J)은 계획적이고 체계적인 삶을 선호하며, 인식(P)은 유연하고 개방적인 태도로 상황에 적응합니다. 일상을 대하는 근본적인 태도의 차이입니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법 및 유의사항</h2>
+          <p>총 12개 문항으로 구성되어 있으며, 각 문항에서 자신의 평소 성향에 더 가까운 답을 선택해주세요. 정답이 없으니 '이상적인 나'가 아닌 '실제 나'를 기준으로 솔직하게 선택하는 것이 중요합니다. 검사 소요 시간은 약 2~3분입니다.</p>
+          <p>MBTI 결과는 참고용이며 절대적인 성격 판단의 기준이 아닙니다. 같은 유형이라도 개인의 경험과 환경에 따라 전혀 다른 사람이 될 수 있습니다. 결과를 통해 '나는 왜 이런 상황에서 이렇게 반응할까?'를 이해하는 출발점으로 활용해보세요.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
       </div>
     );
   }

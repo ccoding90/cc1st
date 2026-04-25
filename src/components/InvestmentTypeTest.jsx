@@ -127,6 +127,7 @@ const RESULTS = {
 };
 
 export default function InvestmentTypeTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ GROWTH: 0, VALUE: 0, SAFE: 0, TREND: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -172,6 +173,40 @@ export default function InvestmentTypeTest() {
   };
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">📈 주식 투자 유형 테스트</h1>
+        <p className="intro-subtitle">나의 투자 성향은? 10문항으로 알아보는 2026 주식 투자 스타일</p>
+
+        <div className="intro-section">
+          <h2>투자 성향 파악이 중요한 이유</h2>
+          <p>주식 투자에서 가장 위험한 것은 시장보다 자기 자신을 모르는 것입니다. 같은 종목이 30% 하락했을 때 어떤 사람은 저점 매수 기회로 보고, 어떤 사람은 공황 상태로 전액 매도합니다. 이 차이는 지식의 차이가 아니라 투자 성향의 차이에서 비롯됩니다.</p>
+          <p>자신의 투자 성향을 정확히 파악하면, 자신에게 맞는 투자 전략을 세울 수 있고, 감정적 의사결정으로 인한 손실을 줄일 수 있습니다. 특히 2026년 AI·반도체·ETF 투자가 화두인 현재, 나의 성향에 맞는 접근 방식을 찾는 것이 더욱 중요합니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>4가지 투자 유형</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>📈 성장주 투자형</strong><p>AI·반도체·바이오 등 미래 성장 가능성에 베팅하는 타입. 높은 수익률을 추구하며 변동성을 감수합니다.</p></div>
+            <div className="intro-card"><strong>💎 가치 투자형</strong><p>재무제표와 내재가치를 분석해 저평가된 종목을 장기 보유하는 워런 버핏형 투자자입니다.</p></div>
+            <div className="intro-card"><strong>🏦 안전 투자형</strong><p>예적금·채권·ETF 등 안정적인 자산을 선호하는 타입. 원금 보존을 최우선으로 생각합니다.</p></div>
+            <div className="intro-card"><strong>🔥 트렌드 투자형</strong><p>시장 핫이슈와 모멘텀을 따라 빠르게 매매하는 타입. 타이밍이 수익의 핵심입니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법 및 유의사항</h2>
+          <p>총 10문항으로 구성되어 있으며, 실제 자신의 투자 행동이나 성향에 가장 가까운 답을 선택해주세요. 투자 경험이 없다면 '만약 투자한다면'이라는 가정으로 답해도 좋습니다. 이 테스트 결과는 참고용이며 실제 투자 조언이 아닙니다. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="test-wrapper animate-in">

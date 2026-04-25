@@ -127,6 +127,7 @@ const RESULTS = {
 };
 
 export default function GatsaengTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ PERFECT: 0, ACHIEVER: 0, BALANCED: 0, FREE: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -172,6 +173,40 @@ export default function GatsaengTest() {
   };
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">🔥 갓생 레벨 테스트</h1>
+        <p className="intro-subtitle">나는 얼마나 갓생살고 있을까? 10문항으로 알아보는 나의 갓생 유형</p>
+
+        <div className="intro-section">
+          <h2>'갓생'이란 무엇인가?</h2>
+          <p>'갓생(God生)'은 신(God)과 인생(生)의 합성어로, 2020년대 MZ세대가 만들어낸 신조어입니다. 매일 아침 일찍 일어나고, 운동하고, 독서하고, 건강한 식사를 챙기며 자기관리를 철저히 하는 삶을 뜻합니다. 소셜 미디어를 통해 자신의 루틴을 공유하는 '갓생 챌린지'가 큰 인기를 끌며 하나의 라이프스타일 트렌드로 자리잡았습니다.</p>
+          <p>그러나 갓생은 단순히 빡빡한 루틴을 소화하는 것이 아닙니다. 자신만의 속도로 조금씩 나아가는 것, 번아웃 없이 지속 가능한 성장을 추구하는 것도 갓생입니다. 이 테스트는 당신의 생활 패턴을 분석해 4가지 갓생 유형 중 어디에 속하는지 알려드립니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>4가지 갓생 유형</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>👑 갓생 마스터</strong><p>루틴이 완벽하게 자리 잡힌 진정한 갓생러. 기상, 운동, 식단, 계획이 모두 최적화되어 있습니다.</p></div>
+            <div className="intro-card"><strong>🚀 갓생 어치버</strong><p>목표 지향적이고 성취욕이 강한 타입. 완벽하진 않지만 꾸준히 성장을 향해 나아가는 중입니다.</p></div>
+            <div className="intro-card"><strong>⚖️ 균형 추구형</strong><p>갓생과 자유 사이에서 균형을 잡는 타입. 무리하지 않고 지속 가능한 삶을 추구합니다.</p></div>
+            <div className="intro-card"><strong>🌊 자유 영혼형</strong><p>계획보다 현재의 즐거움을 중시하는 타입. 나만의 방식으로 행복을 찾는 자유로운 삶입니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>총 10문항으로 구성되어 있으며, 현재 자신의 실제 생활 패턴에 가장 가까운 답을 선택해주세요. 이상적인 모습이 아닌 오늘의 나를 기준으로 솔직하게 선택하는 것이 가장 정확합니다. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="test-wrapper animate-in">

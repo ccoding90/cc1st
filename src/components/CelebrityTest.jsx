@@ -41,6 +41,7 @@ const celebrityResults = [
 ];
 
 export default function CelebrityTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ E: 0, I: 0, F: 0, T: 0, J: 0, P: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -77,6 +78,49 @@ export default function CelebrityTest() {
   };
 
   const progressPercent = ((currentQuestion) / questions.length) * 100;
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">💘 연예인 이상형 테스트</h1>
+        <p className="intro-subtitle">나와 찰떡인 연예인 이상형은 누구일까? 10문항으로 알아보는 매력 궁합 검사</p>
+
+        <div className="intro-section">
+          <h2>이상형 테스트란?</h2>
+          <p>연애에서 끌리는 스타일, 애정 표현 방식, 데이트 취향, 갈등 해결 방법 등을 분석해 나와 가장 잘 맞는 이상형의 유형을 도출합니다. 단순한 외모 취향이 아닌, 관계의 방식과 가치관을 기반으로 매칭 결과를 제시합니다.</p>
+          <p>우리는 연애를 시작할 때 종종 "눈에 띄는 외모"나 "첫인상"에 집중하지만, 장기적으로 행복한 관계를 만드는 요소는 성격적 궁합과 소통 방식의 일치에 있습니다. 이 테스트는 당신의 연애 스타일과 가치관을 파악해, 어떤 유형의 이상형과 가장 잘 맞는지를 알려드립니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>어떤 기준으로 매칭되나요?</h2>
+          <div className="intro-grid">
+            <div className="intro-card">
+              <strong>에너지 스타일 (E/I)</strong>
+              <p>활발하고 적극적인 관계를 선호하는지, 차분하고 깊이 있는 연결을 원하는지에 따라 매칭이 달라집니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>감정 표현 방식 (F/T)</strong>
+              <p>감성적이고 공감 넘치는 애정 표현을 원하는지, 실용적이고 든든한 파트너를 원하는지를 분석합니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>라이프스타일 (J/P)</strong>
+              <p>계획적이고 안정적인 관계를 선호하는지, 자유롭고 즉흥적인 만남을 즐기는지를 파악합니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>매칭 연예인 유형</h2>
+          <p>차은우(따뜻한 로맨티스트), 제니(트렌디한 개성파), 티모시 샬라메(감성적인 예술가), 젠데이아(에너지 넘치는 자유인) 4가지 유형 중 당신과 가장 어울리는 이상형 스타일을 매칭합니다. 실제 특정 연예인을 지칭하는 것이 아닌, 해당 이미지를 가진 이상형 유형을 상징적으로 표현한 것입니다.</p>
+          <p>총 10문항이며, 솔직하게 나의 연애 취향과 가치관을 선택해주세요. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="test-wrapper animate-in">

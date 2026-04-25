@@ -132,6 +132,7 @@ const RESULTS = {
 };
 
 export default function StressTypeTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ EXPLODE: 0, WITHDRAW: 0, EAT: 0, ACTIVE: 0, TALK: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -168,6 +169,41 @@ export default function StressTypeTest() {
       alert('복사에 실패했습니다.');
     }
   };
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">😤 스트레스 대처 유형 테스트</h1>
+        <p className="intro-subtitle">나는 스트레스를 어떻게 해소하나요? 10문항으로 알아보는 나의 스트레스 해소 패턴</p>
+
+        <div className="intro-section">
+          <h2>스트레스 대처 방식이 중요한 이유</h2>
+          <p>스트레스는 현대인 누구나 겪는 삶의 일부입니다. 중요한 것은 스트레스 자체가 아니라, 그것을 어떻게 다루느냐입니다. 심리학 연구에 따르면 스트레스 대처 방식(Coping Strategy)은 크게 문제 중심 대처와 감정 중심 대처로 나뉩니다. 어떤 사람은 운동으로, 어떤 사람은 수다로, 또 어떤 사람은 혼자만의 시간으로 스트레스를 해소합니다.</p>
+          <p>자신의 스트레스 해소 패턴을 인식하면, 번아웃을 예방하고 감정을 더 건강하게 관리하는 데 큰 도움이 됩니다. 무의식적으로 반복하던 패턴이 실은 비효율적인 방식이었다는 것을 깨달을 수도 있고, 이미 훌륭한 방식으로 자기 자신을 돌보고 있다는 것을 확인할 수도 있습니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>5가지 스트레스 대처 유형</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>🔥 발산형</strong><p>감정을 즉각 표출하거나 대화로 풀어내는 타입. 감정을 쌓아두지 않아 회복이 빠릅니다.</p></div>
+            <div className="intro-card"><strong>🐠 은둔형</strong><p>혼자만의 공간에서 조용히 감정을 정리하는 타입. 내향적 회복 방식을 선호합니다.</p></div>
+            <div className="intro-card"><strong>🍕 식욕형</strong><p>맛있는 음식이나 즉각적 쾌락으로 감정을 달래는 타입. 먹는 것이 최고의 위로입니다.</p></div>
+            <div className="intro-card"><strong>🏃 활동형</strong><p>운동이나 신체 활동으로 스트레스를 해소하는 타입. 몸을 움직이면 마음이 가벼워집니다.</p></div>
+            <div className="intro-card"><strong>💬 수다형</strong><p>친한 친구에게 털어놓고 공감을 받는 것으로 회복하는 타입. 나누면 반이 되는 사람입니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>총 10문항으로 구성되어 있으며, 실제 스트레스를 받을 때 자신의 반응에 가장 가까운 답을 선택해주세요. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
 

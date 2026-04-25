@@ -127,6 +127,7 @@ const RESULTS = {
 };
 
 export default function LoveLanguageTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ WA: 0, AS: 0, RG: 0, QT: 0, PT: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -163,6 +164,56 @@ export default function LoveLanguageTest() {
       alert('복사에 실패했습니다.');
     }
   };
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">💕 러브 랭귀지 테스트</h1>
+        <p className="intro-subtitle">내가 사랑을 주고받는 방식은? 5가지 사랑의 언어로 알아보는 나의 애정 유형</p>
+
+        <div className="intro-section">
+          <h2>러브 랭귀지(Love Language)란?</h2>
+          <p>러브 랭귀지는 심리학자이자 결혼 상담가인 게리 채프먼(Gary Chapman) 박사가 1992년 저서 《5가지 사랑의 언어》에서 제안한 이론입니다. 그는 수십 년간 상담을 통해 사람마다 사랑을 표현하고 받아들이는 방식이 근본적으로 다르다는 것을 발견했습니다.</p>
+          <p>많은 커플이 서로를 충분히 사랑하면서도 갈등을 겪는 이유가 바로 여기에 있습니다. A는 B에게 매일 "사랑해"라고 말하지만, B는 말보다 함께 있는 시간을 더 소중히 여기기 때문에 충분히 사랑받는다고 느끼지 못합니다. 상대의 언어가 아닌 내 언어로만 사랑을 표현한다면, 아무리 노력해도 마음이 전달되지 않을 수 있습니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>5가지 사랑의 언어</h2>
+          <div className="intro-grid">
+            <div className="intro-card">
+              <strong>💬 인정하는 말 (Words of Affirmation)</strong>
+              <p>진심 어린 칭찬, 감사 표현, "사랑해"라는 말로 사랑을 확인합니다. 부정적인 말에 특히 상처를 받는 유형입니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>🛠️ 봉사 행동 (Acts of Service)</strong>
+              <p>말보다 행동으로 사랑을 느낍니다. 상대가 나를 위해 무언가를 해줄 때 가장 사랑받는다고 느낍니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>🎁 선물 (Receiving Gifts)</strong>
+              <p>물질적 크기가 아닌 "나를 생각했구나"는 마음이 담긴 선물에서 사랑을 느낍니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>⏰ 함께하는 시간 (Quality Time)</strong>
+              <p>방해 없이 온전히 서로에게 집중하는 시간에서 사랑을 확인합니다. 같은 공간에 있어도 각자 핸드폰을 보면 외로움을 느낍니다.</p>
+            </div>
+            <div className="intro-card">
+              <strong>🤗 스킨십 (Physical Touch)</strong>
+              <p>포옹, 손잡기, 가벼운 터치 등 신체적 온기를 통해 사랑을 느끼고 표현합니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 활용 방법</h2>
+          <p>자신의 러브 랭귀지를 파악하면 연인·가족·친구에게 내가 필요한 것을 더 명확히 전달할 수 있습니다. 또한 상대방의 러브 랭귀지를 이해하면 더 효과적으로 사랑을 표현할 수 있습니다. 총 10문항이며 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
 

@@ -141,6 +141,7 @@ const RESULTS = {
 };
 
 export default function ColorTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ RED: 0, BLUE: 0, YELLOW: 0, GREEN: 0, PURPLE: 0, ORANGE: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -177,6 +178,42 @@ export default function ColorTest() {
       alert('복사에 실패했습니다.');
     }
   };
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">🎨 색깔 심리 테스트</h1>
+        <p className="intro-subtitle">내 성격을 색깔로 표현한다면? 10문항으로 알아보는 나의 성격 컬러</p>
+
+        <div className="intro-section">
+          <h2>색깔 심리학이란?</h2>
+          <p>색채 심리학(Color Psychology)은 색깔이 인간의 감정, 행동, 성격에 미치는 영향을 연구하는 심리학의 한 분야입니다. 각 색깔은 고유한 심리적 연상과 감정적 반응을 유발하며, 이를 통해 개인의 성격 유형을 상징적으로 표현할 수 있습니다.</p>
+          <p>이 테스트는 당신의 대인관계 방식, 에너지 레벨, 의사결정 스타일, 감정 표현 방식 등을 분석해 6가지 성격 색깔 중 하나를 도출합니다. 색깔은 단순한 취향이 아닌, 당신의 핵심 성격 강점과 특징을 시각적으로 표현한 상징입니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>6가지 성격 색깔</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>🔴 빨간색</strong><p>열정적이고 강한 리더십. 목표를 향해 강하게 나아가는 행동파 유형입니다.</p></div>
+            <div className="intro-card"><strong>💙 파란색</strong><p>냉철하고 논리적인 분석가. 신뢰와 일관성을 중요하게 여기는 이성적 유형입니다.</p></div>
+            <div className="intro-card"><strong>💛 노란색</strong><p>밝고 긍정적인 낙천주의자. 유머와 창의성으로 주변에 활기를 불어넣는 유형입니다.</p></div>
+            <div className="intro-card"><strong>💚 초록색</strong><p>균형과 조화를 추구하는 평화주의자. 배려심이 깊고 안정적인 관계를 중시합니다.</p></div>
+            <div className="intro-card"><strong>💜 보라색</strong><p>감수성이 풍부한 예술가 기질. 독창적이고 깊은 내면 세계를 가진 유형입니다.</p></div>
+            <div className="intro-card"><strong>🟠 주황색</strong><p>에너지 넘치는 사교왕. 친화력이 뛰어나고 어디서든 분위기를 만드는 유형입니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>각 문항에서 지금의 나에게 더 가까운 답을 선택해주세요. 총 10문항이며 소요 시간은 약 2분입니다. 결과는 여러 선택지의 합산으로 도출되므로, 솔직하게 답하는 것이 가장 정확합니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
 

@@ -127,6 +127,7 @@ const RESULTS = {
 };
 
 export default function DatingStyleTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ ROMANTIC: 0, STRATEGIC: 0, PASSIONATE: 0, OBSERVER: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -172,6 +173,40 @@ export default function DatingStyleTest() {
   };
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">💘 연애 스타일 테스트</h1>
+        <p className="intro-subtitle">나는 연애에서 어떤 사람일까? 10문항으로 알아보는 나의 연애 리얼리티 유형</p>
+
+        <div className="intro-section">
+          <h2>연애 스타일을 알아야 하는 이유</h2>
+          <p>연애는 두 사람의 서로 다른 성격, 가치관, 커뮤니케이션 방식이 만나는 복잡한 과정입니다. 많은 커플이 "우리는 서로 사랑하는데 왜 맨날 싸울까?"라고 고민합니다. 대부분의 경우 그 이유는 사랑의 부족이 아니라 연애 스타일의 차이를 이해하지 못하기 때문입니다.</p>
+          <p>자신의 연애 스타일을 파악하면, 내가 관계에서 무엇을 원하고 어떻게 행동하는지를 객관적으로 볼 수 있습니다. 또한 상대방의 스타일을 이해하면 갈등의 원인을 파악하고 더 건강한 관계를 만드는 데 도움이 됩니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>4가지 연애 스타일 유형</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>🌹 로맨티스트형</strong><p>설렘과 감성을 중시하는 낭만적인 연애를 추구합니다. 분위기와 감정적 교감을 가장 소중히 여깁니다.</p></div>
+            <div className="intro-card"><strong>📋 전략가형</strong><p>계획적이고 체계적으로 연애를 이끌어가는 타입. 안정적이고 신뢰를 쌓는 관계를 선호합니다.</p></div>
+            <div className="intro-card"><strong>🔥 열정파형</strong><p>감정에 솔직하고 적극적으로 표현하는 타입. 갈등도 피하지 않고 정면으로 해결하려 합니다.</p></div>
+            <div className="intro-card"><strong>👁️ 관찰자형</strong><p>신중하고 차분하게 관계를 발전시키는 타입. 빠른 진전보다 깊은 이해를 바탕으로 한 연애를 선호합니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>총 10문항으로 구성되어 있으며, 연애 상황에서 자신의 실제 행동이나 생각에 가장 가까운 답을 선택해주세요. 현재 연애 중이 아니더라도 과거 경험이나 상상을 바탕으로 솔직하게 선택해주세요. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="test-wrapper animate-in">

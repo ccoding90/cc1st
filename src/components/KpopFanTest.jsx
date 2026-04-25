@@ -123,6 +123,7 @@ const RESULTS = {
 };
 
 export default function KpopFanTest() {
+  const [started, setStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [scores, setScores] = useState({ LOYAL: 0, MUSIC: 0, VISUAL: 0, MULTI: 0 });
   const [showResult, setShowResult] = useState(false);
@@ -159,6 +160,40 @@ export default function KpopFanTest() {
       alert('복사에 실패했습니다.');
     }
   };
+
+  if (!started) {
+    return (
+      <div className="test-intro animate-in">
+        <h1 className="intro-title">🎤 K-POP 팬 유형 테스트</h1>
+        <p className="intro-subtitle">나는 어떤 스타일의 팬일까? 덕질 방식으로 알아보는 나의 K-POP 팬 유형</p>
+
+        <div className="intro-section">
+          <h2>K-POP 팬 문화의 다양성</h2>
+          <p>K-POP은 음악을 넘어 하나의 문화 현상이 되었습니다. 전 세계 수억 명의 팬들이 각자의 방식으로 K-POP을 즐기고 있으며, 팬마다 덕질 스타일이 매우 다릅니다. 어떤 팬은 아이돌의 모든 일정을 꿰차고 있는 충성 팬인 반면, 어떤 팬은 음악만 즐기는 라이트 팬이기도 합니다. 어느 쪽이 더 진짜 팬인 것은 아닙니다. 각자의 방식으로 K-POP을 즐기는 모든 것이 팬 문화의 일부입니다.</p>
+          <p>이 테스트는 당신의 덕질 패턴, 콘텐츠 소비 방식, 굿즈 수집 성향 등을 분석해 4가지 K-POP 팬 유형 중 어디에 속하는지 알려드립니다.</p>
+        </div>
+
+        <div className="intro-section">
+          <h2>4가지 K-POP 팬 유형</h2>
+          <div className="intro-grid">
+            <div className="intro-card"><strong>🏆 충성 팬 (Loyal Fan)</strong><p>최애의 모든 것을 알고, 앨범·굿즈 수집과 팬 활동에 적극적으로 참여하는 코어 팬입니다.</p></div>
+            <div className="intro-card"><strong>🎵 음악 팬 (Music Fan)</strong><p>굿즈나 팬 활동보다 음악 자체를 즐기는 타입. 뮤직비디오와 무대 영상 위주로 K-POP을 즐깁니다.</p></div>
+            <div className="intro-card"><strong>👁️ 비주얼 팬 (Visual Fan)</strong><p>아이돌의 외모와 패션, 비주얼에 매력을 느끼는 타입. 화보나 직캠을 즐겨봅니다.</p></div>
+            <div className="intro-card"><strong>🌈 멀티 팬 (Multi Fan)</strong><p>특정 그룹에 집중하지 않고 여러 그룹을 폭넓게 즐기는 유형. K-POP 트렌드에 밝습니다.</p></div>
+          </div>
+        </div>
+
+        <div className="intro-section">
+          <h2>검사 방법</h2>
+          <p>총 10문항이며, 평소 K-POP을 즐기는 방식에 가장 가까운 답을 선택해주세요. K-POP에 익숙하지 않아도 참여할 수 있습니다. 소요 시간은 약 2분입니다.</p>
+        </div>
+
+        <button className="btn-start" onClick={() => setStarted(true)}>
+          테스트 시작하기 →
+        </button>
+      </div>
+    );
+  }
 
   const progressPercent = (currentQuestion / QUESTIONS.length) * 100;
 
