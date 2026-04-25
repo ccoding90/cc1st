@@ -1,4 +1,4 @@
-# Blueprint: CCGG Intranet Project (Final Version)
+r# Blueprint: CCGG Intranet Project (Final Version)
 
 ## Overview
 A high-end internal platform featuring an interactive MBTI test, a community feed, and an affiliate inquiry system. Designed with a premium Instagram-inspired UI.
