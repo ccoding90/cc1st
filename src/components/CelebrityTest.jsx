@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ShareButtons from './ShareButtons';
 
 const questions = [
   { id: 1, text: "주말 데이트, 당신의 취향은?", options: [{ text: "핫플 카페와 맛집 투어! 📸", score: "E" }, { text: "집에서 넷플릭스 보며 뒹굴뒹굴 🍿", score: "I" }] },
@@ -65,16 +66,6 @@ export default function CelebrityTest() {
     else celebIndex = 3;
     setMatchedCeleb(celebrityResults[celebIndex]);
     setShowResult(true);
-  };
-
-  const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      await navigator.clipboard.writeText(`💘 나의 찰떡 연예인 이상형은 ${matchedCeleb.name}! 테스트 해봐: ${shareUrl}`);
-      alert('✅ 링크가 복사되었습니다! 친구에게 공유해보세요 😊');
-    } catch (err) {
-      alert('복사에 실패했습니다.');
-    }
   };
 
   const progressPercent = ((currentQuestion) / questions.length) * 100;
@@ -145,9 +136,13 @@ export default function CelebrityTest() {
           <img src={matchedCeleb.image} alt={matchedCeleb.name} className="celeb-img" />
           <h2 className="celeb-name">{matchedCeleb.name} {matchedCeleb.emoji}</h2>
           <p className="reason-text">{matchedCeleb.reason}</p>
-          <div className="btn-group">
-            <button className="share-btn" onClick={handleShare}>링크 공유하기 🔗</button>
-            <button className="retry-btn" onClick={() => window.location.reload()}>다시 하기 🔄</button>
+          <ShareButtons
+            shareText={`💘 나의 찰떡 연예인 이상형은 ${matchedCeleb.name}! - CCGG 이상형 테스트`}
+            shareUrl={window.location.href}
+            testTitle="연예인 이상형 테스트 결과"
+          />
+          <div className="btn-group" style={{ marginTop: '10px' }}>
+            <button className="retry-btn" style={{ width: '100%' }} onClick={() => window.location.reload()}>다시 하기 🔄</button>
           </div>
         </div>
       )}

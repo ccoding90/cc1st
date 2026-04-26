@@ -169,16 +169,6 @@ export default function ColorTest() {
     setShowResult(true);
   };
 
-  const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      await navigator.clipboard.writeText(`${result.shareText}\n내 성격 색깔 테스트 해봐 👉 ${shareUrl}`);
-      alert('✅ 링크가 복사되었습니다! 친구에게 공유해보세요 😊');
-    } catch {
-      alert('복사에 실패했습니다.');
-    }
-  };
-
   if (!started) {
     return (
       <div className="test-intro animate-in">
@@ -253,7 +243,7 @@ export default function ColorTest() {
             </div>
           </div>
           <div className="btn-group">
-            <button className="share-btn" onClick={handleShare}>결과 공유하기 🔗</button>
+            <ShareButtons shareText={`${result.shareText} - CCGG 색깔 테스트`} shareUrl={window.location.href} testTitle="색깔 성격 테스트 결과" />
             <button className="retry-btn" onClick={() => { setCurrentQuestion(0); setScores({ RED: 0, BLUE: 0, YELLOW: 0, GREEN: 0, PURPLE: 0, ORANGE: 0 }); setShowResult(false); setResult(null); }}>다시 하기 🔄</button>
           </div>
         </div>

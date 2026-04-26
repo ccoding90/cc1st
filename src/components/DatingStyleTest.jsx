@@ -155,16 +155,6 @@ export default function DatingStyleTest() {
     setShowResult(true);
   };
 
-  const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      await navigator.clipboard.writeText(`${result.shareText}\n테스트 링크: ${shareUrl}`);
-      alert('✅ 링크가 복사됐어요! 친구들에게 공유해보세요 😊');
-    } catch {
-      alert('복사에 실패했습니다');
-    }
-  };
-
   const handleRetry = () => {
     setCurrentQuestion(0);
     setScores({ ROMANTIC: 0, STRATEGIC: 0, PASSIONATE: 0, OBSERVER: 0 });
@@ -254,7 +244,7 @@ export default function DatingStyleTest() {
             <p>{result.tip}</p>
           </div>
           <div className="btn-group">
-            <button className="share-btn" onClick={handleShare}>결과 공유하기 🔗</button>
+            <ShareButtons shareText={`${result.shareText} - CCGG 연애 스타일 테스트`} shareUrl={window.location.href} testTitle="연애 스타일 테스트 결과" />
             <button className="retry-btn" onClick={handleRetry}>다시 하기 🔄</button>
           </div>
         </div>

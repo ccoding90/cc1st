@@ -5,10 +5,7 @@
   channel = "stable-24.11"; # or "unstable"
   # Use https://search.nixos.org/packages to find packages
   packages = [
-    pkgs.nodejs_
-    pkgs.python31pkgs.python
-    pkgs.imagemagick
-    pkgs.python311Packages.pillow
+    pkgs.nodejs_20
   ];
   # Sets environment variables in the workspace
   env = {};
@@ -35,7 +32,7 @@
         # Example: install JS dependencies from NPM
         # npm-install = "npm install";
         # Open editors for the following files by default, if they exist:
-        default.openFiles = [ "style.css" "main.js" "index.html" ];
+        default.openFiles = [ "src/App.jsx" "src/main.jsx" "index.html" ];
       };
       # Runs when the workspace is (re)started
       onStart = {

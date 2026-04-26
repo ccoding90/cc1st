@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ShareButtons from './ShareButtons';
 
 const QUESTIONS = [
   { q: "새로운 사람들과 어울리는 파티에 가면...", a: ["에너지가 솟구친다", "빨리 집에 가고 싶어진다"], type: ["E", "I"] },
@@ -267,27 +268,6 @@ const MbtiTest = () => {
     }
   };
 
-  const handleShare = async () => {
-    const resKey = calculateResult();
-    const result = DESCRIPTIONS[resKey];
-    const shareText = `나의 MBTI는 ${resKey} ${result.title}!\n${result.desc}\n너도 테스트 해봐 👉`;
-    const shareUrl = window.location.href;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `MBTI 결과: ${resKey}`, text: shareText, url: shareUrl });
-      } catch (err) {
-        // 사용자가 공유 취소한 경우 무시
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        alert('✅ 링크가 복사되었습니다! 친구에게 공유해보세요 😊');
-      } catch (err) {
-        alert('복사에 실패했습니다. URL을 직접 복사해 공유해주세요.');
-      }
-    }
-  };
 
   if (showResult) {
     const resKey = calculateResult();
@@ -383,27 +363,24 @@ const MbtiTest = () => {
             </div>
           </div>
 
-          {/* 버튼 */}
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              className="btn-primary"
-              onClick={handleShare}
-              style={{ flex: 1, background: '#333' }}
-            >
-              결과 공유하기 📤
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setAnswers({ E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 });
-                setCurrentIdx(0);
-                setShowResult(false);
-              }}
-              style={{ flex: 1 }}
-            >
-              다시 하기 🔄
-            </button>
-          </div>
+          {/* 공유 버튼 */}
+          <ShareButtons
+            shareText={`나의 MBTI는 ${resKey} ${result.title}!\n${result.desc}`}
+            shareUrl={window.location.href}
+            testTitle={`MBTI 결과: ${resKey} ${result.title}`}
+          />
+          {/* 다시 하기 버튼 */}
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setAnswers({ E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 });
+              setCurrentIdx(0);
+              setShowResult(false);
+            }}
+            style={{ width: '100%', marginTop: '10px' }}
+          >
+            다시 하기 🔄
+          </button>
         </div>
       </div>
     );

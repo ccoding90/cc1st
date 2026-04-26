@@ -160,16 +160,6 @@ export default function StressTypeTest() {
     setShowResult(true);
   };
 
-  const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      await navigator.clipboard.writeText(`${result.shareText}\n너는 어떤 스트레스 유형인지 테스트해봐 👉 ${shareUrl}`);
-      alert('✅ 링크가 복사되었습니다! 친구에게 공유해보세요 😊');
-    } catch {
-      alert('복사에 실패했습니다.');
-    }
-  };
-
   if (!started) {
     return (
       <div className="test-intro animate-in">
@@ -237,7 +227,7 @@ export default function StressTypeTest() {
             <p>{result.tip}</p>
           </div>
           <div className="btn-group">
-            <button className="share-btn" onClick={handleShare}>결과 공유하기 🔗</button>
+            <ShareButtons shareText={`${result.shareText} - CCGG 스트레스 유형 테스트`} shareUrl={window.location.href} testTitle="스트레스 유형 테스트 결과" />
             <button className="retry-btn" onClick={() => { setCurrentQuestion(0); setScores({ EXPLODE: 0, WITHDRAW: 0, EAT: 0, ACTIVE: 0, TALK: 0 }); setShowResult(false); setResult(null); }}>다시 하기 🔄</button>
           </div>
         </div>

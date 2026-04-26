@@ -19,11 +19,40 @@ export default function TrendingTests() {
 
   return (
     <div className="trending-wrapper animate-in">
-      {/* 헤더 */}
-      <div className="trending-header">
-        <h1 className="trending-main-title">
+      {/* 히어로 섹션 */}
+      <div className="hero-dark">
+        <div className="hero-emoji-row">
+          <span>🧠</span><span>💡</span><span>🔮</span><span>✨</span><span>🌟</span>
+        </div>
+        <h1 className="hero-heading">나는 어떤 사람일까요?</h1>
+        <p className="hero-sub">
+          심리 테스트로 나를 발견하는 시간.<br />
+          성격·연애·심리 나이까지 무료로 알아보세요.
+        </p>
+        <div className="hero-stats">
+          <div className="hero-stat">
+            <span className="hero-stat-num">10+</span>
+            <span className="hero-stat-label">무료 테스트</span>
+          </div>
+          <div className="hero-stat">
+            <span className="hero-stat-num">매월</span>
+            <span className="hero-stat-label">신규 업데이트</span>
+          </div>
+          <div className="hero-stat">
+            <span className="hero-stat-num">3분</span>
+            <span className="hero-stat-label">평균 소요시간</span>
+          </div>
+        </div>
+        <button className="hero-cta" onClick={() => document.getElementById('test-grid-section')?.scrollIntoView({ behavior: 'smooth' })}>
+          테스트 보러 가기 ↓
+        </button>
+      </div>
+
+      {/* 테스트 목록 헤더 */}
+      <div id="test-grid-section" className="trending-header">
+        <h2 className="trending-main-title">
           📅 이달의 인기 테스트
-        </h1>
+        </h2>
         <p className="trending-main-desc">
           매월 1일, 전월 기준 검색 상위 인기 테스트가 업데이트됩니다
         </p>

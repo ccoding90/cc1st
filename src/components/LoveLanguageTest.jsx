@@ -155,16 +155,6 @@ export default function LoveLanguageTest() {
     setShowResult(true);
   };
 
-  const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      await navigator.clipboard.writeText(`${result.shareText}\n나의 사랑 언어를 테스트해봐 👉 ${shareUrl}`);
-      alert('✅ 링크가 복사되었습니다! 친구에게 공유해보세요 😊');
-    } catch {
-      alert('복사에 실패했습니다.');
-    }
-  };
-
   if (!started) {
     return (
       <div className="test-intro animate-in">
@@ -246,7 +236,7 @@ export default function LoveLanguageTest() {
             <p>{result.tip}</p>
           </div>
           <div className="btn-group">
-            <button className="share-btn" onClick={handleShare}>결과 공유하기 🔗</button>
+            <ShareButtons shareText={`${result.shareText} CCGG 러브 랭귀지 테스트`} shareUrl={window.location.href} testTitle="러브 랭귀지 테스트 결과" />
             <button className="retry-btn" onClick={() => { setCurrentQuestion(0); setScores({ WA: 0, AS: 0, RG: 0, QT: 0, PT: 0 }); setShowResult(false); setResult(null); }}>다시 하기 🔄</button>
           </div>
         </div>

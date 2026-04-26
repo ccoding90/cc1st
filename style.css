@@ -302,3 +302,162 @@ body {
   .nav-links { gap: 12px; overflow-x: auto; }
   .nav-item { font-size: 0.82rem; white-space: nowrap; }
 }
+
+/* =====================================================
+   히어로 섹션 (16personalities 스타일)
+   ===================================================== */
+.hero-dark {
+  background: linear-gradient(135deg, #1f2232 0%, #2d3353 50%, #1a1d2e 100%);
+  border-radius: 20px;
+  padding: 48px 28px 44px;
+  margin-bottom: 28px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-dark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 40%, rgba(69, 183, 100, 0.12) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(99, 102, 241, 0.1) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+.hero-emoji-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  font-size: 1.6rem;
+  opacity: 0.85;
+}
+
+.hero-heading {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 12px;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+}
+
+.hero-sub {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 24px;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.hero-stat-num {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #45b764;
+  display: block;
+  line-height: 1;
+}
+
+.hero-stat-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 3px;
+  display: block;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #45b764;
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 14px 36px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  box-shadow: 0 4px 20px rgba(69, 183, 100, 0.4);
+  text-decoration: none;
+}
+
+.hero-cta:hover {
+  background: #3ca857;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(69, 183, 100, 0.5);
+}
+
+/* =====================================================
+   공유 버튼 (vonvon 스타일)
+   ===================================================== */
+.share-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.share-btn-kakao {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: #FEE500;
+  color: #3C1E1E;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.share-btn-kakao:hover { opacity: 0.9; }
+.share-btn-kakao:active { transform: scale(0.98); }
+
+.share-icon { display: flex; align-items: center; }
+
+.share-btn-copy {
+  flex: 1;
+  background: #f0f0f0;
+  color: #333;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 14px 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.share-btn-copy:hover { background: #e8e8e8; }
+.share-btn-copy:active { transform: scale(0.98); }
+.share-btn-copy.copied { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+
+/* =====================================================
+   반응형 조정
+   ===================================================== */
+@media (max-width: 480px) {
+  .hero-heading { font-size: 1.55rem; }
+  .hero-dark { padding: 36px 20px 32px; }
+  .hero-stats { gap: 16px; }
+  .share-btn-kakao, .share-btn-copy { font-size: 0.88rem; padding: 13px 8px; }
+}
