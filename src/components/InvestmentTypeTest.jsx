@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ShareButtons from './ShareButtons';
 
 const QUESTIONS = [
   {
