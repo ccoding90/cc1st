@@ -2,6 +2,90 @@
 // 업데이트 기준: 전월 기준 구글 검색 상위권 (10대~40대 대상)
 
 export const MONTHLY_TESTS = {
+  '2026-05': {
+    label: '2026년 5월',
+    description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 3종 업데이트 🌿',
+    emoji: '🌿',
+    tests: [
+      {
+        id: 'travel-style',
+        title: '황금연휴 여행 유형 테스트',
+        description: '5월 황금연휴, 나의 여행 스타일은? 탐험형·힐링형·문화형·미식형 중 어떤 여행자인지 알아보세요.',
+        emoji: '🌏',
+        tags: ['황금연휴', '여행', '5월'],
+        path: '/travel-style',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 1
+      },
+      {
+        id: 'feelconomy-type',
+        title: '필코노미 소비 유형 테스트',
+        description: '기분이 지갑을 연다? 2026 최신 트렌드 필코노미로 나의 감정 소비 유형을 알아보세요.',
+        emoji: '🛍️',
+        tags: ['필코노미', '소비', '트렌드'],
+        path: '/feelconomy-type',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 2
+      },
+      {
+        id: 'emotion-type',
+        title: '감정 루틴 유형 테스트',
+        description: '나는 감정을 어떻게 처리할까? 2026 메타센싱 트렌드로 나의 감정 관리 패턴을 진단해보세요.',
+        emoji: '💆',
+        tags: ['감정관리', '메타센싱', '심리'],
+        path: '/emotion-type',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 3
+      },
+      {
+        id: 'investment-type',
+        title: '주식 투자 유형 테스트',
+        description: '나의 투자 성향은? 성장주·가치투자·ETF·트렌드형 중 어떤 유형인지 알아보세요.',
+        emoji: '📈',
+        tags: ['주식', '투자', '재테크'],
+        path: '/investment-type',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 4
+      },
+      {
+        id: 'gatsaeng-test',
+        title: '갓생 레벨 테스트',
+        description: '나는 얼마나 갓생살고 있을까? 2026 MZ세대 최고 트렌드 갓생 지수 체크!',
+        emoji: '🔥',
+        tags: ['갓생', '자기계발', 'MZ'],
+        path: '/gatsaeng-test',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 5
+      },
+      {
+        id: 'dating-style',
+        title: '연애 리얼리티 유형 테스트',
+        description: '하트시그널 속 나는 어떤 유형? 로맨티스트·전략가·직진형·관찰형 중 나는?',
+        emoji: '💘',
+        tags: ['연애', '하트시그널', '심리'],
+        path: '/dating-style',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 6
+      },
+      {
+        id: 'mbti',
+        title: 'MBTI 성격 유형 테스트',
+        description: '16가지 성격 유형으로 나를 알아보세요. 가장 정확한 MBTI 테스트!',
+        emoji: '🔮',
+        tags: ['MBTI', '성격', '심리'],
+        path: '/mbti',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 7
+      }
+    ]
+  },
   '2026-04': {
     label: '2026년 4월',
     description: '4월 최신 트렌드 테스트 3종 업데이트! 주식·갓생·연애 🌸',

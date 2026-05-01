@@ -15,6 +15,9 @@ import StressTypeTest from './components/StressTypeTest';
 import InvestmentTypeTest from './components/InvestmentTypeTest';
 import GatsaengTest from './components/GatsaengTest';
 import DatingStyleTest from './components/DatingStyleTest';
+import TravelStyleTest from './components/TravelStyleTest';
+import FeelconomyTest from './components/FeelconomyTest';
+import EmotionTypeTest from './components/EmotionTypeTest';
 import NovelPage from './components/NovelPage';
 import AboutPage from './components/AboutPage';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -55,6 +58,10 @@ const App = () => {
             <Route path="/investment-type" element={<div className="mbti-wrapper"><InvestmentTypeTest /></div>} />
             <Route path="/gatsaeng-test" element={<div className="mbti-wrapper"><GatsaengTest /></div>} />
             <Route path="/dating-style" element={<div className="mbti-wrapper"><DatingStyleTest /></div>} />
+            {/* 5월 신규 테스트 */}
+            <Route path="/travel-style" element={<div className="mbti-wrapper"><TravelStyleTest /></div>} />
+            <Route path="/feelconomy-type" element={<div className="mbti-wrapper"><FeelconomyTest /></div>} />
+            <Route path="/emotion-type" element={<div className="mbti-wrapper"><EmotionTypeTest /></div>} />
             {/* 블로그 & 커뮤니티 */}
             <Route path="/blog" element={<div className="blog-wrapper"><MbtiBlog /></div>} />
             <Route path="/insight" element={<div className="blog-wrapper"><InsightBlog /></div>} />
