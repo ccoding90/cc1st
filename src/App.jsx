@@ -18,6 +18,7 @@ import DatingStyleTest from './components/DatingStyleTest';
 import TravelStyleTest from './components/TravelStyleTest';
 import FeelconomyTest from './components/FeelconomyTest';
 import EmotionTypeTest from './components/EmotionTypeTest';
+import BulletDodgeGame from './components/BulletDodgeGame';
 import NovelPage from './components/NovelPage';
 import AboutPage from './components/AboutPage';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -35,6 +36,7 @@ const App = () => {
             <NavLink to="/blog" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>블로그</NavLink>
             <NavLink to="/insight" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>인사이트</NavLink>
             <NavLink to="/novel" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>웹소설</NavLink>
+            <NavLink to="/dodge-game" className={({ isActive }) => isActive ? "nav-item active nav-highlight" : "nav-item nav-highlight"}>🎮 게임</NavLink>
             <NavLink to="/board" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>게시판</NavLink>
             <NavLink to="/inquiry" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>제휴 문의</NavLink>
           </div>
@@ -58,6 +60,8 @@ const App = () => {
             <Route path="/investment-type" element={<div className="mbti-wrapper"><InvestmentTypeTest /></div>} />
             <Route path="/gatsaeng-test" element={<div className="mbti-wrapper"><GatsaengTest /></div>} />
             <Route path="/dating-style" element={<div className="mbti-wrapper"><DatingStyleTest /></div>} />
+            {/* 5월 신규 - 게임 */}
+            <Route path="/dodge-game" element={<BulletDodgeGame />} />
             {/* 5월 신규 테스트 */}
             <Route path="/travel-style" element={<div className="mbti-wrapper"><TravelStyleTest /></div>} />
             <Route path="/feelconomy-type" element={<div className="mbti-wrapper"><FeelconomyTest /></div>} />

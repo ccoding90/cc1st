@@ -4,9 +4,20 @@
 export const MONTHLY_TESTS = {
   '2026-05': {
     label: '2026년 5월',
-    description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 3종 업데이트 🌿',
+    description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 + 미니게임 🌿🎮',
     emoji: '🌿',
     tests: [
+      {
+        id: 'dodge-game',
+        title: '☄️ 미사일 피하기 게임',
+        description: '총알·미사일을 피하며 오래 살아남아라! 천궁(K-SAM) 필살기로 위기 탈출. 로그인 없이 랭킹 등록 가능!',
+        emoji: '🎮',
+        tags: ['게임', '미니게임', '랭킹'],
+        path: '/dodge-game',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 1
+      },
       {
         id: 'travel-style',
         title: '황금연휴 여행 유형 테스트',
@@ -16,7 +27,7 @@ export const MONTHLY_TESTS = {
         path: '/travel-style',
         isAvailable: true,
         isNew: true,
-        searchRank: 1
+        searchRank: 2
       },
       {
         id: 'feelconomy-type',
@@ -27,7 +38,7 @@ export const MONTHLY_TESTS = {
         path: '/feelconomy-type',
         isAvailable: true,
         isNew: true,
-        searchRank: 2
+        searchRank: 3
       },
       {
         id: 'emotion-type',
@@ -38,7 +49,7 @@ export const MONTHLY_TESTS = {
         path: '/emotion-type',
         isAvailable: true,
         isNew: true,
-        searchRank: 3
+        searchRank: 4
       },
       {
         id: 'investment-type',
@@ -49,7 +60,7 @@ export const MONTHLY_TESTS = {
         path: '/investment-type',
         isAvailable: true,
         isNew: false,
-        searchRank: 4
+        searchRank: 5
       },
       {
         id: 'gatsaeng-test',
@@ -58,17 +69,6 @@ export const MONTHLY_TESTS = {
         emoji: '🔥',
         tags: ['갓생', '자기계발', 'MZ'],
         path: '/gatsaeng-test',
-        isAvailable: true,
-        isNew: false,
-        searchRank: 5
-      },
-      {
-        id: 'dating-style',
-        title: '연애 리얼리티 유형 테스트',
-        description: '하트시그널 속 나는 어떤 유형? 로맨티스트·전략가·직진형·관찰형 중 나는?',
-        emoji: '💘',
-        tags: ['연애', '하트시그널', '심리'],
-        path: '/dating-style',
         isAvailable: true,
         isNew: false,
         searchRank: 6
