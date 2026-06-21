@@ -19,6 +19,8 @@ import TravelStyleTest from './components/TravelStyleTest';
 import FeelconomyTest from './components/FeelconomyTest';
 import EmotionTypeTest from './components/EmotionTypeTest';
 import BulletDodgeGame from './components/BulletDodgeGame';
+import GoalkeeperGame from './components/GoalkeeperGame';
+import SoccerTypeTest from './components/SoccerTypeTest';
 import NovelPage from './components/NovelPage';
 import AboutPage from './components/AboutPage';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -36,7 +38,7 @@ const App = () => {
             <NavLink to="/blog" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>블로그</NavLink>
             <NavLink to="/insight" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>인사이트</NavLink>
             <NavLink to="/novel" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>웹소설</NavLink>
-            <NavLink to="/dodge-game" className={({ isActive }) => isActive ? "nav-item active nav-highlight" : "nav-item nav-highlight"}>🎮 게임</NavLink>
+            <NavLink to="/goalkeeper-game" className={({ isActive }) => isActive ? "nav-item active nav-highlight" : "nav-item nav-highlight"}>⚽ 게임</NavLink>
             <NavLink to="/board" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>게시판</NavLink>
             <NavLink to="/inquiry" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>제휴 문의</NavLink>
           </div>
@@ -62,6 +64,9 @@ const App = () => {
             <Route path="/dating-style" element={<div className="mbti-wrapper"><DatingStyleTest /></div>} />
             {/* 5월 신규 - 게임 */}
             <Route path="/dodge-game" element={<BulletDodgeGame />} />
+            {/* 6월 신규 - 월드컵 */}
+            <Route path="/goalkeeper-game" element={<GoalkeeperGame />} />
+            <Route path="/soccer-type" element={<div className="mbti-wrapper"><SoccerTypeTest /></div>} />
             {/* 5월 신규 테스트 */}
             <Route path="/travel-style" element={<div className="mbti-wrapper"><TravelStyleTest /></div>} />
             <Route path="/feelconomy-type" element={<div className="mbti-wrapper"><FeelconomyTest /></div>} />

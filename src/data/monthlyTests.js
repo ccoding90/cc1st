@@ -2,6 +2,90 @@
 // 업데이트 기준: 전월 기준 구글 검색 상위권 (10대~40대 대상)
 
 export const MONTHLY_TESTS = {
+  '2026-06': {
+    label: '2026년 6월',
+    description: '2026 FIFA 월드컵 개막! 포지션 테스트·골키퍼 게임·AI 트렌드 ⚽🌍',
+    emoji: '⚽',
+    tests: [
+      {
+        id: 'goalkeeper-game',
+        title: '⚽ 월드컵 골키퍼 챌린지',
+        description: '슈팅 방향을 읽고 막아라! 2026 FIFA 월드컵 기념 골키퍼 반응 게임. 로그인 없이 선방왕 랭킹 등록 가능!',
+        emoji: '🧤',
+        tags: ['게임', '월드컵', '골키퍼'],
+        path: '/goalkeeper-game',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 1
+      },
+      {
+        id: 'soccer-type',
+        title: '나는 어떤 축구 포지션 유형?',
+        description: '손흥민형 공격수? 김민재형 수비수? 2026 월드컵 기념, 나의 포지션 유형을 10문항으로 알아보세요.',
+        emoji: '⚽',
+        tags: ['월드컵', '포지션', '성격'],
+        path: '/soccer-type',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 2
+      },
+      {
+        id: 'travel-style',
+        title: '여름 여행 유형 테스트',
+        description: '이번 여름, 나의 여행 스타일은? 탐험형·힐링형·문화형·미식형 중 어떤 여행자인지 알아보세요.',
+        emoji: '🌏',
+        tags: ['여름휴가', '여행', '바캉스'],
+        path: '/travel-style',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 3
+      },
+      {
+        id: 'gatsaeng-test',
+        title: '갓생 레벨 테스트',
+        description: '상반기를 얼마나 갓생살았나? 6월 중간점검! 2026 MZ세대 최고 트렌드 갓생 지수 체크.',
+        emoji: '🔥',
+        tags: ['갓생', '자기계발', '상반기'],
+        path: '/gatsaeng-test',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 4
+      },
+      {
+        id: 'emotion-type',
+        title: '감정 루틴 유형 테스트',
+        description: '나는 감정을 어떻게 처리할까? 메타센싱 트렌드로 나의 감정 관리 패턴을 진단해보세요.',
+        emoji: '💆',
+        tags: ['감정관리', '심리', '번아웃'],
+        path: '/emotion-type',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 5
+      },
+      {
+        id: 'stress-type',
+        title: '스트레스 대처 유형 테스트',
+        description: '여름 번아웃 시즌! 폭발형? 잠수형? 먹방형? 나는 스트레스를 어떻게 풀까요?',
+        emoji: '😤',
+        tags: ['스트레스', '번아웃', '힐링'],
+        path: '/stress-type',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 6
+      },
+      {
+        id: 'mbti',
+        title: 'MBTI 성격 유형 테스트',
+        description: '16가지 성격 유형으로 나를 알아보세요. 가장 정확한 MBTI 테스트!',
+        emoji: '🔮',
+        tags: ['MBTI', '성격', '심리'],
+        path: '/mbti',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 7
+      }
+    ]
+  },
   '2026-05': {
     label: '2026년 5월',
     description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 + 미니게임 🌿🎮',
