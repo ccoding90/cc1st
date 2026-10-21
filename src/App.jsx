@@ -67,6 +67,7 @@ const App = () => {
             <Route path="/game-hub" element={<GameHub />} />
             <Route path="/goalkeeper-game" element={<GoalkeeperGame />} />
             <Route path="/three-jo-game" element={<ThreeJoGame />} />
+            <Route path="/dodge-game" element={<Navigate to="/game-hub" replace />} />
             <Route path="/soccer-type" element={<div className="mbti-wrapper"><SoccerTypeTest /></div>} />
             {/* 5월 신규 테스트 */}
             <Route path="/travel-style" element={<div className="mbti-wrapper"><TravelStyleTest /></div>} />

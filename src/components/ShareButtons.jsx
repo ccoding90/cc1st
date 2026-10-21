@@ -26,7 +26,7 @@ export default function ShareButtons({ shareText, shareUrl, testTitle }) {
       content: {
         title: testTitle || 'CCGG 심리 테스트',
         description: shareText || '나의 심리 테스트 결과를 확인해보세요!',
-        imageUrl: 'https://ccgg.web.app/og-image.png',
+        imageUrl: 'https://cc1st.pages.dev/og-image.png',
         link: { mobileWebUrl: url, webUrl: url },
       },
       buttons: [
