@@ -12,6 +12,9 @@ const GameHub = () => {
         <Link to="/three-jo-game" style={gameButtonStyle}>
           🏹 쓰리조 (Three Jo) 챌린지
         </Link>
+        <Link to="/coffee-bet" style={gameButtonStyle}>
+          ☕ 점심 커피내기 랜덤 게임 3종
+        </Link>
       </div>
     </div>
   );
