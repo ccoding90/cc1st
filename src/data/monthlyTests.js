@@ -88,20 +88,9 @@ export const MONTHLY_TESTS = {
   },
   '2026-05': {
     label: '2026년 5월',
-    description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 + 미니게임 🌿🎮',
+    description: '5월 황금연휴 기념! 필코노미·메타센싱·여행 스타일 업데이트 🌿',
     emoji: '🌿',
     tests: [
-      {
-        id: 'dodge-game',
-        title: '☄️ 미사일 피하기 게임',
-        description: '총알·미사일을 피하며 오래 살아남아라! 천궁(K-SAM) 필살기로 위기 탈출. 로그인 없이 랭킹 등록 가능!',
-        emoji: '🎮',
-        tags: ['게임', '미니게임', '랭킹'],
-        path: '/dodge-game',
-        isAvailable: true,
-        isNew: true,
-        searchRank: 1
-      },
       {
         id: 'travel-style',
         title: '황금연휴 여행 유형 테스트',
@@ -111,7 +100,7 @@ export const MONTHLY_TESTS = {
         path: '/travel-style',
         isAvailable: true,
         isNew: true,
-        searchRank: 2
+        searchRank: 1
       },
       {
         id: 'feelconomy-type',
