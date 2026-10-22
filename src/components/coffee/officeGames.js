@@ -16,7 +16,7 @@ export const OFFICE_GAMES = {
     create: createMountainGame,
   },
   report: {
-    title: '📄 팀장님 결재 받기',
+    title: '📄 실장님 결재 받기',
     desc: '빠꾸 지옥을 뚫고 결재 도장을 받아라! 가장 늦게 끝낸 사람이 커피',
     path: '/coffee-bet/report',
     rules: [
