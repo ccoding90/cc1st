@@ -1,4 +1,4 @@
-// 팀장님 결재 받기 📄 - 결재 보고 대작전 로직 & 드로잉
+// 실장님 결재 받기 📄 - 결재 보고 대작전 로직 & 드로잉
 // create(players, env) => { update(dt), draw(ctx, t), standings(), time }
 import { rand, pick, burst } from './coffeeGames.js';
 import {
@@ -10,8 +10,8 @@ export const REPORT_CONFIG = {
   PASS_BASE: 0.35,          // 기본 통과율
   PASS_STEP: 0.12,          // 빠꾸 1회당 통과율 가산 (무한 빠꾸 방지)
   PASS_MAX: 0.9,
-  MOOD_BONUS: 0.25,         // ☕ 팀장님 기분 좋음 동안 통과율 가산
-  WALK_SEC: 1.6,            // 자리↔팀장 책상 이동 시간 (자리와 무관하게 동일 → 공정)
+  MOOD_BONUS: 0.25,         // ☕ 실장님 기분 좋음 동안 통과율 가산
+  WALK_SEC: 1.6,            // 자리↔실장 책상 이동 시간 (자리와 무관하게 동일 → 공정)
   WALK_JITTER: [0.8, 1.25], // 이동할 때마다 걸음 속도 랜덤 배율 (동시 출발 후 자연스럽게 흩어짐)
   REVIEW_SEC: [1.0, 1.8],   // 검토 시간
   WRITE_SEC: [2.5, 4.5],    // 재작성 시간
@@ -73,7 +73,7 @@ export function createReportGame(players, env) {
   const leaderSay = (text, dur = 1.6) => { leaderBubble = { text, t: dur }; };
   const writeDur = () => rand(...C.WRITE_SEC);
 
-  env.log(`📄 전원 서류 들고 팀장님께 출발! (참가자 ${n}명)`);
+  env.log(`📄 전원 서류 들고 실장님께 출발! (참가자 ${n}명)`);
 
   const pos = (pl) => {
     if (pl.frozen) return pl.frozen;
@@ -148,14 +148,14 @@ export function createReportGame(players, env) {
       awayCount++;
       leaderBubble = null;
       env.banner('📞 상무님 호출!');
-      env.log('📞 상무님 호출! 팀장님 잠시 자리 비움… 전원 대기');
+      env.log('📞 상무님 호출! 실장님 잠시 자리 비움… 전원 대기');
       env.sfx.ring();
     } else if (away <= 0 && mood <= 0 && moodCount < C.MOOD_MAX && Math.random() < C.P_MOOD) {
       mood = C.MOOD_SEC;
       moodCount++;
       leaderSay('오늘 커피 맛있네~ ☕', 2);
-      env.banner('☕ 팀장님 기분 좋음!');
-      env.log('☕ 팀장님 기분 좋음! 잠시 통과율 상승');
+      env.banner('☕ 실장님 기분 좋음!');
+      env.log('☕ 실장님 기분 좋음! 잠시 통과율 상승');
       env.sfx.ding();
     } else if (changeCount < C.CHANGE_MAX && writers.length && Math.random() < C.P_CHANGE) {
       changeCount++;
@@ -177,7 +177,7 @@ export function createReportGame(players, env) {
       if (leaderBubble && (leaderBubble.t -= dt) <= 0) leaderBubble = null;
       if (away > 0 && (away -= dt) <= 0) {
         leaderSay('자, 다시 보자');
-        env.log('🧑‍💼 팀장님 복귀! 검토 재개');
+        env.log('🧑‍💼 실장님 복귀! 검토 재개');
       }
       if (!loser) {
         tickAcc += dt;
@@ -396,7 +396,7 @@ export function createReportGame(players, env) {
     ctx.fillStyle = '#FFD166';
     ctx.font = 'bold 9px "Noto Sans KR", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('팀장', LEADER_X, 130);
+    ctx.fillText('실장', LEADER_X, 130);
     // 서류 더미 (검토 중이면 넘기는 모션)
     const pile = P.filter((pl) => pl.state === 'review').length;
     for (let k = 0; k < Math.min(pile, 5); k++) {
