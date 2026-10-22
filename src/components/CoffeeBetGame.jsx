@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import ShareButtons from './ShareButtons';
 import {
   W, H, CHARACTERS, GAMES, shuffle, pick, easeOutElastic, updateParticles, drawParticles,
 } from './coffee/coffeeGames';
+import { OFFICE_GAMES } from './coffee/officeGames';
+import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const STORAGE_KEY = 'coffeeBetPlayers';
 const DEFAULT_NAMES = ['김대리', '이과장', '박사원', '최팀장'];
@@ -21,70 +24,6 @@ function saveNames(names) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(names)); } catch (e) { /* ignore */ }
 }
 
-// --- Web Audio 절차적 사운드 ---
-
-let audioCtx = null;
-let muted = false;
-
-function audio() {
-  if (muted) return null;
-  if (!audioCtx) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    audioCtx = new AC();
-  }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  return audioCtx;
-}
-
-function tone(freq, dur, type = 'square', vol = 0.1, slideTo) {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime;
-  const o = ac.createOscillator();
-  const g = ac.createGain();
-  o.type = type;
-  o.frequency.setValueAtTime(freq, t);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g).connect(ac.destination);
-  o.start(t);
-  o.stop(t + dur + 0.02);
-}
-
-function noise(dur, vol, filterType, freq) {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime;
-  const len = Math.floor(ac.sampleRate * dur);
-  const buf = ac.createBuffer(1, len, ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  const f = ac.createBiquadFilter();
-  f.type = filterType;
-  f.frequency.value = freq;
-  const g = ac.createGain();
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  src.connect(f).connect(g).connect(ac.destination);
-  src.start(t);
-}
-
-const sfx = {
-  tick: () => tone(1400, 0.03, 'square', 0.04),
-  whoosh: () => noise(0.15, 0.08, 'bandpass', 1600),
-  explosion: () => { noise(1.4, 0.6, 'lowpass', 700); tone(90, 0.7, 'sine', 0.5, 30); },
-  splash: () => noise(0.5, 0.25, 'bandpass', 800),
-  bump: () => tone(150, 0.12, 'triangle', 0.25, 60),
-  crack: () => noise(0.25, 0.3, 'highpass', 2000),
-  ding: () => { tone(880, 0.12, 'sine', 0.12); setTimeout(() => tone(1320, 0.2, 'sine', 0.12), 90); },
-  doom: () => { tone(220, 0.5, 'sawtooth', 0.12, 110); setTimeout(() => tone(147, 1.0, 'sawtooth', 0.12, 60), 420); },
-  fanfare: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, i === 3 ? 0.5 : 0.18, 'triangle', 0.12), i * 120)),
-};
-
 const CoffeeBetGame = () => {
   const [names, setNames] = useState(loadNames);
   const [phase, setPhase] = useState('setup'); // setup | playing | result
@@ -98,7 +37,7 @@ const CoffeeBetGame = () => {
   const inGame = phase !== 'setup';
   const validNames = names.map((n) => n.trim()).filter(Boolean);
 
-  useEffect(() => { muted = isMuted; }, [isMuted]);
+  useEffect(() => { setMuted(isMuted); }, [isMuted]);
 
   const updateName = (i, value) => setNames((prev) => prev.map((n, j) => (j === i ? value : n)));
   const addPlayer = () => setNames((prev) => (prev.length < MAX_PLAYERS ? [...prev, ''] : prev));
@@ -106,7 +45,7 @@ const CoffeeBetGame = () => {
 
   const startGame = (id) => {
     if (validNames.length < MIN_PLAYERS) return;
-    audio(); // 사용자 클릭 시점에 오디오 잠금 해제
+    unlockAudio(); // 사용자 클릭 시점에 오디오 잠금 해제
     const chosen = id === 'random' ? pick(Object.keys(GAMES)) : id;
     const chars = shuffle(CHARACTERS);
     rosterRef.current = shuffle(validNames).map((name, i) => ({ name, ch: chars[i % chars.length] }));
@@ -243,6 +182,18 @@ const CoffeeBetGame = () => {
           <button onClick={() => startGame('random')} disabled={validNames.length < MIN_PLAYERS} style={{ ...primaryBtn, padding: 16 }}>
             🎲 랜덤 게임으로 바로 시작
           </button>
+        </div>
+
+        <div style={{ maxWidth: 420, margin: '32px auto 0' }}>
+          <h3 style={{ ...sectionTitle, textAlign: 'left' }}>🆕 회사원 내기 게임 (최대 10명)</h3>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {Object.entries(OFFICE_GAMES).map(([id, g]) => (
+              <Link key={id} to={g.path} style={{ ...gameBtn, display: 'block', textDecoration: 'none' }}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{g.title}</div>
+                <div style={{ fontSize: 13, color: '#777', marginTop: 4 }}>{g.desc}</div>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     );
