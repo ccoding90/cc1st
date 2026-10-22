@@ -2,6 +2,90 @@
 // 업데이트 기준: 전월 기준 구글 검색 상위권 (10대~40대 대상)
 
 export const MONTHLY_TESTS = {
+  '2026-10': {
+    label: '2026년 10월',
+    description: '트렌드 코리아 2027 출간 · 할로윈 · 가을 권태 시즌! 2027 트렌드 유형·할로윈 캐릭터·권태 지수 🎃🍂',
+    emoji: '🎃',
+    tests: [
+      {
+        id: 'trend-2027',
+        title: '📘 트렌드 코리아 2027 유형 테스트',
+        description: '베스트셀러 1위 트렌드 코리아 2027 출간! 라이프 ROI·해봄경제·안목자본·휴먼엣지 중 나는 어떤 트렌드형 인간?',
+        emoji: '📘',
+        tags: ['트렌드코리아2027', '자기분석', 'AI시대'],
+        path: '/trend-2027',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 1
+      },
+      {
+        id: 'halloween-type',
+        title: '🎃 할로윈 캐릭터 유형 테스트',
+        description: '10월 31일 할로윈! 구미호·저승사자·도깨비·데몬 헌터 중 나와 닮은 K-오컬트 캐릭터와 코스튬 추천까지.',
+        emoji: '🎃',
+        tags: ['할로윈', '코스튬', 'K-오컬트'],
+        path: '/halloween-type',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 2
+      },
+      {
+        id: 'boredom-test',
+        title: '🍂 가을 권태 지수 테스트',
+        description: '볼 건 많은데 다 지루하다면? 2027 키워드 권태사회로 알아보는 나의 권태 레벨 0~20점 진단.',
+        emoji: '🍂',
+        tags: ['권태사회', '가을', '무기력'],
+        path: '/boredom-test',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 3
+      },
+      {
+        id: 'coffee-bet',
+        title: '☕ 점심 커피내기 게임',
+        description: '시한폭탄 패스·사다리·외나무다리·등산·결재받기! 오늘 커피는 누가 살까? 사무실 필수 내기 게임.',
+        emoji: '☕',
+        tags: ['게임', '커피내기', '직장인'],
+        path: '/coffee-bet',
+        isAvailable: true,
+        isNew: true,
+        searchRank: 4
+      },
+      {
+        id: 'travel-style',
+        title: '가을 여행 유형 테스트',
+        description: '단풍 시즌 개막! 탐험형·힐링형·문화형·미식형 중 이번 가을 나에게 맞는 여행 스타일은?',
+        emoji: '🍁',
+        tags: ['단풍', '가을여행', '여행'],
+        path: '/travel-style',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 5
+      },
+      {
+        id: 'stress-type',
+        title: '스트레스 대처 유형 테스트',
+        description: '하반기 업무 스퍼트 시즌! 폭발형? 잠수형? 먹방형? 나는 스트레스를 어떻게 풀까요?',
+        emoji: '😤',
+        tags: ['스트레스', '번아웃', '힐링'],
+        path: '/stress-type',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 6
+      },
+      {
+        id: 'mbti',
+        title: 'MBTI 성격 유형 테스트',
+        description: '16가지 성격 유형으로 나를 알아보세요. 가장 정확한 MBTI 테스트!',
+        emoji: '🔮',
+        tags: ['MBTI', '성격', '심리'],
+        path: '/mbti',
+        isAvailable: true,
+        isNew: false,
+        searchRank: 7
+      }
+    ]
+  },
   '2026-06': {
     label: '2026년 6월',
     description: '2026 FIFA 월드컵 개막! 포지션 테스트·골키퍼 게임·AI 트렌드 ⚽🌍',

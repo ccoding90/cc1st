@@ -24,6 +24,9 @@ import CoffeeBetGame from './components/CoffeeBetGame';
 import OfficeBetGame from './components/OfficeBetGame';
 import GameHub from './components/GameHub';
 import SoccerTypeTest from './components/SoccerTypeTest';
+import Trend2027Test from './components/Trend2027Test';
+import HalloweenTypeTest from './components/HalloweenTypeTest';
+import BoredomTest from './components/BoredomTest';
 import NovelPage from './components/NovelPage';
 import AboutPage from './components/AboutPage';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -78,6 +81,10 @@ const App = () => {
             <Route path="/travel-style" element={<div className="mbti-wrapper"><TravelStyleTest /></div>} />
             <Route path="/feelconomy-type" element={<div className="mbti-wrapper"><FeelconomyTest /></div>} />
             <Route path="/emotion-type" element={<div className="mbti-wrapper"><EmotionTypeTest /></div>} />
+            {/* 10월 신규 테스트 */}
+            <Route path="/trend-2027" element={<div className="mbti-wrapper"><Trend2027Test /></div>} />
+            <Route path="/halloween-type" element={<div className="mbti-wrapper"><HalloweenTypeTest /></div>} />
+            <Route path="/boredom-test" element={<div className="mbti-wrapper"><BoredomTest /></div>} />
             {/* 블로그 & 커뮤니티 */}
             <Route path="/blog" element={<div className="blog-wrapper"><MbtiBlog /></div>} />
             <Route path="/insight" element={<div className="blog-wrapper"><InsightBlog /></div>} />

@@ -11,7 +11,26 @@
     <loc>https://cc1st.pages.dev/trending</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
-    <lastmod>2026-04-01</lastmod>
+    <lastmod>2026-10-22</lastmod>
+  </url>
+  <!-- 10월 신규 테스트 -->
+  <url>
+    <loc>https://cc1st.pages.dev/trend-2027</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>2026-10-22</lastmod>
+  </url>
+  <url>
+    <loc>https://cc1st.pages.dev/halloween-type</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>2026-10-22</lastmod>
+  </url>
+  <url>
+    <loc>https://cc1st.pages.dev/boredom-test</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>2026-10-22</lastmod>
   </url>
   <!-- 기존 테스트 -->
   <url>
