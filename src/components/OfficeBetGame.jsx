@@ -217,7 +217,7 @@ const OfficeBetGame = ({ gameKey }) => {
           </ul>
         </div>
 
-        <button onClick={startGame} style={{ ...primaryBtn, width: '100%', maxWidth: 420, padding: 16 }}>
+        <button onClick={startGame} style={{ ...primaryBtn, width: '100%', maxWidth: 420, margin: '0 auto', padding: 16 }}>
           ▶ 게임 시작
         </button>
       </div>
