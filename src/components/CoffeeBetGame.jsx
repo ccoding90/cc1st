@@ -8,6 +8,7 @@ import { OFFICE_GAMES } from './coffee/officeGames';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const STORAGE_KEY = 'coffeeBetPlayers';
+const BOMB_TIME_KEY = 'coffeeBetBombTime';
 const DEFAULT_NAMES = ['김대리', '이과장', '박사원', '최팀장'];
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
@@ -20,6 +21,16 @@ function loadNames() {
   return DEFAULT_NAMES;
 }
 
+function loadBombTime() {
+  try {
+    const v = Number(localStorage.getItem(BOMB_TIME_KEY));
+    if (GAMES.bomb.times.includes(v)) return v;
+  } catch (e) { /* ignore */ }
+  return GAMES.bomb.times[0];
+}
+
+const timeLabel = (sec) => (sec >= 60 ? `${sec / 60}분` : `${sec}초`);
+
 function saveNames(names) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(names)); } catch (e) { /* ignore */ }
 }
@@ -31,6 +42,7 @@ const CoffeeBetGame = () => {
   const [round, setRound] = useState(0);
   const [result, setResult] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [bombTime, setBombTime] = useState(loadBombTime);
   const canvasRef = useRef(null);
   const rosterRef = useRef([]);
 
@@ -38,6 +50,9 @@ const CoffeeBetGame = () => {
   const validNames = names.map((n) => n.trim()).filter(Boolean);
 
   useEffect(() => { setMuted(isMuted); }, [isMuted]);
+  useEffect(() => {
+    try { localStorage.setItem(BOMB_TIME_KEY, String(bombTime)); } catch (e) { /* ignore */ }
+  }, [bombTime]);
 
   const updateName = (i, value) => setNames((prev) => prev.map((n, j) => (j === i ? value : n)));
   const addPlayer = () => setNames((prev) => (prev.length < MAX_PLAYERS ? [...prev, ''] : prev));
@@ -80,7 +95,7 @@ const CoffeeBetGame = () => {
         setPhase('result');
       },
     };
-    const game = GAMES[gameId].create(rosterRef.current, env);
+    const game = GAMES[gameId].create(rosterRef.current, env, { fuse: bombTime });
 
     let raf;
     let last = performance.now();
@@ -174,10 +189,27 @@ const CoffeeBetGame = () => {
 
         <div style={{ display: 'grid', gap: 12, maxWidth: 420, margin: '0 auto' }}>
           {Object.entries(GAMES).map(([id, g]) => (
-            <button key={id} onClick={() => startGame(id)} disabled={validNames.length < MIN_PLAYERS} style={gameBtn}>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{g.title}</div>
-              <div style={{ fontSize: 13, color: '#777', marginTop: 4, fontWeight: 400 }}>{g.desc}</div>
-            </button>
+            <div key={id} style={g.times ? { ...gameBtn, padding: 0, overflow: 'hidden' } : undefined}>
+              <button onClick={() => startGame(id)} disabled={validNames.length < MIN_PLAYERS} style={g.times ? { ...gameBtn, width: '100%', boxShadow: 'none', borderRadius: 0 } : { ...gameBtn, width: '100%' }}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{g.title}</div>
+                <div style={{ fontSize: 13, color: '#777', marginTop: 4, fontWeight: 400 }}>{g.desc}</div>
+              </button>
+              {g.times && (
+                <div style={timeRow}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#5D4037' }}>⏱ 폭탄 시간</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {g.times.map((sec) => (
+                      <button
+                        key={sec}
+                        onClick={() => setBombTime(sec)}
+                        aria-pressed={bombTime === sec}
+                        style={bombTime === sec ? { ...timeBtn, ...timeBtnActive } : timeBtn}
+                      >{timeLabel(sec)}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
           <button onClick={() => startGame('random')} disabled={validNames.length < MIN_PLAYERS} style={{ ...primaryBtn, padding: 16 }}>
             🎲 랜덤 게임으로 바로 시작
@@ -204,7 +236,9 @@ const CoffeeBetGame = () => {
     <div style={containerStyle}>
       <style>{keyframes}</style>
       <h1 style={{ ...titleStyle, fontSize: 24 }}>{game.title}</h1>
-      <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>{game.desc}</p>
+      <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>
+        {game.desc}{game.times ? ` (⏱ ${timeLabel(bombTime)})` : ''}
+      </p>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
         <button onClick={() => setPhase('setup')} style={smallBtn}>← 게임 선택</button>
         <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리 켜기' : '🔊 소리 끄기'}</button>
@@ -323,6 +357,32 @@ const gameBtn = {
   color: '#333',
   boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
   cursor: 'pointer',
+};
+
+const timeRow = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '10px 18px',
+  borderTop: '1px dashed #eee',
+  background: '#fffaf3',
+};
+
+const timeBtn = {
+  padding: '6px 14px',
+  fontSize: 13,
+  fontWeight: 700,
+  background: '#fff',
+  color: '#5D4037',
+  border: '2px solid #d7ccc8',
+  borderRadius: 999,
+  cursor: 'pointer',
+};
+
+const timeBtnActive = {
+  background: '#c62828',
+  color: '#fff',
+  borderColor: '#c62828',
 };
 
 const primaryBtn = {
