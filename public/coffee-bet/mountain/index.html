@@ -1,0 +1,1758 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>커피내기 산악 레이스 ⛰️☕</title>
+<meta name="description" content="정상에 가장 늦게 도착한 사람이 커피를 쏜다! 최대 10명이 랜덤 산을 오르는 관전형 커피내기 레이스 게임.">
+<meta property="og:title" content="커피내기 산악 레이스 ⛰️☕">
+<meta property="og:description" content="꼴찌가 커피 쏘기! 신의 손, 낙석, 호랑이 추격까지 — 50초 만에 끝나는 등산 레이스">
+<link rel="canonical" href="https://cc1st.pages.dev/coffee-bet/mountain/">
+<style>
+:root {
+  --bg: #FFF8F0;
+  --card: #FFFFFF;
+  --ink: #3A3335;
+  --sub: #8A7F7A;
+  --line: #EFE4DA;
+  --brand: #6F4E37;
+  --accent: #E4572E;
+  --mint: #CDEFE3;
+  --sky: #DCEEFB;
+  --radius: 16px;
+  --shadow: 0 6px 20px rgba(111, 78, 55, 0.12);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+}
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #F2A900; outline-offset: 2px; }
+#app { max-width: 600px; margin: 0 auto; padding: 0 12px calc(16px + env(safe-area-inset-bottom)); }
+.top { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+.top a { color: var(--sub); text-decoration: none; font-size: 13px; white-space: nowrap; }
+.top h1 { flex: 1; margin: 0; font-size: 17px; text-align: center; letter-spacing: -0.3px; }
+.icon-btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; width: 38px; height: 38px; font-size: 17px; }
+[hidden] { display: none !important; }
+
+/* ---------- 설정 ---------- */
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+.hero { text-align: center; padding: 18px 16px; background: linear-gradient(160deg, #DCEEFB 0%, #F9E2EC 55%, #FFF1D6 100%); }
+.hero .big { font-size: 44px; line-height: 1; }
+.hero h2 { margin: 8px 0 4px; font-size: 21px; }
+.hero p { margin: 0; color: #6E625C; font-size: 14px; line-height: 1.5; }
+.label { font-weight: 800; font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+.label small { font-weight: 400; color: var(--sub); font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; min-width: 40px; height: 38px; padding: 0 10px; font-weight: 700; color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.name-row { display: flex; align-items: center; gap: 6px; background: #FBF7F3; border: 1.5px solid var(--line); border-radius: 12px; padding: 4px 8px; }
+.seat { flex: none; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.name-row input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; font: inherit; font-size: 15px; padding: 6px 0; color: var(--ink); }
+.name-row input::placeholder { color: #B9ADA6; font-size: 13px; }
+.row-btns { display: flex; gap: 8px; margin-top: 10px; }
+.ghost { flex: 1; border: 1.5px dashed #D9C8BA; background: #fff; border-radius: 12px; padding: 10px; font-weight: 700; color: var(--brand); }
+.radio-row { display: flex; gap: 8px; }
+.radio-row label { flex: 1; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.radio-row label:has(input:checked) { border-color: var(--brand); background: #F7EFE8; }
+select { width: 100%; margin-top: 10px; padding: 10px; border-radius: 12px; border: 1.5px solid var(--line); font: inherit; font-size: 15px; background: #fff; color: var(--ink); }
+.primary { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-size: 19px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #E4572E, #F2A900); box-shadow: 0 8px 18px rgba(228, 87, 46, 0.3); }
+.primary:active { transform: translateY(1px); }
+details { font-size: 13px; color: #5E5450; line-height: 1.7; }
+details summary { font-weight: 800; font-size: 14px; cursor: pointer; color: var(--ink); }
+details ul { padding-left: 18px; margin: 8px 0 0; }
+
+/* ---------- 레이스 ---------- */
+.hud { display: flex; gap: 6px; align-items: stretch; margin-bottom: 6px; }
+.clock { flex: none; background: var(--ink); color: #fff; border-radius: 12px; padding: 6px 10px; font-weight: 800; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; justify-content: center; min-width: 74px; text-align: center; }
+.clock small { font-size: 10px; font-weight: 600; opacity: 0.75; }
+.ranks { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 1fr 1fr; grid-auto-flow: column; gap: 4px; }
+.rk { background: #fff; border-radius: 9px; padding: 3px 7px; font-size: 12px; display: flex; gap: 4px; align-items: center; white-space: nowrap; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.rk b { overflow: hidden; text-overflow: ellipsis; }
+.rk span { margin-left: auto; color: var(--sub); font-variant-numeric: tabular-nums; }
+.rk.last { background: #FFE8E0; }
+.stage { position: relative; margin: 0 auto; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background: #DCEEFB; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.banner { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); background: rgba(30, 22, 20, 0.82); color: #fff; padding: 10px 18px; border-radius: 14px; font-weight: 900; font-size: 19px; white-space: nowrap; pointer-events: none; animation: pop 0.35s ease-out; text-align: center; }
+@keyframes pop { from { transform: translate(-50%, -50%) scale(0.6); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+.slot { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(255, 248, 240, 0.55); pointer-events: none; }
+.slot-box { background: #fff; border-radius: 18px; padding: 14px 26px; text-align: center; box-shadow: var(--shadow); min-width: 210px; }
+.slot-box small { color: var(--sub); font-size: 12px; font-weight: 700; }
+.slot-name { font-size: 34px; font-weight: 900; margin: 4px 0 0; }
+.slot-h { color: var(--accent); font-weight: 800; }
+.slot-box.land { animation: land 0.45s ease-out; }
+@keyframes land { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.ticker { list-style: none; margin: 6px 0 0; padding: 8px 10px; background: #fff; border-radius: 12px; min-height: 76px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.ticker li { font-size: 13px; line-height: 1.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
+.ticker li:first-child { color: var(--ink); font-weight: 700; font-size: 14px; }
+.race-tools { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.race-tools button { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 10px; font-size: 12px; color: var(--sub); }
+
+/* ---------- 결과 ---------- */
+.result-head { text-align: center; padding: 22px 14px; background: linear-gradient(160deg, #FFE1D6, #FFF1D6); }
+.result-head .cup { font-size: 64px; display: inline-block; animation: wobble 1s ease-in-out infinite; }
+@keyframes wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.result-head h2 { margin: 6px 0 4px; font-size: 22px; line-height: 1.35; word-break: keep-all; }
+.result-head p { margin: 0; color: #7A6A62; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+th { font-size: 12px; color: var(--sub); font-weight: 700; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.loser td { background: #FFEDE6; font-weight: 800; }
+.btn-col { display: grid; gap: 8px; }
+.btn2 { border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 13px; font-weight: 800; font-size: 15px; color: var(--ink); }
+.shake { animation: shake 0.5s linear; }
+@keyframes shake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-8px,4px); } 40% { transform: translate(7px,-5px); } 60% { transform: translate(-6px,-3px); } 80% { transform: translate(5px,4px); } }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 60; }
+
+/* ---------- 디버그 ---------- */
+#debug { font-size: 12px; }
+#debug table { font-size: 12px; }
+#debug td, #debug th { padding: 5px 4px; }
+#debug .ok { color: #15803D; font-weight: 800; }
+#debug .bad { color: #B91C1C; font-weight: 800; }
+#debug .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+#debug .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .shake, .result-head .cup, .slot-box.land, .banner { animation: none !important; }
+}
+@media (min-width: 720px) {
+  .top h1 { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <a href="/coffee-bet">← 커피내기</a>
+    <h1>⛰️ 커피내기 산악 레이스</h1>
+    <button class="icon-btn" id="muteBtn" type="button" aria-label="효과음 끄기">🔊</button>
+  </header>
+
+  <!-- 설정 화면 -->
+  <section id="setup">
+    <div class="card hero">
+      <div class="big" aria-hidden="true">🧗☕</div>
+      <h2>정상에 꼴찌로 도착하면 커피!</h2>
+      <p>랜덤 산에서 최대 10명이 자동으로 등반해요.<br>낙석·호랑이·<b>신의 손</b>까지, 순위는 끝까지 몰라요. 한 판 약 50초!</p>
+    </div>
+
+    <div class="card">
+      <p class="label">👥 참가 인원 <small id="countLabel"></small></p>
+      <div class="chips" id="countChips" role="group" aria-label="참가 인원"></div>
+    </div>
+
+    <div class="card">
+      <p class="label">✏️ 이름 <small>최대 8자 · 비우면 랜덤 별명</small></p>
+      <div class="names" id="names"></div>
+      <div class="row-btns">
+        <button class="ghost" id="fillBtn" type="button">🎲 랜덤 이름 채우기</button>
+        <button class="ghost" id="clearBtn" type="button">🧹 모두 지우기</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="label">🏔️ 산 선택</p>
+      <div class="radio-row">
+        <label><input type="radio" name="mmode" value="random" checked> 🎰 랜덤</label>
+        <label><input type="radio" name="mmode" value="pick"> 👆 직접 선택</label>
+      </div>
+      <select id="mountainSel" aria-label="산 선택" hidden></select>
+    </div>
+
+    <button class="primary" id="startBtn" type="button">🧗 등산 시작!</button>
+
+    <div class="card" style="margin-top:12px">
+      <details>
+        <summary>📖 이벤트 도감</summary>
+        <ul>
+          <li><b>불운</b>: 🍌 바나나 · 🪨 낙석 · 🌫️ 안개 · 🐗 멧돼지 · 📱 인증샷 · 🥾 신발끈 · 🍜 컵라면 · 🐿️ 다람쥐 — 앞서갈수록 잘 걸려요</li>
+          <li><b>행운</b>: 🧃 막걸리 · 🦅 독수리 택시 · 💨 순풍 · 🐯 호랑이 추격 · 🧙 산신령 · 🚠 케이블카 — 뒤처질수록 잘 나와요</li>
+          <li><b>역전</b>: ✋ 신의 손(하위권을 정상으로!) · 💀 저승사자 · ⛰️ 산사태 · 🚁 헬기 구조 · ⛺ 전원 소집 휴게소</li>
+          <li>70~90%는 <b>깔딱고개</b>(변수 폭발), 90% 이후는 정상 직전 접전!</li>
+          <li>능력치·입력 순서에 따른 유불리는 없어요. 모두가 똑같은 확률로 꼴찌가 됩니다.</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <!-- 레이스 화면 -->
+  <section id="race" hidden>
+    <div class="hud">
+      <div class="clock"><span id="clock">0.0초</span><small id="zone">출발 전</small></div>
+      <div class="ranks" id="ranks" aria-label="실시간 순위"></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="cv" role="img" aria-label="등산 레이스 화면"></canvas>
+      <div class="slot" id="slot" hidden><div class="slot-box" id="slotBox"><small>오늘의 산은…</small><div class="slot-name" id="slotName"></div><div class="slot-h" id="slotH"></div></div></div>
+      <div class="banner" id="banner" hidden></div>
+    </div>
+    <ul class="ticker" id="ticker" aria-live="polite" aria-label="중계"></ul>
+    <div class="race-tools">
+      <button type="button" id="fastBtn" hidden>⏩ 4배속</button>
+      <button type="button" id="quitBtn">✖ 그만하기</button>
+    </div>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section id="result" hidden>
+    <div class="card result-head">
+      <div class="cup" aria-hidden="true">☕</div>
+      <h2 id="loserTitle"></h2>
+      <p id="resultMeta"></p>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col" class="num">도착</th></tr></thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-col">
+      <button class="primary" id="againBtn" type="button">🔁 같은 멤버로 다시 하기</button>
+      <button class="btn2" id="copyBtn" type="button">📋 결과 텍스트 복사</button>
+      <button class="btn2" id="homeBtn" type="button">🏠 처음으로</button>
+    </div>
+  </section>
+
+  <!-- 디버그 (?debug=1) -->
+  <section id="debug" class="card" hidden style="margin-top:12px">
+    <p class="label">🛠 밸런스 검증 (헤드리스 시뮬레이션)</p>
+    <div class="row-btns" style="margin-top:0">
+      <select id="dbgN" aria-label="시뮬레이션 인원" style="margin:0;flex:1"></select>
+      <button class="ghost" id="dbgRun" type="button" style="flex:2">▶ 5,000판 돌리기</button>
+    </div>
+    <div class="bar"><i id="dbgBar"></i></div>
+    <div id="dbgOut"></div>
+  </section>
+</div>
+<canvas id="confetti" hidden></canvas>
+
+<script>
+'use strict';
+// ==ENGINE START==
+// ===== 밸런스 파라미터 (튜닝은 여기서만) =====
+const CONFIG = {
+  DT: 1 / 60,                 // 고정 타임스텝(초)
+  INTRO_SEC: 2.5,             // 산 추첨 연출
+  SLOWMO_EXTRA: 0.9,          // 꼴찌 확정 슬로모션으로 늘어나는 실제 시간
+  END_DELAY: 1.2,             // 꼴찌 도착 후 결과 화면까지
+
+  BASE_SPEED: 2.25,           // 공통 기준 속도 (%/초)
+  COND_AMP: 0.12,             // 컨디션 편차 ±12%
+  COND_AMP_KALDAK: 0.25,      // 깔딱고개 구간 편차 ±25%
+  COND_EVERY: 5,              // 컨디션 재추첨 주기(초)
+  COND_LERP: 2,               // 컨디션 변화 부드러움(클수록 즉시 반영)
+
+  RB_BONUS_MAX: 0.18,         // 고무줄: 후미 최대 가속
+  RB_BONUS_PER: 0.012,        //   선두와 1%p 차이당 가속
+  RB_PENALTY_MAX: 0.12,       // 고무줄: 선두 최대 감속
+  RB_PENALTY_PER: 0.012,      //   평균보다 1%p 앞설 때마다 감속
+
+  KALDAK: [70, 90],           // 깔딱고개 구간
+  KALDAK_EVENT_MULT: 1.5,
+  SPURT_FROM: 90,             // 정상 직전 스퍼트: 컨디션 편차 제거
+  SPURT_CONVERGE: 0.85,
+
+  EVENT_INTERVAL: [4, 6],     // 선수별 이벤트 판정 주기(초)
+  EVENT_CHANCE: 0.75,         // 판정 시 이벤트 발생 확률(산·구간 배율 적용 전)
+  BAD_P_LEADER: 0.8,          // 1등이 판정받을 때 불운 비율
+  BAD_P_TAIL: 0.15,           // 꼴찌가 판정받을 때 불운 비율
+  BAD_STREAK_MULT: 0.5,       // 직전 이벤트가 불운이면 불운 비율 ×
+  BAD_CAP: 4,                 // 한 판 선수별 불운 상한
+  COMEBACK_GAP: 6,            // 후반 선두-꼴찌 격차가 이 이상이면
+  COMEBACK_FROM: 70,          //   (선두 progress 기준) 역전 확률 상승
+  COMEBACK_BAD_ADD: 0.25,
+
+  GOD_HAND_CHANCE: 0.7,       // 판에 신의 손이 1회 이상 나올 확률
+  GOD_HAND_SECOND: 0.15,      // 두 번째 신의 손 확률
+  GOD_HAND_WINDOW: [12, 40],
+  GOD_HAND_MAX_P: 85,
+  GOD_HAND_TAIL: 0.25,        // 하위 25%(최소 1명) 중 랜덤
+  GOD_HAND_ANNOUNCE: 1.0,
+  GOD_HAND_LIFT: 1.5,
+
+  REAPER_P: 0.3,              // 저승사자: 조건 충족 시 초당 확률
+  REAPER_GAP: 15,
+  REAPER_BACK: 20,
+  LANDSLIDE_P: 0.03,          // 산사태: 초당 확률
+  LANDSLIDE_WINDOW: [15, 42],
+  LANDSLIDE_BACK: [5, 8],
+  HELI_P: 0.05,               // 헬기: 꼴찌가 15%p 이상 처질 때 초당 확률
+  HELI_GAP: 15,
+  HELI_WINDOW: [15, 45],
+  HELI_JUMP: 15,
+  REST_CHANCE: 0.5,           // 전원 소집 휴게소 (선두 70% 돌파 시 1회 판정)
+  REST_AT: 70,
+  REST_STOP: 2,
+  REST_STAGGER: 1.5,          // 선두일수록 늦게 출발(최대 +초)
+
+  FORCE_T: 50,                // 이 시점(레이스 초)부터 미도착자 가속
+  FORCE_ACCEL: 0.8,           //   초당 +80%
+  HARD_T: 55,                 // 이 시점엔 전원 강제 도착 (총 60초 보장)
+};
+
+const MOUNTAINS = [
+  { name: '인왕산', h: 338, theme: 'wall', mult: 0.8 },
+  { name: '청계산', h: 618, theme: 'forest', mult: 0.9 },
+  { name: '관악산', h: 632, theme: 'rock', mult: 0.9 },
+  { name: '북한산', h: 836, theme: 'granite', mult: 1.0 },
+  { name: '설악산', h: 1708, theme: 'maple', mult: 1.1 },
+  { name: '지리산', h: 1915, theme: 'cloudsea', mult: 1.15 },
+  { name: '한라산', h: 1947, theme: 'wind', mult: 1.2 },
+  { name: '백두산', h: 2744, theme: 'snow', mult: 1.3 },
+];
+
+const BAD_EVENTS = ['banana', 'rock', 'fog', 'boar', 'selfie', 'shoelace', 'ramen', 'squirrel'];
+const GOOD_EVENTS = ['makgeolli', 'eagle', 'wind', 'tiger', 'sansin', 'cablecar'];
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 레이스 시뮬레이션 (렌더링과 무관). mountainIdx가 null이면 시드로 산을 고름
+function createRace({ n, seed, mountainIdx = null }) {
+  const C = CONFIG;
+  const rng = mulberry32(seed);
+  const R = (a, b) => a + (b - a) * rng();
+  const pickedM = Math.floor(rng() * MOUNTAINS.length); // 항상 소비해서 시드 재현성 유지
+  const mIdx = mountainIdx == null ? pickedM : mountainIdx;
+  const M = MOUNTAINS[mIdx];
+
+  const P = Array.from({ length: n }, (_, id) => ({
+    id, p: 0, cond: 0, condTarget: R(-C.COND_AMP, C.COND_AMP),
+    condAt: R(0, C.COND_EVERY), zone: 0,
+    nextEvt: R(1.5, C.EVENT_INTERVAL[1]),
+    mods: [], tw: null, held: false, // held: 신의 손에 잡힌 상태
+    immune: false, badCount: 0, lastBad: false,
+    finished: false, finishIdx: -1, finishT: 0, godHand: false, icon: null,
+  }));
+  const order = [];
+  const ranked = P.slice(); // 순위순 정렬 상태 유지 (매 스텝 삽입 정렬)
+  const events = [];         // 렌더러가 소비하는 이벤트 큐
+  const emit = (e) => { e.t = race.t; events.push(e); };
+
+  // 신의 손 스케줄 (판당 0~2회)
+  const handTimes = [];
+  if (rng() < C.GOD_HAND_CHANCE) {
+    const [a, b] = C.GOD_HAND_WINDOW;
+    handTimes.push(R(a, b - 4));
+    if (rng() < C.GOD_HAND_SECOND) handTimes.push(Math.min(b, handTimes[0] + R(6, 14)));
+  }
+  const once = { reaper: false, landslide: false, heli: false, rest: false };
+  let globalAcc = 0, prevStand = null;
+  let leaderId = -1;
+  const stats = { leadChanges: 0, lastRankChange: 0, godHands: 0 };
+
+  const race = {
+    n, seed, mIdx, M, P, order, events, stats, t: 0, done: false, loserId: -1, confirmT: -1,
+    standings, step,
+  };
+
+  function active(pl) { return !pl.finished && !pl.held && !pl.tw; }
+
+  // 도착자(도착순) → 미도착자(progress 내림차순). 거의 정렬된 상태라 삽입 정렬이 O(n)
+  const key = (pl) => (pl.finished ? 1e6 - pl.finishIdx : pl.p);
+  function standings() {
+    for (let i = 1; i < ranked.length; i++) {
+      const cur = ranked[i], k = key(cur);
+      let j = i - 1;
+      while (j >= 0 && (key(ranked[j]) < k || (key(ranked[j]) === k && ranked[j].id > cur.id))) { ranked[j + 1] = ranked[j]; j--; }
+      ranked[j + 1] = cur;
+    }
+    return ranked;
+  }
+
+  function addMod(pl, mult, dur, delay = 0) {
+    pl.mods.push({ mult, from: race.t + delay, until: race.t + delay + dur });
+  }
+  function tween(pl, to, dur, kind) {
+    pl.tw = { from: pl.p, to: Math.max(0, Math.min(100, to)), t0: race.t, dur, kind };
+  }
+
+  // ---- 개별 이벤트 효과 ----
+  const FX = {
+    banana(pl) { tween(pl, pl.p - R(5, 8), 0.6, 'back'); },
+    rock(pl) { tween(pl, pl.p - R(6, 10), 0.6, 'back'); addMod(pl, 0, 1.5, 0.6); },
+    fog(pl) { addMod(pl, 0.5, 2.5); },
+    boar(pl) { tween(pl, pl.p - R(4, 7), 0.7, 'back'); },
+    selfie(pl) { addMod(pl, 0, 2); },
+    shoelace(pl) { addMod(pl, 0, 1.5); },
+    ramen(pl) { addMod(pl, 0, 3); addMod(pl, 1.25, 4, 3); },
+    squirrel(pl) { addMod(pl, 0.7, 3); },
+    makgeolli(pl) { addMod(pl, 1.4, 3); },
+    eagle(pl) { tween(pl, pl.p + R(6, 10), 0.8, 'up'); },
+    wind(pl) { addMod(pl, 1.25, 4); },
+    tiger(pl) { addMod(pl, 1.5, 5); },
+    sansin(pl) { pl.immune = true; addMod(pl, 1.15, 3); },
+    cablecar(pl) { tween(pl, pl.p + R(10, 14), 1.5, 'up'); },
+  };
+
+  function pickWeighted(list) {
+    let sum = 0;
+    for (const [, w] of list) sum += w;
+    let r = rng() * sum;
+    for (const [k, w] of list) if ((r -= w) < 0) return k;
+    return list[list.length - 1][0];
+  }
+
+  function individualEvent(pl, lag, rankIdx, topP, gap) {
+    const kaldak = pl.p >= C.KALDAK[0] && pl.p < C.KALDAK[1];
+    const chance = Math.min(0.98, C.EVENT_CHANCE * M.mult * (kaldak ? C.KALDAK_EVENT_MULT : 1));
+    if (rng() >= chance || pl.p > 97) return;
+    let pBad = C.BAD_P_LEADER + (C.BAD_P_TAIL - C.BAD_P_LEADER) * lag;
+    if (topP >= C.COMEBACK_FROM && gap >= C.COMEBACK_GAP) pBad += lag < 0.5 ? C.COMEBACK_BAD_ADD : -C.COMEBACK_BAD_ADD;
+    if (pl.lastBad) pBad *= C.BAD_STREAK_MULT;
+    if (pl.badCount >= C.BAD_CAP) pBad = 0;
+    const bad = rng() < pBad;
+    if (bad) {
+      const key = BAD_EVENTS[Math.floor(rng() * BAD_EVENTS.length)];
+      pl.lastBad = true;
+      if (pl.immune) { pl.immune = false; emit({ type: 'shield', id: pl.id, key }); return; }
+      pl.badCount++;
+      FX[key](pl);
+      emit({ type: 'event', id: pl.id, key, bad: true });
+    } else {
+      // 후미일수록 순간이동형 행운 가중
+      const list = [
+        ['makgeolli', 1], ['wind', 1], ['tiger', 0.8], ['sansin', 0.7],
+        ['eagle', 0.6 + lag], ['cablecar', rankIdx >= 3 ? 0.4 + lag * 1.2 : 0],
+      ];
+      const key = pickWeighted(list);
+      pl.lastBad = false;
+      FX[key](pl);
+      emit({ type: 'event', id: pl.id, key, bad: false });
+    }
+  }
+
+  function globalEvents(st, live) {
+    const t = race.t;
+    const topP = live.length ? live[0].p : 100;
+    const tail = live[live.length - 1];
+    // ✋ 신의 손
+    if (handTimes.length && t >= handTimes[0]) {
+      const k = Math.max(1, Math.ceil(live.length * C.GOD_HAND_TAIL));
+      const cands = live.slice(-k).filter((pl) => pl.p < C.GOD_HAND_MAX_P && active(pl));
+      if (cands.length && live.length >= 3) { // 2명만 남았을 땐 승부가 바로 끝나므로 생략
+        handTimes.shift();
+        const pl = cands[Math.floor(rng() * cands.length)];
+        pl.held = true; pl.godHand = true; pl.mods = [];
+        pl.tw = { from: pl.p, to: 100, t0: t + C.GOD_HAND_ANNOUNCE, dur: C.GOD_HAND_LIFT, kind: 'hand' };
+        stats.godHands++;
+        emit({ type: 'godhand', id: pl.id });
+      } else if (t > C.GOD_HAND_WINDOW[1]) handTimes.shift();
+      return;
+    }
+    if (live.length < 2) return;
+    // 💀 저승사자의 손
+    if (!once.reaper && t > 15 && live[0].p < 95 && active(live[0]) &&
+        live[0].p - live[1].p >= C.REAPER_GAP && rng() < C.REAPER_P) {
+      once.reaper = true;
+      tween(live[0], live[0].p - C.REAPER_BACK, 1.2, 'back');
+      emit({ type: 'reaper', id: live[0].id });
+      return;
+    }
+    // ⛰️ 산사태
+    if (!once.landslide && t >= C.LANDSLIDE_WINDOW[0] && t <= C.LANDSLIDE_WINDOW[1] && live.length >= 4 && rng() < C.LANDSLIDE_P) {
+      once.landslide = true;
+      const ids = [];
+      for (const pl of live.slice(0, 3)) if (active(pl)) { tween(pl, pl.p - R(...C.LANDSLIDE_BACK), 0.8, 'back'); ids.push(pl.id); }
+      emit({ type: 'landslide', ids });
+      return;
+    }
+    // 🚁 헬기 구조
+    if (!once.heli && t >= C.HELI_WINDOW[0] && t <= C.HELI_WINDOW[1] && active(tail) &&
+        topP - tail.p >= C.HELI_GAP && rng() < C.HELI_P) {
+      once.heli = true;
+      tween(tail, tail.p + C.HELI_JUMP, 1.2, 'up');
+      addMod(tail, 1.2, 4, 1.2);
+      emit({ type: 'heli', id: tail.id });
+      return;
+    }
+    // ⛺ 전원 소집 휴게소
+    if (!once.rest && topP >= C.REST_AT) {
+      once.rest = true;
+      if (rng() < C.REST_CHANCE) {
+        live.forEach((pl, i) => {
+          if (pl.held) return;
+          const lag = live.length > 1 ? i / (live.length - 1) : 1;
+          addMod(pl, 0, C.REST_STOP + (1 - lag) * C.REST_STAGGER, pl.tw ? pl.tw.t0 + pl.tw.dur - race.t : 0);
+        });
+        emit({ type: 'rest' });
+      }
+    }
+  }
+
+  function finish(pl, ft) {
+    pl.finished = true; pl.finishIdx = order.length; pl.p = 100; pl.finishT = ft; pl.tw = null; pl.held = false;
+    order.push(pl.id);
+    emit({ type: 'finish', id: pl.id, rank: order.length });
+    if (order.length === n - 1) {
+      const loser = P.find((q) => !q.finished);
+      race.loserId = loser.id;
+      race.confirmT = race.t;
+      emit({ type: 'loser', id: loser.id });
+    }
+    if (order.length === n) { race.done = true; emit({ type: 'done' }); }
+  }
+
+  function step() {
+    if (race.done) return;
+    const dt = C.DT;
+    const t0 = race.t;
+    race.t += dt;
+    const t = race.t;
+    const st = standings();
+    const live = st.slice(order.length);
+    const topP = live.length ? live[0].p : 100;
+    const minP = live.length ? live[live.length - 1].p : 100;
+    let sumP = 0;
+    for (const pl of live) sumP += pl.p;
+    const avgP = live.length ? sumP / live.length : 100;
+
+    globalAcc += dt;
+    if (globalAcc >= 1) { globalAcc -= 1; globalEvents(st, live); }
+
+    const force = t > C.FORCE_T ? 1 + (t - C.FORCE_T) * C.FORCE_ACCEL : 1;
+    const crossed = [];
+    for (let i = 0; i < st.length; i++) {
+      const pl = st[i];
+      if (pl.finished) continue;
+      // 컨디션
+      const zone = pl.p >= C.SPURT_FROM ? 2 : pl.p >= C.KALDAK[0] ? 1 : 0;
+      if (t >= pl.condAt || zone !== pl.zone) {
+        const amp = zone === 1 ? C.COND_AMP_KALDAK : C.COND_AMP;
+        pl.condTarget = R(-amp, amp);
+        pl.condAt = t + C.COND_EVERY;
+        pl.zone = zone;
+      }
+      pl.cond += (pl.condTarget - pl.cond) * Math.min(1, dt * C.COND_LERP);
+      // 개별 이벤트 판정
+      if (t >= pl.nextEvt) {
+        pl.nextEvt = t + R(...C.EVENT_INTERVAL);
+        if (active(pl)) {
+          const lag = n > 1 ? i / (n - 1) : 0;
+          individualEvent(pl, lag, i, topP, topP - minP);
+        }
+      }
+      const prevP = pl.p;
+      if (pl.tw) {
+        const q = (t - pl.tw.t0) / pl.tw.dur;
+        if (q >= 0) {
+          const e = q >= 1 ? 1 : q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+          pl.p = pl.tw.from + (pl.tw.to - pl.tw.from) * e;
+          if (q >= 1) { pl.tw = null; pl.held = false; }
+        }
+        if (pl.p >= 100) { crossed.push([pl, t, 0]); }
+        continue;
+      }
+      let mult = 1;
+      for (let k = pl.mods.length - 1; k >= 0; k--) {
+        const m = pl.mods[k];
+        if (m.until <= t) pl.mods.splice(k, 1);
+        else if (m.from <= t) mult *= m.mult;
+      }
+      const condEff = zone === 2 ? pl.cond * (1 - C.SPURT_CONVERGE) : pl.cond;
+      const bonus = Math.min(C.RB_BONUS_MAX, (topP - pl.p) * C.RB_BONUS_PER);
+      const penalty = pl.p > avgP ? Math.min(C.RB_PENALTY_MAX, (pl.p - avgP) * C.RB_PENALTY_PER) : 0;
+      const speed = C.BASE_SPEED * (1 + condEff) * (1 + bonus - penalty) * mult * force;
+      pl.p += speed * dt;
+      if (pl.p >= 100) {
+        const frac = (100 - prevP) / Math.max(1e-9, pl.p - prevP);
+        crossed.push([pl, t0 + frac * dt, pl.p]);
+      }
+    }
+    if (t >= C.HARD_T) for (const pl of live) if (!crossed.some((c) => c[0] === pl)) crossed.push([pl, t, pl.p - 1000]);
+    // 동시 도착: 시간 → 초과 progress → 랜덤
+    crossed.sort((a, b) => a[1] - b[1] || b[2] - a[2] || rng() - 0.5);
+    for (const [pl, ft] of crossed) finish(pl, ft);
+
+    // 통계: 1위 교체(0.5%p 히스테리시스), 순위 변동 시각
+    const ns = standings();
+    const lead = ns[0];
+    let changed = false;
+    if (leaderId < 0) leaderId = lead.id;
+    else if (lead.id !== leaderId && (lead.finished || lead.p > P[leaderId].p + 0.5)) { stats.leadChanges++; leaderId = lead.id; }
+    if (!prevStand) prevStand = new Int8Array(n);
+    for (let i = 0; i < n; i++) {
+      if (ns[i].id !== prevStand[i]) changed = true;
+      prevStand[i] = ns[i].id;
+    }
+    if (changed && t > dt) stats.lastRankChange = t;
+  }
+
+  return race;
+}
+
+// 헤드리스 1판 실행 → 검증 지표
+function simulateOne(seed, n, mountainIdx = null) {
+  const race = createRace({ n, seed, mountainIdx });
+  while (!race.done) { race.step(); race.events.length = 0; }
+  const P = race.P;
+  const times = P.map((pl) => pl.finishT);
+  const last = Math.max(...times), first = Math.min(...times);
+  const natural = P.filter((pl) => !pl.godHand).map((pl) => pl.finishT);
+  return {
+    gameTime: CONFIG.INTRO_SEC + last + CONFIG.SLOWMO_EXTRA + CONFIG.END_DELAY,
+    raceTime: last,
+    gap: last - first,
+    gapNatural: natural.length > 1 ? Math.max(...natural) - Math.min(...natural) : 0,
+    loserSeat: race.order[n - 1],
+    leadChanges: race.stats.leadChanges,
+    lastTen: race.stats.lastRankChange >= last - 10,
+    godHands: race.stats.godHands,
+    mIdx: race.mIdx,
+  };
+}
+
+function aggregate(list, n) {
+  const k = list.length;
+  const avg = (f) => list.reduce((s, r) => s + f(r), 0) / k;
+  const max = (f) => list.reduce((s, r) => Math.max(s, f(r)), -Infinity);
+  const seat = Array(n).fill(0);
+  for (const r of list) seat[r.loserSeat]++;
+  return {
+    games: k, n,
+    gameAvg: avg((r) => r.gameTime), gameMax: max((r) => r.gameTime),
+    gapAvg: avg((r) => r.gap), gapMax: max((r) => r.gap),
+    gapNatAvg: avg((r) => r.gapNatural), gapNatMax: max((r) => r.gapNatural),
+    gapNatOver15: avg((r) => (r.gapNatural > 15 ? 1 : 0)),
+    seatRates: seat.map((c) => c / k),
+    leadAvg: avg((r) => r.leadChanges),
+    lastTenRate: avg((r) => (r.lastTen ? 1 : 0)),
+    godHandRate: avg((r) => (r.godHands > 0 ? 1 : 0)),
+  };
+}
+// ==ENGINE END==
+
+// ===================================================================
+// 여기부터 화면(UI/렌더링) — 위 엔진은 DOM 없이 단독 실행 가능
+// ===================================================================
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const DEBUG = params.get('debug') === '1';
+  const urlSeed = params.has('seed') ? (parseInt(params.get('seed'), 10) >>> 0) : null;
+  const STORE_KEY = 'coffeeMountainRace';
+  const LEGACY_KEY = 'coffeeBetPlayers'; // 기존 커피내기 게임과 명단 공유
+  const MAX_NAME = 8;
+  const COLORS = ['#E4572E', '#3B82F6', '#16A34A', '#D97706', '#9B5DE5', '#EC4899', '#0E9F9A', '#8B5E3C', '#64748B', '#65A30D'];
+  const NICKS = ['산신령', '다람쥐', '곰돌이', '등산왕', '막걸리러버', '깔딱고개장인', '백패커', '컵라면', '청설모', '삼각김밥',
+    '등산스틱', '하산요정', '정상주', '산악회장', '아이젠', '단풍잎', '도토리', '약수터', '산토끼', '반달곰',
+    '메아리', '등산화', '오이한조각', '초코바', '보온병', '바람막이', '동동주', '파전집', '산딸기', '야호맨',
+    '고라니', '김밥한줄', '등산모자', '버프장인', '능선러버', '새벽산행'];
+
+  // ---------- 저장 ----------
+  const settings = { n: 6, names: Array(10).fill(''), mode: 'random', mountain: 0, muted: false };
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (s && typeof s === 'object') {
+      if (s.n >= 2 && s.n <= 10) settings.n = s.n | 0;
+      if (Array.isArray(s.names)) s.names.slice(0, 10).forEach((v, i) => { settings.names[i] = clip(String(v || '')); });
+      if (s.mode === 'pick') settings.mode = 'pick';
+      if (s.mountain >= 0 && s.mountain < MOUNTAINS.length) settings.mountain = s.mountain | 0;
+      settings.muted = !!s.muted;
+    } else {
+      const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY));
+      if (Array.isArray(legacy) && legacy.length >= 2) {
+        settings.n = Math.min(10, legacy.length);
+        legacy.slice(0, 10).forEach((v, i) => { settings.names[i] = clip(String(v || '')); });
+      }
+    }
+  } catch (e) { /* 저장소 접근 불가 → 기본값 */ }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+  }
+  function clip(s) { return Array.from(s.trim()).slice(0, MAX_NAME).join(''); }
+  const fmtH = (h) => h.toLocaleString('ko-KR');
+  const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  // ---------- 효과음 (Web Audio, 외부 파일 없음) ----------
+  let actx = null;
+  function audio() {
+    if (settings.muted) return null;
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { actx = new AC(); } catch (e) { return null; }
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function tone(f, dur, type = 'triangle', vol = 0.12, to = 0, delay = 0) {
+    const ac = audio();
+    if (!ac) return;
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+  function noise(dur, vol = 0.15, freq = 800) {
+    const ac = audio();
+    if (!ac) return;
+    const len = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.frequency.value = freq;
+    g.gain.value = vol;
+    src.buffer = buf;
+    src.connect(f).connect(g).connect(ac.destination);
+    src.start();
+  }
+  const SFX = {
+    tick: () => tone(880, 0.05, 'square', 0.05),
+    land: () => { tone(523, 0.12, 'square', 0.08); tone(784, 0.25, 'square', 0.08, 0, 0.1); },
+    go: () => { tone(659, 0.1, 'square', 0.08); tone(988, 0.3, 'square', 0.08, 0, 0.12); },
+    good: () => tone(500, 0.18, 'triangle', 0.1, 1100),
+    bad: () => tone(420, 0.25, 'sawtooth', 0.06, 150),
+    shield: () => { tone(1200, 0.08, 'sine', 0.1); tone(1600, 0.15, 'sine', 0.08, 0, 0.07); },
+    finish: () => { tone(784, 0.1, 'square', 0.07); tone(1047, 0.2, 'square', 0.07, 0, 0.09); },
+    hand: () => [392, 494, 587, 784].forEach((f, i) => tone(f, 1.4, 'sine', 0.07, 0, i * 0.12)),
+    reaper: () => { tone(110, 0.9, 'sawtooth', 0.1, 55); noise(0.6, 0.08, 300); },
+    landslide: () => { noise(1.2, 0.25, 500); tone(80, 1, 'sine', 0.15, 40); },
+    heli: () => { noise(0.7, 0.1, 1500); for (let i = 0; i < 8; i++) tone(90, 0.05, 'square', 0.05, 0, i * 0.08); },
+    rest: () => { tone(660, 0.2, 'sine', 0.1); tone(550, 0.3, 'sine', 0.1, 0, 0.22); },
+    loser: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i === 3 ? 0.9 : 0.3, 'sawtooth', 0.08, 0, i * 0.32)); },
+    fanfare: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'square', 0.06, 0, i * 0.1)),
+  };
+
+  // ---------- 설정 화면 ----------
+  function renderCount() {
+    const box = $('countChips');
+    box.textContent = '';
+    for (let k = 2; k <= 10; k++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = String(k);
+      b.setAttribute('aria-pressed', String(settings.n === k));
+      b.setAttribute('aria-label', `${k}명`);
+      b.onclick = () => { settings.n = k; save(); renderCount(); renderNames(); };
+      box.appendChild(b);
+    }
+    $('countLabel').textContent = `${settings.n}명 · 꼴찌 확률 각 ${(100 / settings.n).toFixed(1)}%`;
+  }
+  function renderNames() {
+    const box = $('names');
+    box.textContent = '';
+    for (let i = 0; i < settings.n; i++) {
+      const row = document.createElement('label');
+      row.className = 'name-row';
+      const seat = document.createElement('span');
+      seat.className = 'seat';
+      seat.style.background = COLORS[i];
+      seat.textContent = String(i + 1);
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.maxLength = MAX_NAME;
+      inp.value = settings.names[i];
+      inp.placeholder = '랜덤 별명';
+      inp.setAttribute('aria-label', `${i + 1}번 참가자 이름`);
+      inp.autocomplete = 'off';
+      inp.oninput = () => { settings.names[i] = clip(inp.value); save(); };
+      row.append(seat, inp);
+      box.appendChild(row);
+    }
+  }
+  function uniqueNicks(taken, count) {
+    const pool = NICKS.filter((x) => !taken.includes(x));
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    return pool.slice(0, count);
+  }
+  $('fillBtn').onclick = () => {
+    // 빈칸만 채우고, 빈칸이 없으면 전원 새 별명으로
+    const idx = [];
+    for (let i = 0; i < settings.n; i++) if (!settings.names[i]) idx.push(i);
+    const targets = idx.length ? idx : [...Array(settings.n).keys()];
+    const keep = settings.names.slice(0, settings.n).filter((_, i) => !targets.includes(i));
+    uniqueNicks(keep, targets.length).forEach((nick, k) => { settings.names[targets[k]] = nick; });
+    save();
+    renderNames();
+  };
+  $('clearBtn').onclick = () => { settings.names = Array(10).fill(''); save(); renderNames(); };
+
+  const sel = $('mountainSel');
+  MOUNTAINS.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = `${m.name} (${fmtH(m.h)}m)`;
+    sel.appendChild(o);
+  });
+  sel.value = String(settings.mountain);
+  sel.onchange = () => { settings.mountain = +sel.value; save(); };
+  document.querySelectorAll('input[name="mmode"]').forEach((r) => {
+    r.checked = r.value === settings.mode;
+    r.onchange = () => { settings.mode = r.value; sel.hidden = r.value !== 'pick'; save(); };
+  });
+  sel.hidden = settings.mode !== 'pick';
+
+  const muteBtn = $('muteBtn');
+  function renderMute() {
+    muteBtn.textContent = settings.muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', settings.muted ? '효과음 켜기' : '효과음 끄기');
+    muteBtn.setAttribute('aria-pressed', String(settings.muted));
+  }
+  muteBtn.onclick = () => { settings.muted = !settings.muted; save(); renderMute(); if (!settings.muted) audio(); };
+
+  renderCount();
+  renderNames();
+  renderMute();
+
+  function show(id) {
+    for (const s of ['setup', 'race', 'result']) $(s).hidden = s !== id;
+    window.scrollTo(0, 0);
+  }
+
+  // ===================================================================
+  // 캔버스 렌더링
+  // ===================================================================
+  const W = 400, H = 520;
+  const BASE_Y = 474, PEAK_Y = 98, BX = 74, PX = 282;
+  const PLATEAU = 58;
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const stage = $('stage');
+  let dpr = 1;
+
+  function fit() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const avail = stage.parentElement.clientWidth || 360;
+    const reserve = 250; // 헤더·HUD·중계창
+    const w = Math.max(280, Math.min(avail, (window.innerHeight - reserve) * (W / H)));
+    stage.style.width = `${w}px`;
+    stage.style.height = `${w * (H / W)}px`;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+  }
+  window.addEventListener('resize', () => { if (!$('race').hidden) fit(); });
+
+  // 코스: y는 progress에 정비례(고도계와 일치), 깔딱고개(70~90%)는 수평 이동이 적어 가파르게
+  const PATH = (() => {
+    const N = 200, pts = [];
+    let acc = 0;
+    const wx = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      const w = u >= 0.7 && u < 0.9 ? 0.35 : u >= 0.9 ? 0.75 : 1 + 0.25 * Math.sin(u * 9);
+      wx.push(acc);
+      acc += w;
+    }
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      pts.push({ x: BX + (PX - BX) * (wx[i] / wx[N]), y: BASE_Y + (PEAK_Y - BASE_Y) * u });
+    }
+    for (let i = 0; i <= N; i++) {
+      const a = pts[Math.max(0, i - 2)], b = pts[Math.min(N, i + 2)];
+      const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+      pts[i].nx = -dy / l; // 산 안쪽(오른쪽 아래) 법선
+      pts[i].ny = dx / l;
+    }
+    return pts;
+  })();
+  function pathAt(u) {
+    const f = Math.max(0, Math.min(1, u)) * (PATH.length - 1);
+    const i = Math.min(PATH.length - 2, Math.floor(f)), k = f - i;
+    const a = PATH[i], b = PATH[i + 1];
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, nx: a.nx, ny: a.ny };
+  }
+  // 오른쪽 능선 (산마다 다름)
+  function ridge(rnd) {
+    const pts = [{ x: PX + PLATEAU, y: PEAK_Y }];
+    let x = PX + PLATEAU, y = PEAK_Y;
+    while (x < W + 30) {
+      x += 18 + rnd() * 22;
+      y += 14 + rnd() * 30 - (rnd() < 0.25 ? 26 : 0);
+      pts.push({ x, y: Math.min(y, BASE_Y - 40) });
+    }
+    return pts;
+  }
+
+  const PASTEL = ['#F7CAD0', '#BDE0FE', '#CDEAC0', '#FFE5B4', '#D8CCF1', '#BEE7E8', '#FBD3B0', '#E2ECE9'];
+  const THEME = {
+    wall: { body: '#BFDDB6', sky: ['#E6F2FF', '#FFF4E8'], label: '서울 성곽' },
+    forest: { body: '#9FD49A', sky: ['#DFF4E8', '#FFF8EC'], label: '초록 숲' },
+    rock: { body: '#D3CBBF', sky: ['#E8EEF7', '#FBF3EA'], label: '바위 능선' },
+    granite: { body: '#C3CFDA', sky: ['#E3EEF8', '#FAF5EF'], label: '백운대 화강암' },
+    maple: { body: '#F2BB8E', sky: ['#FFE9DC', '#FFF7E6'], label: '단풍 · 대청봉' },
+    cloudsea: { body: '#B2D3C3', sky: ['#E2EAF6', '#F7F1FA'], label: '운해 · 천왕봉' },
+    wind: { body: '#A5CBB2', sky: ['#D9EEF5', '#F3FAF6'], label: '백록담 · 바람' },
+    snow: { body: '#C4D0E6', sky: ['#DCE6F5', '#F4F2FA'], label: '천지 · 눈과 구름' },
+  };
+
+  const bgCache = new Map();
+  function background(mi) {
+    if (bgCache.has(mi)) return bgCache.get(mi);
+    const M = MOUNTAINS[mi], T = THEME[M.theme];
+    const c = document.createElement('canvas');
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    const rnd = mulberry32(mi * 7919 + 13);
+    // 하늘
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, T.sky[0]);
+    sky.addColorStop(1, T.sky[1]);
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, H);
+    // 다른 산들의 반투명 실루엣 (높이 비교)
+    const others = MOUNTAINS.map((m, i) => ({ m, i })).filter((o) => o.i !== mi).sort((a, b) => b.m.h - a.m.h);
+    const slots = [70, 360, 150, 300, 30, 220, 390];
+    others.forEach((o, k) => {
+      const r = Math.min(1.12, Math.max(0.22, o.m.h / M.h));
+      const py = BASE_Y - (BASE_Y - PEAK_Y) * r;
+      const cx = slots[k], hw = 70 + r * 90;
+      g.fillStyle = PASTEL[o.i % PASTEL.length];
+      g.globalAlpha = 0.55;
+      g.beginPath();
+      g.moveTo(cx - hw - 20, BASE_Y + 10);
+      g.quadraticCurveTo(cx - hw * 0.35, py + (BASE_Y - py) * 0.25, cx, py);
+      g.quadraticCurveTo(cx + hw * 0.35, py + (BASE_Y - py) * 0.3, cx + hw + 20, BASE_Y + 10);
+      g.closePath();
+      g.fill();
+      g.globalAlpha = 1;
+      if (o.m.h / M.h < 1.12) { // 화면 위로 잘린 산은 라벨 생략
+        g.fillStyle = 'rgba(80,70,70,0.45)';
+        g.font = '600 9px sans-serif';
+        g.textAlign = 'center';
+        g.fillText(`${o.m.name} ${fmtH(o.m.h)}m`, cx, py - 4);
+      }
+    });
+    // 고도 눈금 & 점선 가이드
+    const steps = [50, 100, 200, 250, 500, 1000];
+    const step = steps.find((s) => M.h / s <= 6) || 1000;
+    g.font = '600 10px sans-serif';
+    g.textAlign = 'right';
+    for (let h = 0; h < M.h - step * 0.35; h += step) {
+      const y = BASE_Y - (h / M.h) * (BASE_Y - PEAK_Y);
+      g.strokeStyle = 'rgba(90,80,80,0.18)';
+      g.setLineDash([3, 5]);
+      g.beginPath(); g.moveTo(40, y); g.lineTo(W, y); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = '#7A6E6A';
+      g.fillText(`${fmtH(h)}m`, 36, y + 3);
+    }
+    g.strokeStyle = '#9A8E89';
+    g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(40, BASE_Y); g.lineTo(40, PEAK_Y); g.stroke();
+    g.lineWidth = 1;
+    // 산 본체
+    const R = ridge(rnd);
+    const body = new Path2D();
+    body.moveTo(BX - 50, H + 5);
+    body.lineTo(BX - 50, BASE_Y + 6);
+    for (let i = 0; i < PATH.length; i += 2) {
+      const p = PATH[i];
+      body.lineTo(p.x - p.nx * 4, p.y - p.ny * 4);
+    }
+    body.lineTo(PX, PEAK_Y);
+    for (const p of R) body.lineTo(p.x, p.y);
+    body.lineTo(W + 30, H + 5);
+    body.closePath();
+    const bodyGrad = g.createLinearGradient(0, PEAK_Y, 0, H);
+    bodyGrad.addColorStop(0, shade(T.body, 12));
+    bodyGrad.addColorStop(1, shade(T.body, -10));
+    g.fillStyle = bodyGrad;
+    g.fill(body);
+    g.save();
+    g.clip(body);
+    decorate(g, M.theme, rnd, R);
+    // 깔딱고개 구간 표시
+    const k1 = pathAt(0.7), k2 = pathAt(0.9);
+    g.fillStyle = 'rgba(228,87,46,0.08)';
+    g.fillRect(0, k2.y, W, k1.y - k2.y);
+    g.restore();
+    g.strokeStyle = 'rgba(255,255,255,0.7)';
+    g.lineWidth = 2;
+    g.stroke(body);
+    // 레인(코스) 점선
+    g.strokeStyle = 'rgba(255,255,255,0.55)';
+    g.setLineDash([2, 6]);
+    for (const off of [6, 78]) {
+      g.beginPath();
+      for (let i = 0; i < PATH.length; i += 3) {
+        const p = PATH[i], s = laneScale(i / (PATH.length - 1));
+        const x = p.x + p.nx * off * s, y = p.y + p.ny * off * s;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(111,78,55,0.75)';
+    g.font = '700 10px sans-serif';
+    g.textAlign = 'left';
+    g.fillText('😵 깔딱고개', k1.x + 92, (k1.y + k2.y) / 2 + 3);
+    // 땅
+    g.fillStyle = shade(T.body, -18);
+    g.fillRect(0, BASE_Y + 6, W, H - BASE_Y);
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.font = '700 10px sans-serif';
+    g.fillText('🚩 출발 0m', BX - 28, BASE_Y + 22);
+    // 정상: 빨간 포인트 + 이름/높이
+    g.strokeStyle = 'rgba(228,87,46,0.7)';
+    g.setLineDash([4, 4]);
+    g.beginPath(); g.moveTo(40, PEAK_Y); g.lineTo(PX, PEAK_Y); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = '#E4572E';
+    g.beginPath(); g.arc(PX, PEAK_Y, 4.5, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(40, PEAK_Y, 3.5, 0, Math.PI * 2); g.fill();
+    bgCache.set(mi, c);
+    return c;
+  }
+  function shade(hex, amt) {
+    const v = parseInt(hex.slice(1), 16);
+    const f = (x) => Math.max(0, Math.min(255, x + amt));
+    return `rgb(${f(v >> 16)},${f((v >> 8) & 255)},${f(v & 255)})`;
+  }
+  function inside(rnd, umin, umax) {
+    const u = umin + rnd() * (umax - umin), p = pathAt(u);
+    const off = 10 + rnd() * (40 + 150 * (1 - u));
+    return { x: p.x + p.nx * off, y: p.y + p.ny * off, u };
+  }
+  function decorate(g, theme, rnd, R) {
+    const capAt = (u, color) => {
+      const y = pathAt(u).y;
+      g.fillStyle = color;
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(W, 0);
+      g.lineTo(W, y);
+      for (let x = W; x >= 0; x -= 20) g.lineTo(x, y + Math.sin(x * 0.15) * 5 + rnd() * 4);
+      g.closePath();
+      g.fill();
+    };
+    if (theme === 'snow') {
+      capAt(0.72, 'rgba(255,255,255,0.92)');
+      lake(g, '천지');
+    } else if (theme === 'granite') {
+      capAt(0.8, 'rgba(238,236,230,0.9)');
+      for (let k = 0; k < 6; k++) { const p = inside(rnd, 0.82, 0.98); g.strokeStyle = 'rgba(150,150,160,0.5)'; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x + 6, p.y + 14); g.stroke(); }
+    } else if (theme === 'wind') {
+      capAt(0.88, 'rgba(255,255,255,0.4)');
+      lake(g, '백록담');
+    }
+    const n = 34;
+    for (let k = 0; k < n; k++) {
+      const p = inside(rnd, 0.02, theme === 'snow' ? 0.68 : 0.95);
+      if (theme === 'forest' || theme === 'wall' || theme === 'cloudsea' || theme === 'wind') {
+        g.fillStyle = ['#5E9E5B', '#6DAF66', '#4C8A52'][k % 3];
+        g.beginPath(); g.moveTo(p.x, p.y - 12); g.lineTo(p.x - 6, p.y); g.lineTo(p.x + 6, p.y); g.closePath(); g.fill();
+      } else if (theme === 'maple') {
+        // 단풍나무: 플레이어(원)와 헷갈리지 않게 반투명 삼각형
+        g.fillStyle = ['rgba(214,72,40,0.55)', 'rgba(230,160,20,0.55)', 'rgba(190,60,20,0.5)'][k % 3];
+        g.beginPath(); g.moveTo(p.x, p.y - 11); g.lineTo(p.x - 6, p.y); g.lineTo(p.x + 6, p.y); g.closePath(); g.fill();
+      } else if (theme === 'rock' || theme === 'granite') {
+        g.fillStyle = 'rgba(160,150,140,0.55)';
+        g.beginPath(); g.ellipse(p.x, p.y, 7 + rnd() * 6, 4 + rnd() * 3, rnd(), 0, Math.PI * 2); g.fill();
+      } else if (theme === 'snow') {
+        g.fillStyle = 'rgba(80,110,150,0.35)';
+        g.beginPath(); g.moveTo(p.x, p.y - 10); g.lineTo(p.x - 5, p.y); g.lineTo(p.x + 5, p.y); g.closePath(); g.fill();
+      }
+    }
+    if (theme === 'wall') {
+      // 한양도성 성곽
+      g.strokeStyle = '#E9E4DA';
+      g.lineWidth = 5;
+      g.beginPath();
+      for (let i = 30; i <= 180; i += 2) { const p = PATH[i]; const x = p.x + p.nx * 92, y = p.y + p.ny * 92; if (i === 30) g.moveTo(x, y); else g.lineTo(x, y); }
+      g.stroke();
+      g.fillStyle = '#E9E4DA';
+      for (let i = 30; i <= 180; i += 6) { const p = PATH[i]; g.fillRect(p.x + p.nx * 92 - 2, p.y + p.ny * 92 - 6, 4, 4); }
+      g.lineWidth = 1;
+    }
+  }
+  function lake(g, name) {
+    const x = PX + PLATEAU / 2 + 4, y = PEAK_Y + 12;
+    g.fillStyle = '#7FB7E0';
+    g.beginPath(); g.ellipse(x, y, 20, 4.5, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(40,70,110,0.7)';
+    g.font = '600 8px sans-serif';
+    g.textAlign = 'center';
+    g.fillText(name, x, y + 13);
+  }
+  function laneScale(u) { return u > 0.93 ? Math.max(0, (1 - u) / 0.07) : 1; }
+
+  // 구름 (패럴랙스)
+  const clouds = Array.from({ length: 7 }, (_, i) => ({
+    x0: Math.random() * (W + 160), y: 20 + Math.random() * 260, s: 0.6 + (i % 3) * 0.35, v: 4 + (i % 3) * 6,
+  }));
+  function drawCloud(x, y, s, a = 0.85) {
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 26 * s, 10 * s, 0, 0, Math.PI * 2);
+    ctx.ellipse(x - 16 * s, y + 3 * s, 15 * s, 8 * s, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 15 * s, y - 4 * s, 16 * s, 11 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ===================================================================
+  // 게임 진행
+  // ===================================================================
+  const COMMENTS = {
+    banana: ['🍌 {n}님 바나나 껍질 밟고 주르륵!', '🍌 누가 버린 바나나?! {n}님 미끄러집니다', '🍌 {n}님 바나나 슬라이딩~ 뒤로 밀려요'],
+    rock: ['🪨 {n}님 낙석에 맞고 미끄러집니다!', '🪨 쿵! {n}님 낙석 직격… 잠시 기절', '🪨 {n}님 머리 위로 돌멩이가! 별이 보여요 ✨'],
+    fog: ['🌫️ {n}님 짙은 안개 속에서 길을 헤매요', '🌫️ 앞이 안 보여! {n}님 거북이 모드', '🌫️ {n}님 주변에 안개 자욱… 속도 반토막'],
+    boar: ['🐗 멧돼지 출현! {n}님 혼비백산 후퇴', '🐗 {n}님 멧돼지 보고 뒷걸음질!', '🐗 꿀꿀! {n}님 멧돼지 피해 도망갑니다'],
+    selfie: ['📱 {n}님 인증샷 타임~ 찰칵!', '📱 {n}님 "여기 뷰 미쳤다" 사진 찍는 중', '📱 {n}님 셀카 각도 잡느라 정지!'],
+    shoelace: ['🥾 {n}님 신발끈이 풀렸어요', '🥾 {n}님 주저앉아 신발끈 묶는 중', '🥾 앗! {n}님 끈 밟고 휘청'],
+    ramen: ['🍜 {n}님 컵라면 휴게소 입장… 후루룩', '🍜 {n}님 산에서 먹는 라면은 못 참지!', '🍜 {n}님 국물까지 원샷 중 (먹고 나면 힘이 불끈!)'],
+    squirrel: ['🐿️ 다람쥐가 {n}님 길을 막아요', '🐿️ {n}님 다람쥐한테 도토리 뺏기는 중', '🐿️ {n}님 다람쥐랑 눈싸움… 속도 저하'],
+    makgeolli: ['🧃 {n}님 보급 막걸리 원샷! 힘이 솟는다', '🧃 캬~ {n}님 막걸리 버프 발동!', '🧃 {n}님 정상주 미리 한 잔! 가속!'],
+    eagle: ['🦅 독수리 택시 도착! {n}님 슝~', '🦅 {n}님 독수리 등에 타고 점프!', '🦅 {n}님 하늘길 지름길 개척!'],
+    wind: ['💨 {n}님 등 뒤로 순풍이 붑니다', '💨 바람을 탄 {n}님, 발걸음이 가벼워요', '💨 {n}님 순풍 버프! 쭉쭉 올라갑니다'],
+    tiger: ['🐯 호랑이 등장!! {n}님 죽어라 달립니다', '🐯 어흥! {n}님 생존 본능 폭발 질주', '🐯 {n}님 뒤에 호랑이가… 인생 최고 속도!'],
+    sansin: ['🧙 산신령이 {n}님을 축복합니다 (불운 1회 면역)', '🧙 "금도끼 줄까?" {n}님 산신령의 가호!', '🧙 {n}님 산신령 버프! 불운 1회 면역'],
+    cablecar: ['🚠 {n}님 케이블카 탑승! 편하게 쭉~', '🚠 반칙 아닙니까?! {n}님 케이블카', '🚠 {n}님 케이블카로 대역전 시도!'],
+    shield: ['🛡️ 산신령의 가호! {n}님 {e} 무효!', '🛡️ {n}님 {e}… 인 줄 알았는데 면역!', '🛡️ 팅! {n}님 산신령 덕분에 {e} 회피'],
+    godhand: ['✋ 신의 손이 {n}님을 번쩍! 정상으로 직행!', '✋ 하늘이 {n}님을 선택했습니다!', '✋ {n}님 신의 손 택배로 정상 배송!'],
+    reaper: ['💀 저승사자가 {n}님 발목을 잡아요! -20%', '💀 너무 앞서갔나? {n}님 저승사자에게 끌려갑니다', '💀 {n}님 "아직 올 때가 아니다"… 뒤로 쭉'],
+    landslide: ['⛰️ 산사태 발생! 선두권 {n} 휩쓸려 내려갑니다', '⛰️ 우르르! {n} 산사태에 미끄러져요', '⛰️ 선두권에 산사태 직격! {n} 후퇴'],
+    heli: ['🚁 헬기 구조대 출동! 꼴찌 {n}님 구조!', '🚁 {n}님 헬기 타고 점프 + 가속!', '🚁 꼴찌 구조 작전! {n}님 탑승 완료'],
+    rest: ['⛺ 전원 소집 휴게소! 후미부터 출발합니다', '⛺ 다 같이 쉬었다 가요~ 꼴찌부터 먼저 출발', '⛺ 휴게소 집합! 선두는 조금 더 쉬세요'],
+    finish: ['🏁 {n}님 정상 도착! {r}등', '🚩 {n}님 깃발 꽂았다! {r}등', '🏔️ {n}님 {r}등으로 정상 정복!'],
+    loser: ['☕ {n}님 꼴찌 확정! 오늘의 커피 당번!', '☕ 아아… {n}님 커피 당첨입니다!', '☕ {n}님 지갑을 열 시간입니다!'],
+    kaldak: ['😵 깔딱고개 진입! 지금부터 진짜 승부', '😵 선두가 깔딱고개에! 변수가 폭발합니다', '😵 숨이 깔딱깔딱… 역전 구간 돌입!'],
+    spurt: ['🔥 정상 직전 스퍼트! 접전입니다', '🔥 정상이 코앞! 끝까지 몰라요', '🔥 마지막 오르막! 전원 전력 질주'],
+    force: ['⏰ 해 지기 전에! 남은 사람들 막판 스퍼트', '⏰ 하산 시간 임박! 미도착자 가속', '⏰ 산장 문 닫아요~ 서둘러요!'],
+  };
+  const ICON = {
+    banana: '🍌', rock: '🪨', fog: '🌫️', boar: '🐗', selfie: '📱', shoelace: '🥾', ramen: '🍜', squirrel: '🐿️',
+    makgeolli: '🧃', eagle: '🦅', wind: '💨', tiger: '🐯', sansin: '🧙', cablecar: '🚠', heli: '🚁', reaper: '💀',
+  };
+  const ICON_SEC = { banana: 1, rock: 2.1, fog: 2.5, boar: 1, selfie: 2, shoelace: 1.5, ramen: 3, squirrel: 3, makgeolli: 3, eagle: 1, wind: 4, tiger: 5, sansin: 3, cablecar: 1.5, heli: 2.4, reaper: 1.4 };
+  const EVENT_NAME = { banana: '바나나', rock: '낙석', fog: '안개', boar: '멧돼지', selfie: '인증샷', shoelace: '신발끈', ramen: '컵라면', squirrel: '다람쥐' };
+  const say = (key, vars) => pickOne(COMMENTS[key]).replace(/\{(\w)\}/g, (_, k) => vars[k] ?? '');
+
+  let G = null;       // 현재 판의 화면 상태
+  let raf = 0;
+  let lastSeed = null;
+
+  function startGame() {
+    audio();
+    const n = settings.n;
+    const typed = settings.names.slice(0, n).map(clip);
+    const extra = uniqueNicks(typed.filter(Boolean), n);
+    let e = 0;
+    const names = typed.map((x) => x || extra[e++] || `등산객${e}`);
+    // 비어 있던 칸은 이번 판 별명을 보여주기만 하고 저장하지 않음
+    const seed = urlSeed != null && lastSeed == null ? urlSeed : (Math.random() * 4294967296) >>> 0;
+    lastSeed = seed;
+    const race = createRace({ n, seed, mountainIdx: settings.mode === 'pick' ? settings.mountain : null });
+    show('race');
+    fit();
+    bgCache.clear();
+    G = {
+      race, names, seed, phase: 'slot', slotT: 0, acc: 0, wall: 0, scale: 1, fast: 1,
+      fx: Array.from({ length: n }, () => ({ icon: null, until: 0 })),
+      pops: [], parts: [], flash: 0, shake: 0, dark: 0, slowUntil: 0,
+      hands: [], reaper: null, said: { kaldak: false, spurt: false, force: false },
+      hudAt: 0, endAt: 0, slotIdx: 0, slotNext: 0, slotLanded: false,
+    };
+    $('ticker').textContent = '';
+    $('ranks').textContent = '';
+    $('banner').hidden = true;
+    $('slot').hidden = false;
+    $('fastBtn').hidden = !DEBUG;
+    $('fastBtn').textContent = '⏩ 4배속';
+    $('clock').textContent = '0.0초';
+    $('zone').textContent = '산 추첨 중';
+    cancelAnimationFrame(raf);
+    let last = performance.now();
+    const loop = (now) => {
+      // 탭이 백그라운드였다 돌아와도 시간이 튀지 않도록 dt 상한
+      const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+      last = now;
+      tick(dt);
+      draw(now / 1000);
+      if (G) raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+  }
+
+  function tick(dt) {
+    const g = G, race = g.race;
+    g.wall += dt;
+    if (g.phase === 'slot') {
+      // 슬롯머신: 점점 느려지다 멈춤
+      g.slotT += dt;
+      const total = CONFIG.INTRO_SEC - 0.6;
+      if (g.slotT < total) {
+        if (g.slotT >= g.slotNext) {
+          g.slotIdx = (g.slotIdx + 1) % MOUNTAINS.length;
+          const q = g.slotT / total;
+          g.slotNext = g.slotT + 0.05 + q * q * 0.32;
+          setSlot(g.slotIdx, false);
+          SFX.tick();
+        }
+      } else if (!g.slotLanded) {
+        g.slotLanded = true;
+        g.slotIdx = race.mIdx;
+        setSlot(race.mIdx, true);
+        SFX.land();
+      }
+      if (g.slotT >= CONFIG.INTRO_SEC) {
+        g.phase = 'race';
+        $('slot').hidden = true;
+        banner('🧗 출발!', 900);
+        SFX.go();
+        log(`📣 ${race.M.name}(${fmtH(race.M.h)}m) 등반 시작! ${race.n}명 출발합니다`);
+      }
+      return;
+    }
+    if (g.phase === 'race' || g.phase === 'ending') {
+      g.scale = g.wall < g.slowUntil ? 0.3 : 1;
+      g.acc += dt * g.scale * g.fast;
+      let guard = 0;
+      while (g.acc >= CONFIG.DT && !race.done && guard++ < 40) {
+        race.step();
+        g.acc -= CONFIG.DT;
+        handleEvents();
+      }
+      if (race.done && g.phase === 'race') { g.phase = 'ending'; g.endAt = g.wall + CONFIG.END_DELAY; }
+      if (g.phase === 'ending' && g.wall >= g.endAt) { showResult(); return; }
+    }
+    // 화면 효과 감쇠
+    g.flash = Math.max(0, g.flash - dt * 2.5);
+    g.shake = Math.max(0, g.shake - dt * 18);
+    const handOn = g.hands.some((h) => race.t < h.end);
+    g.dark += ((handOn || g.reaper && race.t < g.reaper.end ? 0.5 : 0) - g.dark) * Math.min(1, dt * 5);
+    g.pops = g.pops.filter((p) => (p.life -= dt) > 0);
+    for (const p of g.parts) { p.vy += 260 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+    g.parts = g.parts.filter((p) => p.life > 0);
+    if (g.wall >= g.hudAt) { g.hudAt = g.wall + 0.15; hud(); }
+  }
+
+  function setSlot(i, land) {
+    const M = MOUNTAINS[i];
+    $('slotName').textContent = M.name;
+    $('slotH').textContent = `${fmtH(M.h)}m · ${THEME[M.theme].label}`;
+    const box = $('slotBox');
+    box.classList.remove('land');
+    if (land) { void box.offsetWidth; box.classList.add('land'); }
+  }
+
+  function nm(id) { return G.names[id]; }
+  function playerXY(pl) {
+    const race = G.race;
+    if (pl.finished) {
+      const k = pl.finishIdx, row = k < 5 ? 0 : 1, col = k % 5;
+      return { x: PX + 8 + col * 11 + row * 5, y: PEAK_Y - 7 - row * 11 };
+    }
+    const lane = race.n > 1 ? pl.id / (race.n - 1) : 0.5;
+    const off = 12 + lane * 62;
+    if (pl.tw && pl.tw.kind === 'hand') {
+      const a = pathAt(pl.tw.from / 100), s = laneScale(pl.tw.from / 100);
+      const sx = a.x + a.nx * off * s, sy = a.y + a.ny * off * s;
+      const q = Math.max(0, Math.min(1, (race.t - pl.tw.t0) / pl.tw.dur));
+      const lift = (race.t < pl.tw.t0 ? Math.min(1, (race.t - (pl.tw.t0 - CONFIG.GOD_HAND_ANNOUNCE)) / CONFIG.GOD_HAND_ANNOUNCE) * 8 : 8);
+      const e = q * q * (3 - 2 * q);
+      return { x: sx + (PX + 20 - sx) * e, y: sy + (PEAK_Y - 10 - sy) * e - Math.sin(e * Math.PI) * 70 - lift, flying: true };
+    }
+    const u = pl.p / 100, a = pathAt(u), s = laneScale(u);
+    return { x: a.x + a.nx * off * s, y: a.y + a.ny * off * s };
+  }
+
+  function handleEvents() {
+    const g = G, race = g.race;
+    for (const ev of race.events) {
+      const pl = ev.id != null ? race.P[ev.id] : null;
+      const at = pl ? playerXY(pl) : { x: W / 2, y: H / 2 };
+      switch (ev.type) {
+        case 'event': {
+          log(say(ev.key, { n: nm(ev.id) }));
+          g.fx[ev.id] = { icon: ICON[ev.key], until: race.t + (ICON_SEC[ev.key] || 1.5), key: ev.key };
+          pop(ICON[ev.key], at.x, at.y - 16, 22);
+          if (ev.bad) { SFX.bad(); if (ev.key === 'rock' || ev.key === 'boar') g.shake = Math.max(g.shake, 5); }
+          else { SFX.good(); if (ev.key === 'eagle' || ev.key === 'cablecar') g.flash = 0.25; }
+          break;
+        }
+        case 'shield':
+          log(say('shield', { n: nm(ev.id), e: EVENT_NAME[ev.key] || '불운' }));
+          pop('🛡️', at.x, at.y - 16, 22);
+          SFX.shield();
+          break;
+        case 'godhand': {
+          const end = race.t + CONFIG.GOD_HAND_ANNOUNCE + CONFIG.GOD_HAND_LIFT;
+          g.hands.push({ id: ev.id, start: race.t, end });
+          banner('✋ 신의 손이 내려옵니다!', 1600);
+          log(say('godhand', { n: nm(ev.id) }));
+          SFX.hand();
+          break;
+        }
+        case 'reaper':
+          g.reaper = { id: ev.id, end: race.t + 1.4 };
+          g.fx[ev.id] = { icon: '💀', until: race.t + 1.4 };
+          banner('💀 저승사자의 손!', 1200);
+          log(say('reaper', { n: nm(ev.id) }));
+          g.shake = 8;
+          SFX.reaper();
+          break;
+        case 'landslide':
+          banner('⛰️ 산사태!', 1200);
+          log(say('landslide', { n: ev.ids.map((id) => nm(id)).join('·') }));
+          for (const id of ev.ids) g.fx[id] = { icon: '🪨', until: race.t + 1 };
+          g.shake = 12;
+          g.flash = 0.4;
+          SFX.landslide();
+          break;
+        case 'heli':
+          banner('🚁 헬기 구조!', 1100);
+          log(say('heli', { n: nm(ev.id) }));
+          g.fx[ev.id] = { icon: '🚁', until: race.t + 2.4 };
+          SFX.heli();
+          break;
+        case 'rest':
+          banner('⛺ 전원 소집 휴게소', 1300);
+          log(say('rest', {}));
+          SFX.rest();
+          break;
+        case 'finish': {
+          const xy = playerXY(pl);
+          log(say('finish', { n: nm(ev.id), r: ev.rank }));
+          pop(`${ev.rank}등!`, xy.x, xy.y - 20, 18, '#E4572E');
+          burst(xy.x, xy.y - 6, 22);
+          SFX.finish();
+          break;
+        }
+        case 'loser':
+          g.slowUntil = g.wall + 1.2;
+          banner(`☕ 꼴찌 확정: ${nm(ev.id)}님!`, 2200);
+          log(say('loser', { n: nm(ev.id) }));
+          g.shake = 14;
+          SFX.loser();
+          try { if (navigator.vibrate) navigator.vibrate([120, 60, 220]); } catch (e) { /* ignore */ }
+          break;
+        default:
+      }
+    }
+    race.events.length = 0;
+    // 구간 멘트
+    const top = race.standings().find((p) => !p.finished);
+    if (top) {
+      if (!g.said.kaldak && top.p >= CONFIG.KALDAK[0]) { g.said.kaldak = true; log(say('kaldak', {})); }
+      if (!g.said.spurt && top.p >= CONFIG.SPURT_FROM) { g.said.spurt = true; log(say('spurt', {})); }
+    }
+    if (!g.said.force && race.t >= CONFIG.FORCE_T && !race.done) { g.said.force = true; log(say('force', {})); }
+  }
+
+  function pop(text, x, y, size, color) { G.pops.push({ text, x, y, size, color, life: 1.1, max: 1.1 }); }
+  function burst(x, y, k) {
+    for (let i = 0; i < k; i++) {
+      const a = Math.random() * Math.PI * 2, v = 60 + Math.random() * 120;
+      G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life: 0.9, c: COLORS[i % COLORS.length] });
+    }
+  }
+  let bannerTimer = 0;
+  function banner(text, ms) {
+    const b = $('banner');
+    b.textContent = text;
+    b.hidden = false;
+    b.style.animation = 'none';
+    void b.offsetWidth;
+    b.style.animation = '';
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => { b.hidden = true; }, ms);
+  }
+  function log(text) {
+    const ul = $('ticker');
+    const li = document.createElement('li');
+    li.textContent = text;
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 3) ul.removeChild(ul.lastChild);
+  }
+
+  function hud() {
+    const g = G, race = g.race;
+    if (g.phase === 'slot') return;
+    $('clock').textContent = `${race.t.toFixed(1)}초`;
+    const live = race.standings().filter((p) => !p.finished);
+    const top = live[0];
+    $('zone').textContent = race.done ? '종료' : !top ? '' : top.p >= CONFIG.SPURT_FROM ? '🔥 정상 직전' : top.p >= CONFIG.KALDAK[0] ? '😵 깔딱고개' : `${Math.floor(top.p * race.M.h / 100)}m`;
+    const st = race.standings();
+    const box = $('ranks');
+    box.textContent = '';
+    const medal = ['🥇', '🥈', '🥉'];
+    const rows = st.slice(0, Math.min(3, race.n - 1)).map((pl, i) => [medal[i], pl, false]);
+    const lastPl = st[st.length - 1];
+    rows.push(['☕', lastPl, true]);
+    for (const [m, pl, isLast] of rows) {
+      const d = document.createElement('div');
+      d.className = isLast ? 'rk last' : 'rk';
+      const label = document.createElement('b');
+      label.textContent = `${m} ${pl.id + 1}.${nm(pl.id)}`;
+      const v = document.createElement('span');
+      v.textContent = pl.finished ? `${pl.finishT.toFixed(1)}초` : `${Math.floor(pl.p * race.M.h / 100)}m`;
+      d.append(label, v);
+      d.setAttribute('aria-label', `${isLast ? '꼴찌' : `${st.indexOf(pl) + 1}위`} ${nm(pl.id)}`);
+      box.appendChild(d);
+    }
+  }
+
+  function draw(time) {
+    const g = G;
+    if (!g) return;
+    const race = g.race;
+    const mi = g.phase === 'slot' ? g.slotIdx : race.mIdx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (g.shake > 0.3) ctx.translate((Math.random() - 0.5) * g.shake, (Math.random() - 0.5) * g.shake);
+    ctx.drawImage(background(mi), 0, 0, W, H);
+    // 구름 패럴랙스
+    for (const c of clouds) drawCloud(((c.x0 + time * c.v) % (W + 160)) - 80, c.y, c.s, 0.55 + c.s * 0.25);
+    const theme = MOUNTAINS[mi].theme;
+    summitLabel(MOUNTAINS[mi]);
+    if (theme === 'cloudsea') {
+      const y = pathAt(0.5).y;
+      for (let k = 0; k < 6; k++) drawCloud(((time * 10 + k * 90) % (W + 120)) - 60, y + Math.sin(k) * 14, 1.3, 0.55);
+    } else if (theme === 'wind') {
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < 9; k++) {
+        const x = ((time * 160 + k * 97) % (W + 100)) - 50, y = 60 + ((k * 53) % 300);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 4, x + 30, y); ctx.stroke();
+      }
+    } else if (theme === 'snow') {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let k = 0; k < 40; k++) {
+        const x = (k * 71 + Math.sin(time + k) * 10) % W, y = (k * 37 + time * 30) % H;
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+    if (g.phase === 'slot') return;
+
+    // 깃발: 도착자
+    for (const id of race.order) {
+      const pl = race.P[id], xy = playerXY(pl);
+      ctx.strokeStyle = '#6B5B53';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xy.x + 5, xy.y); ctx.lineTo(xy.x + 5, xy.y - 16); ctx.stroke();
+      ctx.fillStyle = COLORS[id];
+      ctx.beginPath(); ctx.moveTo(xy.x + 5, xy.y - 16); ctx.lineTo(xy.x + 13, xy.y - 13); ctx.lineTo(xy.x + 5, xy.y - 10); ctx.fill();
+    }
+
+    const st = race.standings();
+    const leader = st[0];
+    const tail = st[st.length - 1];
+    const list = race.P.map((pl) => ({ pl, ...playerXY(pl) })).sort((a, b) => a.y - b.y);
+    // 이름표 (겹침 방지: 세로로 밀어내기)
+    const tags = [];
+    ctx.font = '700 11px sans-serif';
+    for (const it of list) {
+      if (it.pl.finished) continue;
+      const w = Math.min(70, ctx.measureText(nm(it.pl.id)).width) + 22;
+      tags.push({ it, w, y: it.y - 3 });
+    }
+    tags.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, tags[i - 1].y + 14);
+    for (let i = tags.length - 2; i >= 0; i--) tags[i].y = Math.min(tags[i].y, tags[i + 1].y - 14);
+    for (const tg of tags) {
+      const { it, w } = tg;
+      const x = Math.max(44, it.x - 14 - w), y = tg.y;
+      ctx.strokeStyle = 'rgba(80,60,55,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(it.x - 8, it.y); ctx.stroke();
+      ctx.fillStyle = it.pl === tail && !race.done ? 'rgba(255,232,224,0.95)' : 'rgba(255,255,255,0.92)';
+      roundRect(x, y - 7, w, 14, 7);
+      ctx.fill();
+      ctx.fillStyle = COLORS[it.pl.id];
+      ctx.beginPath(); ctx.arc(x + 7, y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3A3335';
+      ctx.textAlign = 'left';
+      ctx.fillText(nm(it.pl.id), x + 14, y + 4, w - 18);
+    }
+    // 신의 손 / 저승사자: 화면 어둡게
+    if (g.dark > 0.02) {
+      ctx.fillStyle = `rgba(20,15,30,${g.dark})`;
+      ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+    // 등산객
+    for (const it of list) {
+      const pl = it.pl;
+      const moving = !pl.finished && !pl.tw && !(g.fx[pl.id].until > race.t && ['selfie', 'shoelace', 'ramen'].includes(g.fx[pl.id].key));
+      const bob = moving ? Math.abs(Math.sin(time * 9 + pl.id)) * 2 : 0;
+      const x = it.x, y = it.y - bob;
+      const fx = g.fx[pl.id];
+      if (fx.until > race.t && fx.key === 'fog') {
+        ctx.fillStyle = 'rgba(230,230,235,0.75)';
+        ctx.beginPath(); ctx.ellipse(x, y, 20, 13, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      if (fx.until > race.t && fx.key === 'tiger') {
+        const a = pathAt(Math.max(0, pl.p - 4) / 100);
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🐯', a.x + a.nx * 40 + Math.sin(time * 20) * 2, a.y + a.ny * 40 + 6);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath(); ctx.ellipse(it.x, it.y + 7, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = COLORS[pl.id];
+      ctx.strokeStyle = pl === tail && !race.done ? '#B91C1C' : '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, pl.finished ? 6 : 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `800 ${pl.finished ? 8 : 10}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(String(pl.id + 1), x, y + (pl.finished ? 3 : 3.5));
+      ctx.font = '13px sans-serif';
+      if (pl === leader) ctx.fillText('👑', x, y - 11);
+      if (pl === tail && race.n > 1) ctx.fillText('☕', x + Math.sin(time * 28) * 2, y - (pl === leader ? 24 : 11));
+      if (fx.icon && fx.until > race.t && !pl.finished) ctx.fillText(fx.icon, x + 13, y - 6);
+    }
+    // 손 연출
+    for (const h of g.hands) {
+      if (race.t > h.end + 0.4) continue;
+      const pl = race.P[h.id], xy = playerXY(pl);
+      const a = Math.min(1, (race.t - h.start) / CONFIG.GOD_HAND_ANNOUNCE);
+      const hy = race.t < h.start + CONFIG.GOD_HAND_ANNOUNCE ? -60 + (xy.y - 34 + 60) * (1 - Math.pow(1 - a, 3)) : xy.y - 34;
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,215,90,0.95)';
+      ctx.shadowBlur = 24;
+      ctx.font = '54px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = race.t > h.end ? Math.max(0, 1 - (race.t - h.end) / 0.4) : 1;
+      ctx.fillText('✋', xy.x, hy);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,215,90,0.9)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(xy.x, xy.y, 12, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (g.reaper && race.t < g.reaper.end) {
+      const xy = playerXY(race.P[g.reaper.id]);
+      ctx.font = '40px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💀', xy.x - 18, xy.y + 30);
+    }
+    // 파티클·팝업
+    for (const p of g.parts) { ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, 3, 3); }
+    for (const p of g.pops) {
+      const q = 1 - p.life / p.max;
+      ctx.globalAlpha = Math.min(1, p.life * 3);
+      ctx.font = `900 ${p.size}px sans-serif`;
+      ctx.textAlign = 'center';
+      if (p.color) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeText(p.text, p.x, p.y - q * 22); ctx.fillStyle = p.color; }
+      ctx.fillText(p.text, p.x, p.y - q * 22);
+      ctx.globalAlpha = 1;
+    }
+    if (g.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${g.flash})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
+    if (g.scale < 1) {
+      const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.75);
+      v.addColorStop(0, 'rgba(0,0,0,0)');
+      v.addColorStop(1, 'rgba(40,10,0,0.55)');
+      ctx.fillStyle = v;
+      ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+    if (g.fast > 1) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.font = '700 11px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`seed ${g.seed} · ×${g.fast}`, W - 8, H - 8);
+    }
+  }
+  function summitLabel(M) {
+    ctx.textAlign = 'right';
+    ctx.font = '800 15px sans-serif';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeText(`${M.name} ${fmtH(M.h)}m`, PX - 10, PEAK_Y - 14);
+    ctx.fillStyle = '#E4572E';
+    ctx.fillText(`${M.name} ${fmtH(M.h)}m`, PX - 10, PEAK_Y - 14);
+    ctx.font = '600 10px sans-serif';
+    ctx.fillStyle = 'rgba(122,110,106,0.95)';
+    ctx.fillText(THEME[M.theme].label, PX - 10, PEAK_Y - 32);
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- 결과 ----------
+  function showResult() {
+    const g = G, race = g.race;
+    cancelAnimationFrame(raf);
+    G = null;
+    show('result');
+    const loserId = race.order[race.n - 1];
+    $('loserTitle').textContent = `☕ 오늘의 커피 당번은 ${g.names[loserId]}님!`;
+    $('resultMeta').textContent = `${race.M.name} ${fmtH(race.M.h)}m · ${race.n}명 · 판 번호 #${g.seed}`;
+    const body = $('resultBody');
+    body.textContent = '';
+    race.order.forEach((id, i) => {
+      const pl = race.P[id];
+      const tr = document.createElement('tr');
+      if (i === race.n - 1) tr.className = 'loser';
+      const medal = ['🥇', '🥈', '🥉'][i] || (i === race.n - 1 ? '☕' : '🏁');
+      const c1 = document.createElement('td');
+      c1.textContent = `${medal} ${i + 1}등`;
+      const c2 = document.createElement('td');
+      c2.textContent = `${id + 1}. ${g.names[id]}${pl.godHand ? ' ✋' : ''}`;
+      const c3 = document.createElement('td');
+      c3.className = 'num';
+      c3.textContent = `${pl.finishT.toFixed(2)}초`;
+      tr.append(c1, c2, c3);
+      body.appendChild(tr);
+    });
+    lastResult = { race, names: g.names, seed: g.seed };
+    const app = $('app');
+    app.classList.remove('shake');
+    void app.offsetWidth;
+    app.classList.add('shake');
+    SFX.fanfare();
+    setTimeout(() => SFX.loser(), 450);
+    confetti();
+  }
+  let lastResult = null;
+
+  function resultText() {
+    const { race, names, seed } = lastResult;
+    const lines = [`⛰️ 커피내기 산악 레이스 — ${race.M.name}(${fmtH(race.M.h)}m)`];
+    race.order.forEach((id, i) => lines.push(`${i + 1}등 ${names[id]}${race.P[id].godHand ? '(✋신의 손)' : ''} ${race.P[id].finishT.toFixed(2)}초`));
+    lines.push(`☕ 오늘의 커피 당번은 ${names[race.order[race.n - 1]]}님!`);
+    const q = new URLSearchParams({ seed: String(seed) });
+    lines.push(`다시 보기: https://cc1st.pages.dev/coffee-bet/mountain/?${q}`);
+    return lines.join('\n');
+  }
+  $('copyBtn').onclick = async () => {
+    const text = resultText();
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      ta.remove();
+    }
+    toast(ok ? '결과를 복사했어요 📋' : '복사에 실패했어요. 직접 선택해 주세요');
+  };
+  function toast(text) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.setAttribute('role', 'status');
+    t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = $('confetti');
+    c.hidden = false;
+    const w = c.width = innerWidth, h = c.height = innerHeight;
+    const g = c.getContext('2d');
+    const ps = Array.from({ length: 140 }, () => ({
+      x: Math.random() * w, y: -20 - Math.random() * h * 0.5, vx: (Math.random() - 0.5) * 60, vy: 80 + Math.random() * 160,
+      r: Math.random() * 6, vr: (Math.random() - 0.5) * 8, c: COLORS[Math.floor(Math.random() * COLORS.length)], s: 5 + Math.random() * 5,
+      cup: Math.random() < 0.12,
+    }));
+    let last = performance.now(), age = 0;
+    const step = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      age += dt;
+      g.clearRect(0, 0, w, h);
+      for (const p of ps) {
+        p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r);
+        if (p.cup) { g.font = '18px sans-serif'; g.fillText('☕', 0, 0); } else { g.fillStyle = p.c; g.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); }
+        g.restore();
+      }
+      if (age < 3.5 && !$('result').hidden) requestAnimationFrame(step);
+      else { g.clearRect(0, 0, w, h); c.hidden = true; }
+    };
+    requestAnimationFrame(step);
+  }
+
+  $('startBtn').onclick = startGame;
+  $('againBtn').onclick = startGame;
+  $('homeBtn').onclick = () => show('setup');
+  $('quitBtn').onclick = () => { cancelAnimationFrame(raf); G = null; show('setup'); };
+  $('fastBtn').onclick = () => {
+    if (!G) return;
+    G.fast = G.fast === 1 ? 4 : 1;
+    $('fastBtn').textContent = G.fast === 1 ? '⏩ 4배속' : '▶ 1배속';
+  };
+
+  // ---------- 디버그: 헤드리스 시뮬레이션 ----------
+  if (DEBUG) {
+    $('debug').hidden = false;
+    const ns = $('dbgN');
+    for (let k = 2; k <= 10; k++) {
+      const o = document.createElement('option');
+      o.value = String(k);
+      o.textContent = `${k}명`;
+      ns.appendChild(o);
+    }
+    ns.value = String(settings.n);
+    $('dbgRun').onclick = () => {
+      const n = +ns.value, total = 5000, base = (Math.random() * 1e9) >>> 0;
+      const list = [];
+      const btn = $('dbgRun');
+      btn.disabled = true;
+      const t0 = performance.now();
+      const chunk = () => {
+        const end = Math.min(total, list.length + 100);
+        while (list.length < end) list.push(simulateOne((base + list.length * 2654435761) >>> 0, n));
+        $('dbgBar').style.width = `${(list.length / total) * 100}%`;
+        if (list.length < total) setTimeout(chunk, 0);
+        else { btn.disabled = false; renderStats(aggregate(list, n), performance.now() - t0); }
+      };
+      chunk();
+    };
+  }
+  function renderStats(a, ms) {
+    const pct = (x) => `${(x * 100).toFixed(1)}%`;
+    const seatDev = Math.max(...a.seatRates.map((r) => Math.abs(r - 1 / a.n)));
+    const rows = [
+      ['평균 게임 시간', `${a.gameAvg.toFixed(1)}초 (최대 ${a.gameMax.toFixed(1)}초)`, '45~55초, 최대 60초', a.gameAvg >= 45 && a.gameAvg <= 55 && a.gameMax <= 60],
+      ['1등-꼴찌 시간 차 (신의 손 제외)', `${a.gapNatAvg.toFixed(1)}초 (최대 ${a.gapNatMax.toFixed(1)}초)`, '평균 12초↓, 최대 15초', a.gapNatAvg <= 12 && a.gapNatMax <= 15],
+      ['1등-꼴찌 시간 차 (신의 손 포함)', `${a.gapAvg.toFixed(1)}초 (최대 ${a.gapMax.toFixed(1)}초)`, '참고: 신의 손은 일찍 도착', null],
+      ['좌석별 꼴찌 확률', a.seatRates.map((r, i) => `${i + 1}:${pct(r)}`).join(' '), `1/N=${pct(1 / a.n)} ±2%p`, seatDev <= 0.02],
+      ['평균 1위 교체', `${a.leadAvg.toFixed(2)}회`, '3회 이상', a.leadAvg >= 3],
+      ['마지막 10초 순위 변동', pct(a.lastTenRate), '거의 모든 판', a.lastTenRate >= 0.95],
+      ['신의 손 발동 판', pct(a.godHandRate), '60~80%', a.godHandRate >= 0.6 && a.godHandRate <= 0.8],
+    ];
+    const out = $('dbgOut');
+    out.textContent = '';
+    const p = document.createElement('p');
+    p.textContent = `${a.n}명 × ${a.games.toLocaleString()}판 · ${(ms / 1000).toFixed(1)}초 소요`;
+    const table = document.createElement('table');
+    for (const [k, v, goal, ok] of rows) {
+      const tr = document.createElement('tr');
+      for (const [txt, cls] of [[k], [v], [goal], [ok == null ? 'ℹ️' : ok ? '✅' : '⚠️', ok == null ? '' : ok ? 'ok' : 'bad']]) {
+        const td = document.createElement('td');
+        td.textContent = txt;
+        if (cls) td.className = cls;
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+    out.append(p, table);
+  }
+})();
+</script>
+</body>
+</html>

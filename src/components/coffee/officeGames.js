@@ -1,19 +1,12 @@
 // 회사원 내기 게임 목록 (/coffee-bet/:key)
-import { createMountainGame } from './mountainGame.js';
 import { createReportGame } from './reportGame.js';
 
 export const OFFICE_GAMES = {
   mountain: {
-    title: '⛰️ 구로디지털산 정상 정복',
-    desc: '빌딩 숲 산을 오르는 등반 레이스! 가장 늦게 정상에 도착한 사람이 커피',
-    path: '/coffee-bet/mountain',
-    rules: [
-      '🚀 에너지드링크 슈퍼점프 · 🛗 엘리베이터 탑승으로 역전 가능',
-      '🍌 미끄러짐 · 🚧 공사중 우회 · 👔 부장님 · 📱 업무 전화로 지체',
-      '🌧️ 소나기, 🏃 점심시간 종료 알림 같은 전체 이벤트도 있어요',
-      '뒤처질수록 슈퍼점프 확률이 조금 올라가요',
-    ],
-    create: createMountainGame,
+    title: '⛰️ 커피내기 산악 레이스',
+    desc: '랜덤 산을 오르는 등반 레이스! 신의 손·낙석·호랑이 추격, 꼴찌로 정상에 오른 사람이 커피',
+    // 단독 정적 페이지(public/coffee-bet/mountain/index.html)라 SPA 라우터 대신 전체 페이지 이동
+    href: '/coffee-bet/mountain/',
   },
   report: {
     title: '📄 실장님 결재 받기',

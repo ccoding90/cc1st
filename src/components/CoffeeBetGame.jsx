@@ -219,12 +219,18 @@ const CoffeeBetGame = () => {
         <div style={{ maxWidth: 420, margin: '32px auto 0' }}>
           <h3 style={{ ...sectionTitle, textAlign: 'left' }}>🆕 회사원 내기 게임 (최대 10명)</h3>
           <div style={{ display: 'grid', gap: 12 }}>
-            {Object.entries(OFFICE_GAMES).map(([id, g]) => (
-              <Link key={id} to={g.path} style={{ ...gameBtn, display: 'block', textDecoration: 'none' }}>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{g.title}</div>
-                <div style={{ fontSize: 13, color: '#777', marginTop: 4 }}>{g.desc}</div>
-              </Link>
-            ))}
+            {Object.entries(OFFICE_GAMES).map(([id, g]) => {
+              const body = (
+                <>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{g.title}</div>
+                  <div style={{ fontSize: 13, color: '#777', marginTop: 4 }}>{g.desc}</div>
+                </>
+              );
+              const style = { ...gameBtn, display: 'block', textDecoration: 'none' };
+              return g.href
+                ? <a key={id} href={g.href} style={style}>{body}</a>
+                : <Link key={id} to={g.path} style={style}>{body}</Link>;
+            })}
           </div>
         </div>
       </div>

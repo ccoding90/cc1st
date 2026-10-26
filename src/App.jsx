@@ -73,7 +73,6 @@ const App = () => {
             <Route path="/goalkeeper-game" element={<GoalkeeperGame />} />
             <Route path="/three-jo-game" element={<ThreeJoGame />} />
             <Route path="/coffee-bet" element={<CoffeeBetGame />} />
-            <Route path="/coffee-bet/mountain" element={<OfficeBetGame key="mountain" gameKey="mountain" />} />
             <Route path="/coffee-bet/report" element={<OfficeBetGame key="report" gameKey="report" />} />
             <Route path="/dodge-game" element={<Navigate to="/game-hub" replace />} />
             <Route path="/soccer-type" element={<div className="mbti-wrapper"><SoccerTypeTest /></div>} />
