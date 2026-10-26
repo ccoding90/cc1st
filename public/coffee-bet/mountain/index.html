@@ -987,7 +987,7 @@ function aggregate(list, n) {
     // 레인(코스) 점선
     g.strokeStyle = 'rgba(255,255,255,0.55)';
     g.setLineDash([2, 6]);
-    for (const off of [6, 78]) {
+    for (const off of [4, 88]) {
       g.beginPath();
       for (let i = 0; i < PATH.length; i += 3) {
         const p = PATH[i], s = laneScale(i / (PATH.length - 1));
@@ -1163,6 +1163,7 @@ function aggregate(list, n) {
     G = {
       race, names, seed, phase: 'slot', slotT: 0, acc: 0, wall: 0, scale: 1, fast: 1,
       fx: Array.from({ length: n }, () => ({ icon: null, until: 0 })),
+      trail: Array.from({ length: n }, () => []),
       pops: [], parts: [], flash: 0, shake: 0, dark: 0, slowUntil: 0,
       hands: [], reaper: null, said: { kaldak: false, spurt: false, force: false },
       hudAt: 0, endAt: 0, slotIdx: 0, slotNext: 0, slotLanded: false,
@@ -1236,7 +1237,7 @@ function aggregate(list, n) {
     const handOn = g.hands.some((h) => race.t < h.end);
     g.dark += ((handOn || g.reaper && race.t < g.reaper.end ? 0.5 : 0) - g.dark) * Math.min(1, dt * 5);
     g.pops = g.pops.filter((p) => (p.life -= dt) > 0);
-    for (const p of g.parts) { p.vy += 260 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+    for (const p of g.parts) { p.vy += (p.g ?? 260) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
     g.parts = g.parts.filter((p) => p.life > 0);
     if (g.wall >= g.hudAt) { g.hudAt = g.wall + 0.15; hud(); }
   }
@@ -1258,7 +1259,7 @@ function aggregate(list, n) {
       return { x: PX + 8 + col * 11 + row * 5, y: PEAK_Y - 7 - row * 11 };
     }
     const lane = race.n > 1 ? pl.id / (race.n - 1) : 0.5;
-    const off = 12 + lane * 62;
+    const off = 12 + lane * 70;
     if (pl.tw && pl.tw.kind === 'hand') {
       const a = pathAt(pl.tw.from / 100), s = laneScale(pl.tw.from / 100);
       const sx = a.x + a.nx * off * s, sy = a.y + a.ny * off * s;
@@ -1279,8 +1280,8 @@ function aggregate(list, n) {
       switch (ev.type) {
         case 'event': {
           log(say(ev.key, { n: nm(ev.id) }));
-          g.fx[ev.id] = { icon: ICON[ev.key], until: race.t + (ICON_SEC[ev.key] || 1.5), key: ev.key };
-          pop(ICON[ev.key], at.x, at.y - 16, 22);
+          g.fx[ev.id] = { icon: ICON[ev.key], until: race.t + (ICON_SEC[ev.key] || 1.5), key: ev.key, t0: race.t };
+          impact(ev, pl, at);
           if (ev.bad) { SFX.bad(); if (ev.key === 'rock' || ev.key === 'boar') g.shake = Math.max(g.shake, 5); }
           else { SFX.good(); if (ev.key === 'eagle' || ev.key === 'cablecar') g.flash = 0.25; }
           break;
@@ -1300,7 +1301,7 @@ function aggregate(list, n) {
         }
         case 'reaper':
           g.reaper = { id: ev.id, end: race.t + 1.4 };
-          g.fx[ev.id] = { icon: '💀', until: race.t + 1.4 };
+          g.fx[ev.id] = { icon: '💀', until: race.t + 1.4, key: 'reaper', t0: race.t, hitAt: race.t };
           banner('💀 저승사자의 손!', 1200);
           log(say('reaper', { n: nm(ev.id) }));
           g.shake = 8;
@@ -1309,7 +1310,11 @@ function aggregate(list, n) {
         case 'landslide':
           banner('⛰️ 산사태!', 1200);
           log(say('landslide', { n: ev.ids.map((id) => nm(id)).join('·') }));
-          for (const id of ev.ids) g.fx[id] = { icon: '🪨', until: race.t + 1 };
+          for (const id of ev.ids) {
+            g.fx[id] = { icon: '🪨', until: race.t + 1, key: 'rock', t0: race.t, hitAt: race.t + 0.25 };
+            const xy = playerXY(race.P[id]);
+            debris(xy.x, xy.y - 14, 10, ['#8D8D8D', '#6B6B6B', '#B0A99F']);
+          }
           g.shake = 12;
           g.flash = 0.4;
           SFX.landslide();
@@ -1317,7 +1322,7 @@ function aggregate(list, n) {
         case 'heli':
           banner('🚁 헬기 구조!', 1100);
           log(say('heli', { n: nm(ev.id) }));
-          g.fx[ev.id] = { icon: '🚁', until: race.t + 2.4 };
+          g.fx[ev.id] = { icon: '🚁', until: race.t + 2.4, key: 'heli', t0: race.t };
           SFX.heli();
           break;
         case 'rest':
@@ -1443,9 +1448,9 @@ function aggregate(list, n) {
       const pl = race.P[id], xy = playerXY(pl);
       ctx.strokeStyle = '#6B5B53';
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(xy.x + 5, xy.y); ctx.lineTo(xy.x + 5, xy.y - 16); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xy.x + 7, xy.y); ctx.lineTo(xy.x + 7, xy.y - 22); ctx.stroke();
       ctx.fillStyle = COLORS[id];
-      ctx.beginPath(); ctx.moveTo(xy.x + 5, xy.y - 16); ctx.lineTo(xy.x + 13, xy.y - 13); ctx.lineTo(xy.x + 5, xy.y - 10); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(xy.x + 7, xy.y - 22); ctx.lineTo(xy.x + 15, xy.y - 19); ctx.lineTo(xy.x + 7, xy.y - 16); ctx.fill();
     }
 
     const st = race.standings();
@@ -1458,17 +1463,32 @@ function aggregate(list, n) {
     for (const it of list) {
       if (it.pl.finished) continue;
       const w = Math.min(70, ctx.measureText(nm(it.pl.id)).width) + 22;
-      tags.push({ it, w, y: it.y - 3 });
+      tags.push({ it, w, y: it.y - 10 });
     }
+    // 겹치는 이름표끼리 묶어 원래 위치의 평균에 맞춰 세로로 펼침
     tags.sort((a, b) => a.y - b.y);
-    for (let i = 1; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, tags[i - 1].y + 14);
-    for (let i = tags.length - 2; i >= 0; i--) tags[i].y = Math.min(tags[i].y, tags[i + 1].y - 14);
+    const GAP = 14, blocks = [];
+    for (const tg of tags) {
+      blocks.push({ items: [tg], sum: tg.y });
+      for (;;) {
+        const b = blocks[blocks.length - 1], p = blocks[blocks.length - 2];
+        b.top = b.sum / b.items.length - ((b.items.length - 1) * GAP) / 2;
+        if (!p || p.top + p.items.length * GAP <= b.top) break;
+        p.items.push(...b.items);
+        p.sum += b.sum;
+        blocks.pop();
+      }
+    }
+    for (const b of blocks) {
+      const top = Math.max(8, Math.min(H - 8 - (b.items.length - 1) * GAP, b.top));
+      b.items.forEach((tg, k) => { tg.y = top + k * GAP; });
+    }
     for (const tg of tags) {
       const { it, w } = tg;
-      const x = Math.max(44, it.x - 14 - w), y = tg.y;
+      const x = Math.max(44, it.x - 18 - w), y = tg.y;
       ctx.strokeStyle = 'rgba(80,60,55,0.3)';
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(it.x - 8, it.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(it.x - 12, it.y - 10); ctx.stroke();
       ctx.fillStyle = it.pl === tail && !race.done ? 'rgba(255,232,224,0.95)' : 'rgba(255,255,255,0.92)';
       roundRect(x, y - 7, w, 14, 7);
       ctx.fill();
@@ -1483,44 +1503,30 @@ function aggregate(list, n) {
       ctx.fillStyle = `rgba(20,15,30,${g.dark})`;
       ctx.fillRect(-20, -20, W + 40, H + 40);
     }
-    // 등산객
+    // 등산객 (뒤 연출 → 캐릭터 → 앞 연출)
     for (const it of list) {
-      const pl = it.pl;
-      const moving = !pl.finished && !pl.tw && !(g.fx[pl.id].until > race.t && ['selfie', 'shoelace', 'ramen'].includes(g.fx[pl.id].key));
-      const bob = moving ? Math.abs(Math.sin(time * 9 + pl.id)) * 2 : 0;
-      const x = it.x, y = it.y - bob;
-      const fx = g.fx[pl.id];
-      if (fx.until > race.t && fx.key === 'fog') {
-        ctx.fillStyle = 'rgba(230,230,235,0.75)';
-        ctx.beginPath(); ctx.ellipse(x, y, 20, 13, 0, 0, Math.PI * 2); ctx.fill();
-      }
-      if (fx.until > race.t && fx.key === 'tiger') {
-        const a = pathAt(Math.max(0, pl.p - 4) / 100);
-        ctx.font = '16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('🐯', a.x + a.nx * 40 + Math.sin(time * 20) * 2, a.y + a.ny * 40 + 6);
-      }
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.beginPath(); ctx.ellipse(it.x, it.y + 7, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = COLORS[pl.id];
-      ctx.strokeStyle = pl === tail && !race.done ? '#B91C1C' : '#fff';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, pl.finished ? 6 : 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.font = `800 ${pl.finished ? 8 : 10}px sans-serif`;
+      const pl = it.pl, isTail = pl === tail && !race.done && race.n > 1;
+      const st = climberState(pl, isTail);
+      const f = g.fx[pl.id];
+      const since = f.hitAt != null ? race.t - f.hitAt : 9;
+      const hit = since >= 0 && since < 0.18;          // 피격 순간 하얗게 번쩍 + 흔들림
+      const jx = hit ? (Math.random() - 0.5) * 4 : 0;
+      const sc = pl.finished ? 0.66 : 1.1;
+      if (!pl.finished) drawBackFx(pl, it, st, time);
+      drawClimber(it.x + jx, it.y + 6, pl.id, st, time, sc, hit && Math.floor(since * 30) % 2 === 0);
+      if (!pl.finished) drawFrontFx(pl, { x: it.x, y: it.y + 6 }, st, time);
       ctx.textAlign = 'center';
-      ctx.fillText(String(pl.id + 1), x, y + (pl.finished ? 3 : 3.5));
       ctx.font = '13px sans-serif';
-      if (pl === leader) ctx.fillText('👑', x, y - 11);
-      if (pl === tail && race.n > 1) ctx.fillText('☕', x + Math.sin(time * 28) * 2, y - (pl === leader ? 24 : 11));
-      if (fx.icon && fx.until > race.t && !pl.finished) ctx.fillText(fx.icon, x + 13, y - 6);
+      const top = it.y + (pl.finished ? -14 : -22);
+      if (pl === leader) ctx.fillText('👑', it.x + 1, top - 2);
+      if (isTail) ctx.fillText('☕', it.x + 13 + Math.sin(time * 28) * 2, top + 4);
     }
     // 손 연출
     for (const h of g.hands) {
       if (race.t > h.end + 0.4) continue;
       const pl = race.P[h.id], xy = playerXY(pl);
       const a = Math.min(1, (race.t - h.start) / CONFIG.GOD_HAND_ANNOUNCE);
-      const hy = race.t < h.start + CONFIG.GOD_HAND_ANNOUNCE ? -60 + (xy.y - 34 + 60) * (1 - Math.pow(1 - a, 3)) : xy.y - 34;
+      const hy = race.t < h.start + CONFIG.GOD_HAND_ANNOUNCE ? -60 + (xy.y - 30 + 60) * (1 - Math.pow(1 - a, 3)) : xy.y - 30;
       ctx.save();
       ctx.shadowColor = 'rgba(255,215,90,0.95)';
       ctx.shadowBlur = 24;
@@ -1531,7 +1537,7 @@ function aggregate(list, n) {
       ctx.restore();
       ctx.strokeStyle = 'rgba(255,215,90,0.9)';
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(xy.x, xy.y, 12, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(xy.x, xy.y - 6, 15, 0, Math.PI * 2); ctx.stroke();
     }
     if (g.reaper && race.t < g.reaper.end) {
       const xy = playerXY(race.P[g.reaper.id]);
@@ -1540,7 +1546,13 @@ function aggregate(list, n) {
       ctx.fillText('💀', xy.x - 18, xy.y + 30);
     }
     // 파티클·팝업
-    for (const p of g.parts) { ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, 3, 3); }
+    for (const p of g.parts) {
+      ctx.globalAlpha = p.max ? Math.min(1, (p.life / p.max) * 1.5) : 1;
+      ctx.fillStyle = p.c;
+      const sz = p.s || 3;
+      if (p.round) dot(p.x, p.y, sz * (1.4 - p.life / p.max * 0.6)); else ctx.fillRect(p.x, p.y, sz, sz);
+    }
+    ctx.globalAlpha = 1;
     for (const p of g.pops) {
       const q = 1 - p.life / p.max;
       ctx.globalAlpha = Math.min(1, p.life * 3);
@@ -1585,6 +1597,498 @@ function aggregate(list, n) {
     ctx.arcTo(x, y + h, x, y, r);
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
+  }
+
+  // ===================================================================
+  // 등산객 캐릭터 (비니·배낭 쓴 동글이) — 상태별 포즈·표정·공격/버프 연출
+  // ===================================================================
+  const SHADE = COLORS.map((c) => [shade(c, -38), shade(c, 55)]);
+  const STOP_TEXT = {
+    fog: '속도 −50%', squirrel: '속도 −30%', selfie: '찰칵! 정지', shoelace: '정지!', ramen: '후루룩~',
+    makgeolli: '속도 +40%!!', wind: '속도 +25%', tiger: '속도 +50%!!!', sansin: '불운 면역!',
+  };
+
+  // 현재 상태 → 포즈/표정 (렌더링 전용, 시뮬레이션 상태만 읽음)
+  function climberState(pl, isTail) {
+    const race = G.race, t = race.t, f = G.fx[pl.id];
+    const key = f.until > t ? f.key : null;
+    const age = key ? t - f.t0 : 9;
+    if (pl.finished) {
+      const lost = race.done && pl.id === race.order[race.n - 1];
+      return { pose: lost ? 'sit' : 'cheer', face: lost ? 'cry' : 'happy' };
+    }
+    if (pl.tw) {
+      if (pl.tw.kind === 'hand') return { pose: 'held', face: 'surprised' };
+      const q = Math.max(0, Math.min(1, (t - pl.tw.t0) / pl.tw.dur));
+      if (pl.tw.kind === 'back') return { pose: 'fall', face: key === 'rock' ? 'dizzy' : 'sad', key, age, q };
+      return { pose: 'fly', face: 'crazy', key, age, q, buff: true };
+    }
+    let mult = 1;
+    for (const m of pl.mods) if (m.from <= t && m.until > t) mult *= m.mult;
+    if (mult === 0) {
+      if (key === 'rock') return { pose: 'stun', face: 'dizzy', key, age };
+      if (key === 'selfie') return { pose: 'photo', face: 'wink', key, age };
+      if (key === 'shoelace') return { pose: 'crouch', face: 'grumpy', key, age };
+      if (key === 'ramen') return { pose: 'eat', face: 'yum', key, age };
+      return { pose: 'sit', face: 'tired', key, age };
+    }
+    if (mult < 0.99) return { pose: 'walk', speed: 4, face: key === 'fog' ? 'confused' : 'grumpy', key, age, slow: true };
+    if (mult > 1.01) return { pose: 'sprint', speed: 9 + mult * 16, face: key === 'tiger' ? 'panic' : 'crazy', key, age, buff: true };
+    return { pose: 'walk', speed: 9, face: race.loserId === pl.id ? 'cry' : isTail ? 'worried' : 'normal', key, age };
+  }
+
+  function line(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+  function dot(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  function star(x, y, r, c) {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r * 0.45 : r;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // (x, y)는 발 위치. 몸 중심 기준 로컬 좌표로 그림
+  function drawClimber(x, y, id, st, time, sc, white) {
+    const col = white ? '#FFFFFF' : COLORS[id], [dark, light] = SHADE[id];
+    const w = time * (st.speed || 0) + id * 1.7;
+    let rot = 0, dy = 0;
+    switch (st.pose) {
+      case 'walk': dy = -Math.abs(Math.sin(w)) * 1.5; rot = st.slow ? Math.sin(time * 3) * 0.06 : 0.06; break;
+      case 'sprint': dy = -Math.abs(Math.sin(w)) * 3; rot = 0.3; break;
+      case 'fall': rot = -st.q * Math.PI * (st.key === 'rock' ? 1 : 2.2); dy = -Math.sin(st.q * Math.PI) * 8; break;
+      case 'stun': rot = Math.sin(time * 7) * 0.18; break;
+      case 'crouch': dy = 3; rot = 0.35; break;
+      case 'sit': dy = 3.5; break;
+      case 'eat': dy = 2; break;
+      case 'held': case 'fly': rot = Math.sin(time * 9 + id) * 0.18; break;
+      case 'cheer': dy = -Math.abs(Math.sin(time * 6 + id)) * 4; break;
+      default:
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sc, sc);
+    // 그림자
+    if (st.pose !== 'held' && st.pose !== 'fly') {
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath(); ctx.ellipse(0, 0, 8, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.translate(0, -11 + dy);
+    ctx.rotate(rot);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // 다리
+    ctx.strokeStyle = '#5B4636';
+    ctx.lineWidth = 2.6;
+    if (st.pose === 'sit' || st.pose === 'crouch' || st.pose === 'eat') {
+      line(-2, 7, 4, 10); line(3, 7, 9, 9);
+    } else if (st.pose === 'held' || st.pose === 'fly' || st.pose === 'fall') {
+      const s = Math.sin(time * 14 + id) * 3;
+      line(-2.5, 7, -3 + s, 12); line(3, 7, 3 - s, 12);
+    } else {
+      const s = Math.sin(w) * (st.pose === 'sprint' ? 5 : 3.5);
+      line(-2.5, 7, -2.5 + s, 11.5); line(3, 7, 3 - s, 11.5);
+    }
+    // 배낭 + 번호
+    ctx.fillStyle = dark;
+    roundRect(-11.5, -5, 6, 11, 2.5);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 6px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(id + 1), -8.5, 2.6);
+    // 몸통
+    ctx.fillStyle = col;
+    ctx.strokeStyle = white ? '#fff' : dark;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, 8.5, 9.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FFF6EA';
+    ctx.beginPath(); ctx.ellipse(2, -0.3, 6, 5.6, 0, 0, Math.PI * 2); ctx.fill();
+    // 비니 + 방울
+    ctx.fillStyle = white ? '#fff' : dark;
+    ctx.beginPath(); ctx.ellipse(0, -5.2, 8.7, 5.2, 0, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = light;
+    ctx.fillRect(-8.6, -6, 17.2, 1.8);
+    ctx.fillStyle = '#fff';
+    dot(0.5, -10.8, 2.3);
+    // 팔
+    ctx.strokeStyle = white ? '#fff' : dark;
+    ctx.lineWidth = 2.4;
+    switch (st.pose) {
+      case 'fall': case 'held': case 'fly': case 'cheer': {
+        const s = st.pose === 'fall' ? Math.sin(time * 26) * 2.5 : Math.sin(time * 10 + id) * 1.5;
+        line(-7, -1, -10.5, -8 + s); line(7.5, -1, 11, -8 - s);
+        break;
+      }
+      case 'eat':
+        line(7.5, 2, 9, 2);
+        ctx.fillStyle = '#C0392B';
+        ctx.beginPath(); ctx.arc(10.5, 2.5, 3.6, 0, Math.PI); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 1;
+        for (let k = 0; k < 2; k++) {
+          const sx = 9.5 + k * 2.5, o = (time * 6 + k) % 3;
+          ctx.beginPath(); ctx.moveTo(sx, 0); ctx.quadraticCurveTo(sx + 1.5, -2 - o, sx, -4 - o); ctx.stroke();
+        }
+        break;
+      case 'photo':
+        line(7.5, 0, 9.5, -6);
+        ctx.fillStyle = '#222';
+        roundRect(8, -11, 3.6, 6, 1);
+        ctx.fill();
+        break;
+      case 'crouch':
+        line(7.5, 3, 9, 9);
+        break;
+      default: {
+        const s = Math.sin(w) * (st.pose === 'sprint' ? 4 : 2);
+        line(7.5, 2, 10 + s * 0.5, 5 - s);
+        if (st.pose === 'walk') { // 등산 스틱
+          ctx.strokeStyle = '#7A5A3C';
+          ctx.lineWidth = 1.2;
+          line(10 + s * 0.5, 3 - s, 13 + s, 12);
+        }
+      }
+    }
+    drawFace(st, time);
+    ctx.restore();
+  }
+
+  function drawFace(st, time) {
+    const ex1 = -0.4, ex2 = 4.4, ey = -1.2, mx = 2, my = 2.2;
+    ctx.fillStyle = 'rgba(255,120,120,0.55)';
+    dot(-2.4, 1.3, 1.3); dot(6.4, 1.3, 1.3);
+    ctx.fillStyle = '#2B2222';
+    ctx.strokeStyle = '#2B2222';
+    ctx.lineWidth = 0.9;
+    const arcEye = (x, up) => { ctx.beginPath(); ctx.arc(x, ey + (up ? 0.6 : -0.4), 1.2, up ? Math.PI : 0, up ? 0 : Math.PI); ctx.stroke(); };
+    const mouth = (r, start, end, y = my) => { ctx.beginPath(); ctx.arc(mx, y, r, start, end); ctx.stroke(); };
+    switch (st.face) {
+      case 'happy': case 'yum':
+        arcEye(ex1, true); arcEye(ex2, true);
+        ctx.fillStyle = '#E4572E';
+        ctx.beginPath(); ctx.arc(mx, my - 0.3, 1.7, 0, Math.PI); ctx.fill();
+        break;
+      case 'wink':
+        arcEye(ex1, true); dot(ex2, ey, 1);
+        mouth(1.3, 0.1, Math.PI - 0.1);
+        break;
+      case 'sad': {
+        dot(ex1, ey + 0.3, 0.9); dot(ex2, ey + 0.3, 0.9);
+        line(ex1 - 1.4, ey - 2.4, ex1 + 1, ey - 1.6); line(ex2 + 1.4, ey - 2.4, ex2 - 1, ey - 1.6);
+        mouth(1.4, Math.PI + 0.3, -0.3, my + 1.3);
+        ctx.fillStyle = '#5DADE2';
+        const o = (time * 2.5) % 1;
+        ctx.globalAlpha = 1 - o;
+        ctx.beginPath(); ctx.ellipse(ex2 + 0.6, ey + 1.5 + o * 6, 0.8, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'cry': {
+        arcEye(ex1, false); arcEye(ex2, false);
+        ctx.fillStyle = 'rgba(93,173,226,0.9)';
+        const o = Math.sin(time * 14) * 0.4;
+        ctx.fillRect(ex1 - 0.6, ey + 0.3, 1.2, 6 + o);
+        ctx.fillRect(ex2 - 0.6, ey + 0.3, 1.2, 6 - o);
+        ctx.fillStyle = '#2B2222';
+        ctx.beginPath(); ctx.ellipse(mx, my + 1.4, 1.6, 1.1 + Math.abs(o), 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'dizzy':
+        for (const ex of [ex1, ex2]) { line(ex - 1, ey - 1, ex + 1, ey + 1); line(ex - 1, ey + 1, ex + 1, ey - 1); }
+        ctx.beginPath();
+        for (let k = 0; k <= 8; k++) ctx.lineTo(mx - 2 + k * 0.5, my + 0.8 + Math.sin(k * 1.6 + time * 10) * 0.6);
+        ctx.stroke();
+        break;
+      case 'crazy':
+        ctx.fillStyle = '#fff';
+        dot(ex1, ey, 1.8); dot(ex2, ey, 1.8);
+        ctx.fillStyle = '#2B2222';
+        dot(ex1 + 0.5, ey, 0.8); dot(ex2 + 0.5, ey, 0.8);
+        ctx.fillStyle = '#C0392B';
+        ctx.beginPath(); ctx.arc(mx, my - 0.2, 2.4, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = 'rgba(255,60,60,0.6)';
+        dot(-2.4, 1.3, 1.6); dot(6.4, 1.3, 1.6);
+        break;
+      case 'panic':
+        ctx.fillStyle = '#fff';
+        dot(ex1, ey, 1.8); dot(ex2, ey, 1.8);
+        ctx.fillStyle = '#2B2222';
+        dot(ex1 + 0.6, ey - 0.3, 0.7); dot(ex2 + 0.6, ey - 0.3, 0.7);
+        ctx.beginPath(); ctx.ellipse(mx, my + 0.8, 1.3, 1.9, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'surprised':
+        dot(ex1, ey, 1.1); dot(ex2, ey, 1.1);
+        ctx.beginPath(); ctx.ellipse(mx, my + 0.6, 1.1, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'grumpy':
+        line(ex1 - 1, ey - 1, ex1 + 1, ey); line(ex1 - 1, ey + 1, ex1 + 1, ey);
+        line(ex2 + 1, ey - 1, ex2 - 1, ey); line(ex2 + 1, ey + 1, ex2 - 1, ey);
+        line(mx - 1.5, my + 0.6, mx + 1.5, my + 0.6);
+        break;
+      case 'confused':
+        for (const ex of [ex1, ex2]) { ctx.beginPath(); ctx.arc(ex, ey, 1.2, 0, Math.PI * 1.6); ctx.stroke(); }
+        ctx.beginPath();
+        for (let k = 0; k <= 6; k++) ctx.lineTo(mx - 1.5 + k * 0.5, my + 0.6 + (k % 2 ? 0.5 : -0.5));
+        ctx.stroke();
+        break;
+      case 'tired':
+        line(ex1 - 1, ey, ex1 + 1, ey); line(ex2 - 1, ey, ex2 + 1, ey);
+        mouth(1, 0, Math.PI);
+        break;
+      case 'worried':
+        dot(ex1, ey, 1); dot(ex2, ey, 1);
+        line(ex1 - 1.3, ey - 2.2, ex1 + 1, ey - 1.8); line(ex2 + 1.3, ey - 2.2, ex2 - 1, ey - 1.8);
+        mouth(1.2, Math.PI + 0.4, -0.4, my + 1.2);
+        break;
+      default:
+        dot(ex1, ey, 1.05); dot(ex2, ey, 1.05);
+        ctx.fillStyle = '#fff';
+        dot(ex1 + 0.35, ey - 0.35, 0.35); dot(ex2 + 0.35, ey - 0.35, 0.35);
+        mouth(1.3, 0.2, Math.PI - 0.2, my - 0.2);
+    }
+  }
+
+  // 캐릭터 뒤쪽 연출 (잔상·불꽃·스피드라인·추격자)
+  function drawBackFx(pl, it, st, time) {
+    const g = G, race = g.race;
+    const a = pathAt(Math.min(1, pl.p / 100)), tx = a.ny, ty = -a.nx; // 진행 방향
+    const cy = it.y - 4;
+    const tr = g.trail[pl.id];
+    if (st.buff) {
+      tr.push({ x: it.x, y: cy });
+      if (tr.length > 7) tr.shift();
+      // 잔상
+      for (let k = 0; k < tr.length - 1; k += 2) {
+        ctx.globalAlpha = 0.08 + (k / tr.length) * 0.22;
+        ctx.fillStyle = COLORS[pl.id];
+        ctx.beginPath(); ctx.ellipse(tr[k].x, tr[k].y - 11, 8.5, 9.5, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // 불꽃 오라
+      if (st.face === 'crazy') {
+        for (let k = 0; k < 7; k++) {
+          const ang = (k / 7) * Math.PI * 2 + time * 3;
+          const fl = 13 + Math.sin(time * 25 + k * 1.7) * 4;
+          ctx.fillStyle = k % 2 ? 'rgba(255,140,0,0.55)' : 'rgba(255,215,0,0.6)';
+          ctx.beginPath();
+          ctx.moveTo(it.x + Math.cos(ang - 0.3) * 9, cy - 11 + Math.sin(ang - 0.3) * 9);
+          ctx.lineTo(it.x + Math.cos(ang) * fl, cy - 11 + Math.sin(ang) * fl - 3);
+          ctx.lineTo(it.x + Math.cos(ang + 0.3) * 9, cy - 11 + Math.sin(ang + 0.3) * 9);
+          ctx.fill();
+        }
+      }
+      // 스피드 라인
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      for (let k = 0; k < 4; k++) {
+        const o = ((time * 9 + k * 0.37) % 1) * 10;
+        const px = it.x - tx * (14 + o) + a.nx * (k * 5 - 8), py = cy - 11 - ty * (14 + o) + a.ny * (k * 5 - 8);
+        line(px, py, px - tx * 9, py - ty * 9);
+      }
+      if (Math.random() < 0.5) spark(it.x, cy - 6, st.face === 'panic' ? '#C9B79C' : '#FFD60A');
+    } else if (tr.length) tr.length = 0;
+    // 굴러떨어질 때 흙먼지
+    if (st.pose === 'fall' && Math.random() < 0.6) dust(it.x, it.y);
+    // 호랑이 추격
+    if (st.key === 'tiger' && st.age < ICON_SEC.tiger) {
+      const b = pathAt(Math.max(0, pl.p - 5) / 100);
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🐯', b.x + b.nx * 40 + Math.sin(time * 22) * 2, b.y + b.ny * 40 + 2 - Math.abs(Math.sin(time * 14)) * 4);
+    }
+    // 바나나 껍질 (밟은 자리)
+    const f = g.fx[pl.id];
+    if (f.key === 'banana' && f.at && race.t - f.t0 < 1.6) {
+      ctx.globalAlpha = Math.max(0, 1 - (race.t - f.t0) / 1.6);
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🍌', f.at.x, f.at.y + 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // 캐릭터 앞쪽 연출 (낙석·멧돼지·다람쥐·안개·케이블카 등)
+  function drawFrontFx(pl, it, st, time) {
+    const g = G, race = g.race;
+    const hx = it.x + 1, hy = it.y - 18; // 머리 위치
+    const age = st.age;
+    ctx.textAlign = 'center';
+    switch (st.key) {
+      case 'rock':
+        if (age < 0.28) {
+          ctx.font = '18px sans-serif';
+          ctx.fillText('🪨', hx, hy - 6 - (1 - age / 0.28) * 70);
+        }
+        break;
+      case 'boar':
+        if (age < 0.7) {
+          ctx.save();
+          ctx.font = '20px sans-serif';
+          ctx.translate(hx + 70 - (age / 0.25) * 70, it.y);
+          if (age > 0.25) ctx.rotate(-0.3);
+          ctx.fillText('🐗', 0, 0);
+          ctx.restore();
+        }
+        break;
+      case 'squirrel':
+        ctx.font = '13px sans-serif';
+        ctx.fillText('🐿️', hx + 2, hy - 2 - Math.abs(Math.sin(time * 10)) * 3);
+        break;
+      case 'fog':
+        for (let k = 0; k < 5; k++) {
+          const ang = (k / 5) * Math.PI * 2 + time * 0.8;
+          ctx.fillStyle = 'rgba(232,232,238,0.72)';
+          ctx.beginPath(); ctx.ellipse(hx + Math.cos(ang) * 11, it.y - 10 + Math.sin(ang) * 7, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.font = '700 12px sans-serif';
+        ctx.fillStyle = '#6B7280';
+        ctx.fillText('?', hx + 9, hy - 6 - Math.abs(Math.sin(time * 4)) * 3);
+        break;
+      case 'selfie':
+        if (age > 0.6 && age < 0.85) { star(hx + 11, hy - 1, 7, 'rgba(255,255,255,0.95)'); }
+        break;
+      case 'eagle':
+        if (st.pose === 'fly') {
+          ctx.save();
+          ctx.translate(hx, hy - 6);
+          ctx.scale(1, 0.8 + Math.abs(Math.sin(time * 18)) * 0.4);
+          ctx.font = '22px sans-serif';
+          ctx.fillText('🦅', 0, 0);
+          ctx.restore();
+        }
+        break;
+      case 'cablecar':
+        if (st.pose === 'fly') {
+          const a = pathAt(pl.p / 100), tx = a.ny, ty = -a.nx;
+          ctx.strokeStyle = '#444';
+          ctx.lineWidth = 1.2;
+          line(hx - tx * 120, hy - 12 - ty * 120, hx + tx * 120, hy - 12 + ty * 120);
+          line(hx, hy - 12, hx, hy - 5);
+          ctx.strokeStyle = '#E4572E';
+          ctx.lineWidth = 2;
+          ctx.fillStyle = 'rgba(255,214,200,0.35)';
+          roundRect(hx - 13, hy - 5, 26, 26, 5);
+          ctx.fill(); ctx.stroke();
+        }
+        break;
+      case 'heli':
+        if (st.pose === 'fly' || age < 1.2) {
+          ctx.strokeStyle = '#555';
+          ctx.lineWidth = 1;
+          line(hx, hy - 22, hx, hy + 2);
+          ctx.font = '22px sans-serif';
+          ctx.fillText('🚁', hx, hy - 22);
+        }
+        break;
+      case 'makgeolli':
+        if (age < 0.6) {
+          ctx.save();
+          ctx.translate(hx + 8, hy + 4);
+          ctx.rotate(-0.9);
+          ctx.font = '11px sans-serif';
+          ctx.fillText('🍶', 0, 0);
+          ctx.restore();
+        }
+        break;
+      case 'sansin':
+        ctx.strokeStyle = '#F2C94C';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(hx - 1, hy - 4, 7, 2.2, 0, 0, Math.PI * 2); ctx.stroke();
+        break;
+      default:
+    }
+    // 별 빙빙 (기절)
+    if (st.face === 'dizzy') {
+      for (let k = 0; k < 3; k++) {
+        const ang = time * 7 + (k * Math.PI * 2) / 3;
+        star(hx + Math.cos(ang) * 9, hy - 3 + Math.sin(ang) * 3, 2.6, '#FFD60A');
+      }
+    }
+    // 우울 먹구름 / 땀방울
+    if (st.face === 'sad' || st.face === 'cry') {
+      ctx.strokeStyle = 'rgba(70,110,170,0.75)';
+      ctx.lineWidth = 1.3;
+      for (let k = 0; k < 3; k++) line(hx - 5 + k * 5, hy - 6, hx - 5 + k * 5, hy - 2);
+    }
+    if (st.face === 'panic' || st.face === 'worried') {
+      ctx.fillStyle = '#7CC4F2';
+      const n = st.face === 'panic' ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const o = (time * 3 + k * 0.5) % 1;
+        ctx.globalAlpha = 1 - o;
+        ctx.beginPath(); ctx.ellipse(hx - 9 - o * 4 + k * 18, hy + 3 - o * 3, 1.3, 2, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (st.pose === 'sit' && !pl.finished) {
+      ctx.fillStyle = '#7A6E6A';
+      ctx.font = '700 8px sans-serif';
+      ctx.fillText('z', hx + 9, hy - 2 - ((time * 2) % 1) * 5);
+    }
+    // 산신령 보호막
+    if (pl.immune && !pl.finished) {
+      ctx.strokeStyle = `rgba(120,200,255,${0.55 + Math.sin(time * 5) * 0.2})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(it.x, it.y - 10, 15, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.ellipse(it.x - 6, it.y - 18, 3, 1.5, -0.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function spark(x, y, c) {
+    G.parts.push({ x: x + (Math.random() - 0.5) * 10, y, vx: (Math.random() - 0.5) * 40, vy: -40 - Math.random() * 50, life: 0.5, max: 0.5, c, g: 60, s: 2.2 });
+  }
+  function dust(x, y) {
+    G.parts.push({ x: x + (Math.random() - 0.5) * 8, y: y - 2, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 20, life: 0.6, max: 0.6, c: 'rgba(170,140,110,0.7)', g: 0, s: 4, round: true });
+  }
+  function debris(x, y, k, colors) {
+    for (let i = 0; i < k; i++) {
+      const a = Math.random() * Math.PI * 2, v = 50 + Math.random() * 110;
+      G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, life: 0.7, max: 0.7, c: colors[i % colors.length], g: 300, s: 2.5 + Math.random() * 2 });
+    }
+  }
+
+  // 이벤트 발생 순간의 타격/버프 연출
+  function impact(ev, pl, at) {
+    const g = G, race = g.race, f = g.fx[ev.id];
+    const amt = pl.tw ? pl.tw.to - pl.tw.from : 0;
+    const hy = at.y - 14;
+    if (Math.abs(amt) > 0.1) {
+      const m = Math.round((Math.abs(amt) * race.M.h) / 100);
+      pop(`${amt > 0 ? '+' : '−'}${m}m`, at.x + 16, hy - 12, 14, amt > 0 ? '#16A34A' : '#DC2626');
+    } else if (STOP_TEXT[ev.key]) {
+      pop(STOP_TEXT[ev.key], at.x + 16, hy - 12, 12, ev.bad ? '#DC2626' : '#16A34A');
+    }
+    switch (ev.key) {
+      case 'rock':
+        f.hitAt = race.t + 0.25;
+        setTimeout(() => { if (G === g) { debris(at.x, hy, 16, ['#8D8D8D', '#6B6B6B', '#B0A99F']); pop('쿵!', at.x - 12, hy - 4, 16, '#444'); g.shake = Math.max(g.shake, 7); } }, 250 / g.fast);
+        break;
+      case 'banana':
+        f.at = { x: at.x, y: at.y };
+        f.hitAt = race.t;
+        pop('미끌!', at.x - 14, hy, 13, '#B7791F');
+        break;
+      case 'boar':
+        f.hitAt = race.t + 0.25;
+        setTimeout(() => { if (G === g) { debris(at.x + 6, hy + 6, 12, ['#FFD60A', '#fff', '#A0522D']); pop('쾅!', at.x + 14, hy - 2, 17, '#B91C1C'); g.shake = Math.max(g.shake, 8); } }, 250 / g.fast);
+        break;
+      case 'selfie':
+        pop('📸', at.x + 12, hy - 4, 14);
+        break;
+      case 'squirrel': case 'fog': case 'shoelace': case 'ramen':
+        f.hitAt = race.t;
+        break;
+      case 'eagle': case 'cablecar': case 'heli':
+        debris(at.x, hy, 14, ['#FFD60A', '#fff', '#7CC4F2']);
+        break;
+      default: // 속도 버프
+        debris(at.x, hy, 18, ev.key === 'sansin' ? ['#F2C94C', '#fff', '#FFF3B0'] : ['#FFD60A', '#FF8C00', '#fff']);
+    }
   }
 
   // ---------- 결과 ----------
