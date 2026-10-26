@@ -134,6 +134,7 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
   <header class="top">
     <a href="/coffee-bet">← 커피내기</a>
     <h1>⛰️ 커피내기 산악 레이스</h1>
+    <button class="icon-btn" id="bgmBtn" type="button" aria-label="배경음악 끄기">🎵</button>
     <button class="icon-btn" id="muteBtn" type="button" aria-label="효과음 끄기">🔊</button>
   </header>
 
@@ -655,7 +656,7 @@ function aggregate(list, n) {
     '고라니', '김밥한줄', '등산모자', '버프장인', '능선러버', '새벽산행'];
 
   // ---------- 저장 ----------
-  const settings = { n: 6, names: Array(10).fill(''), mode: 'random', mountain: 0, muted: false };
+  const settings = { n: 6, names: Array(10).fill(''), mode: 'random', mountain: 0, muted: false, bgm: true };
   try {
     const s = JSON.parse(localStorage.getItem(STORE_KEY));
     if (s && typeof s === 'object') {
@@ -664,6 +665,7 @@ function aggregate(list, n) {
       if (s.mode === 'pick') settings.mode = 'pick';
       if (s.mountain >= 0 && s.mountain < MOUNTAINS.length) settings.mountain = s.mountain | 0;
       settings.muted = !!s.muted;
+      if (s.bgm === false) settings.bgm = false;
     } else {
       const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY));
       if (Array.isArray(legacy) && legacy.length >= 2) {
@@ -679,62 +681,230 @@ function aggregate(list, n) {
   const fmtH = (h) => h.toLocaleString('ko-KR');
   const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-  // ---------- 효과음 (Web Audio, 외부 파일 없음) ----------
-  let actx = null;
+  // ---------- 사운드 (Web Audio로 직접 합성, 외부 음원 없음) ----------
+  // 버스 구조: 효과음(sfxBus) + BGM(bgmBus) → master → 컴프레서 → 스피커
+  let actx = null, master = null, sfxBus = null, bgmBus = null, noiseBuf = null, analyser = null;
+  const BGM_LEVEL = 0.55;
   function audio() {
-    if (settings.muted) return null;
     if (!actx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       try { actx = new AC(); } catch (e) { return null; }
+      const comp = actx.createDynamicsCompressor();
+      comp.threshold.value = -16;
+      comp.ratio.value = 4;
+      master = actx.createGain();
+      master.gain.value = 1;
+      sfxBus = actx.createGain();
+      sfxBus.gain.value = 1.3;
+      bgmBus = actx.createGain();
+      bgmBus.gain.value = 0;
+      sfxBus.connect(master);
+      bgmBus.connect(master);
+      master.connect(comp).connect(actx.destination);
+      if (DEBUG) { analyser = actx.createAnalyser(); master.connect(analyser); }
+      noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
-    if (actx.state === 'suspended') actx.resume();
+    if (actx.state === 'suspended' && !document.hidden) actx.resume().catch(() => {});
     return actx;
   }
-  function tone(f, dur, type = 'triangle', vol = 0.12, to = 0, delay = 0) {
+  // 첫 터치 때 오디오 잠금 해제. iOS는 무음 스위치가 켜져 있으면 Web Audio가 묵음이라
+  // 미디어 재생 채널로 전환한다 (audioSession 지원 시 그 API, 아니면 무음 <audio> 루프).
+  let unlocked = false, silentEl = null;
+  function unlockAudio() {
     const ac = audio();
     if (!ac) return;
-    const t = ac.currentTime + delay;
-    const o = ac.createOscillator(), g = ac.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(f, t);
-    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(ac.destination);
-    o.start(t);
-    o.stop(t + dur + 0.05);
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+    if (!unlocked) {
+      unlocked = true;
+      const src = ac.createBufferSource();
+      src.buffer = ac.createBuffer(1, 1, 22050);
+      src.connect(ac.destination);
+      src.start(0);
+      if (!navigator.audioSession && /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document) {
+        silentEl = document.createElement('audio');
+        silentEl.setAttribute('x-webkit-airplay', 'deny');
+        silentEl.preload = 'auto';
+        silentEl.loop = true;
+        silentEl.src = silentWav();
+        silentEl.play().catch(() => {});
+      }
+    }
   }
-  function noise(dur, vol = 0.15, freq = 800) {
-    const ac = audio();
-    if (!ac) return;
-    const len = Math.floor(ac.sampleRate * dur);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  function silentWav() {
+    const n = 2205, b = new DataView(new ArrayBuffer(44 + n * 2));
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) b.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt ');
+    b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+    b.setUint32(24, 22050, true); b.setUint32(28, 44100, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+    w(36, 'data'); b.setUint32(40, n * 2, true);
+    let s = '';
+    const u8 = new Uint8Array(b.buffer);
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return `data:audio/wav;base64,${btoa(s)}`;
+  }
+  ['pointerdown', 'touchend', 'keydown'].forEach((t) => document.addEventListener(t, unlockAudio, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => {
+    if (!actx) return;
+    if (document.hidden) actx.suspend().catch(() => {});
+    else if (BGM.on || unlocked) actx.resume().catch(() => {});
+  });
+
+  // 합성 악기: at = 재생 시각(AudioContext 시간)
+  function osc(bus, type, f, at, dur, vol, o = {}) {
+    const ac = actx;
+    const os = ac.createOscillator(), g = ac.createGain();
+    os.type = type;
+    os.frequency.setValueAtTime(f, at);
+    if (o.to) os.frequency.exponentialRampToValueAtTime(o.to, at + dur);
+    if (o.detune) os.detune.value = o.detune;
+    const atk = o.attack || 0.004;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + atk);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    let node = os;
+    if (o.cutoff) {
+      const f2 = ac.createBiquadFilter();
+      f2.type = 'lowpass';
+      f2.frequency.value = o.cutoff;
+      f2.Q.value = o.q || 1;
+      node.connect(f2);
+      node = f2;
+    }
+    node.connect(g).connect(bus);
+    os.start(at);
+    os.stop(at + dur + 0.05);
+  }
+  function hiss(bus, at, dur, vol, type, freq, o = {}) {
+    const ac = actx;
     const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    f.type = 'lowpass'; f.frequency.value = freq;
-    g.gain.value = vol;
-    src.buffer = buf;
-    src.connect(f).connect(g).connect(ac.destination);
-    src.start();
+    src.buffer = noiseBuf;
+    f.type = type;
+    f.frequency.setValueAtTime(freq, at);
+    if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, at + dur);
+    f.Q.value = o.q || 0.8;
+    g.gain.setValueAtTime(o.swell ? 0.0001 : vol, at);
+    if (o.swell) g.gain.exponentialRampToValueAtTime(vol, at + dur * 0.95);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(bus);
+    src.start(at, Math.random() * 0.5);
+    src.stop(at + dur + 0.05);
+  }
+  function tone(f, dur, type = 'triangle', vol = 0.12, to = 0, delay = 0) {
+    if (settings.muted || !audio()) return;
+    osc(sfxBus, type, f, actx.currentTime + delay, dur, vol, { to });
+  }
+  function noise(dur, vol = 0.15, freq = 800, delay = 0) {
+    if (settings.muted || !audio()) return;
+    hiss(sfxBus, actx.currentTime + delay, dur, vol, 'lowpass', freq);
   }
   const SFX = {
-    tick: () => tone(880, 0.05, 'square', 0.05),
-    land: () => { tone(523, 0.12, 'square', 0.08); tone(784, 0.25, 'square', 0.08, 0, 0.1); },
-    go: () => { tone(659, 0.1, 'square', 0.08); tone(988, 0.3, 'square', 0.08, 0, 0.12); },
-    good: () => tone(500, 0.18, 'triangle', 0.1, 1100),
-    bad: () => tone(420, 0.25, 'sawtooth', 0.06, 150),
-    shield: () => { tone(1200, 0.08, 'sine', 0.1); tone(1600, 0.15, 'sine', 0.08, 0, 0.07); },
-    finish: () => { tone(784, 0.1, 'square', 0.07); tone(1047, 0.2, 'square', 0.07, 0, 0.09); },
-    hand: () => [392, 494, 587, 784].forEach((f, i) => tone(f, 1.4, 'sine', 0.07, 0, i * 0.12)),
-    reaper: () => { tone(110, 0.9, 'sawtooth', 0.1, 55); noise(0.6, 0.08, 300); },
-    landslide: () => { noise(1.2, 0.25, 500); tone(80, 1, 'sine', 0.15, 40); },
-    heli: () => { noise(0.7, 0.1, 1500); for (let i = 0; i < 8; i++) tone(90, 0.05, 'square', 0.05, 0, i * 0.08); },
-    rest: () => { tone(660, 0.2, 'sine', 0.1); tone(550, 0.3, 'sine', 0.1, 0, 0.22); },
-    loser: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i === 3 ? 0.9 : 0.3, 'sawtooth', 0.08, 0, i * 0.32)); },
+    tick: () => tone(880, 0.05, 'square', 0.06),
+    land: () => { tone(523, 0.12, 'square', 0.1); tone(784, 0.3, 'square', 0.1, 0, 0.1); },
+    go: () => { tone(659, 0.1, 'square', 0.1); tone(988, 0.35, 'square', 0.1, 0, 0.12); },
+    good: () => { tone(500, 0.18, 'triangle', 0.16, 1100); tone(1000, 0.2, 'sine', 0.08, 2000, 0.08); },
+    bad: () => { tone(420, 0.28, 'sawtooth', 0.1, 140); noise(0.12, 0.12, 900); },
+    shield: () => { tone(1200, 0.08, 'sine', 0.14); tone(1600, 0.18, 'sine', 0.12, 0, 0.07); },
+    finish: () => { tone(784, 0.1, 'square', 0.09); tone(1047, 0.25, 'square', 0.09, 0, 0.09); },
+    hand: () => [392, 494, 587, 784].forEach((f, i) => tone(f, 1.5, 'sine', 0.1, 0, i * 0.12)),
+    reaper: () => { tone(110, 0.9, 'sawtooth', 0.14, 55); noise(0.6, 0.12, 300); },
+    landslide: () => { noise(1.2, 0.35, 500); tone(80, 1, 'sine', 0.22, 40); },
+    heli: () => { noise(0.7, 0.14, 1500); for (let i = 0; i < 8; i++) tone(90, 0.05, 'square', 0.08, 0, i * 0.08); },
+    rest: () => { tone(660, 0.2, 'sine', 0.14); tone(550, 0.3, 'sine', 0.14, 0, 0.22); },
+    loser: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i === 3 ? 0.9 : 0.3, 'sawtooth', 0.11, 0, i * 0.32)); },
     fanfare: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'square', 0.06, 0, i * 0.1)),
   };
+
+  // ---------- BGM: 추격전 느낌의 A단조 루프 (진행 상황에 따라 템포·편성이 점점 격해짐) ----------
+  // 0: 기본(째깍째깍 + 베이스)  1: 깔딱고개(스네어·아르페지오)  2: 정상 직전(16비트 하이햇·라이저)  3: 막판 강제 스퍼트
+  const BGM = { on: false, step: 0, next: 0, timer: 0, level: 0, bpm: 126 };
+  const BPM = [126, 138, 150, 160];
+  const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const PROG = [ // 마디별 코드: Am - F - G - E
+    { root: 45, tones: [57, 60, 64] },
+    { root: 41, tones: [53, 57, 60] },
+    { root: 43, tones: [55, 59, 62] },
+    { root: 40, tones: [56, 59, 64] },
+  ];
+  function bgmStart() {
+    if (!settings.bgm || !audio()) return;
+    clearInterval(BGM.timer);
+    BGM.on = true;
+    BGM.step = 0;
+    BGM.level = 0;
+    BGM.bpm = BPM[0];
+    BGM.next = actx.currentTime + 0.08;
+    bgmBus.gain.cancelScheduledValues(actx.currentTime);
+    bgmBus.gain.setValueAtTime(BGM_LEVEL, actx.currentTime);
+    BGM.timer = setInterval(bgmSchedule, 25);
+    bgmSchedule();
+  }
+  function bgmStop(fade = 0.5) {
+    clearInterval(BGM.timer);
+    if (!BGM.on || !actx) { BGM.on = false; return; }
+    BGM.on = false;
+    const t = actx.currentTime;
+    bgmBus.gain.cancelScheduledValues(t);
+    bgmBus.gain.setValueAtTime(bgmBus.gain.value, t);
+    bgmBus.gain.linearRampToValueAtTime(0, t + fade);
+  }
+  function bgmDuck(sec) { // 신의 손 같은 큰 연출 때 잠깐 줄임
+    if (!BGM.on || !actx) return;
+    const t = actx.currentTime;
+    bgmBus.gain.cancelScheduledValues(t);
+    bgmBus.gain.setValueAtTime(bgmBus.gain.value, t);
+    bgmBus.gain.linearRampToValueAtTime(BGM_LEVEL * 0.25, t + 0.15);
+    bgmBus.gain.setValueAtTime(BGM_LEVEL * 0.25, t + sec);
+    bgmBus.gain.linearRampToValueAtTime(BGM_LEVEL, t + sec + 0.5);
+  }
+  function bgmIntensity(level) {
+    if (level === BGM.level) return;
+    BGM.level = level;
+    BGM.bpm = BPM[level];
+  }
+  function bgmSchedule() {
+    if (!BGM.on || !actx || actx.state !== 'running') return;
+    const now = actx.currentTime;
+    if (BGM.next < now - 0.05) BGM.next = now + 0.05; // 탭 복귀 등으로 밀렸으면 몰아서 치지 않고 건너뜀
+    while (BGM.next < now + 0.12) {
+      bgmStep(BGM.step, BGM.next);
+      BGM.next += 60 / BGM.bpm / 4;
+      BGM.step++;
+    }
+  }
+  function bgmStep(step, at) {
+    const L = BGM.level, s = step % 16, bar = Math.floor(step / 16), ch = PROG[bar % 4];
+    const beat = 60 / BGM.bpm, b = bgmBus;
+    // 패드: 마디 시작마다 코드를 낮게 깔아 긴장감 유지
+    if (s === 0) {
+      for (const n of ch.tones) {
+        osc(b, 'sawtooth', midi(n - 12), at, beat * 4.1, 0.022, { attack: 0.25, cutoff: 700 + L * 250, detune: -6 });
+        osc(b, 'sawtooth', midi(n - 12), at, beat * 4.1, 0.022, { attack: 0.25, cutoff: 700 + L * 250, detune: 7 });
+      }
+      if (L >= 2 && bar % 2 === 1) hiss(b, at, beat * 4, 0.12, 'bandpass', 300, { to: 5000, swell: true, q: 2 }); // 라이저
+    }
+    // 베이스: 기본은 8비트, 깔딱고개부터 16비트 질주
+    if (L >= 1 || s % 2 === 0) {
+      const n = ch.root + (s === 6 || s === 14 ? 12 : 0);
+      osc(b, 'sawtooth', midi(n), at, beat * 0.22, 0.16, { cutoff: 380 + L * 260, q: 4 });
+    }
+    // 킥
+    if (s % 8 === 0 || (L >= 2 && s % 4 === 0) || (L >= 1 && s === 10)) osc(b, 'sine', 140, at, 0.22, 0.55, { to: 42 });
+    // 스네어 (깔딱고개부터) + 막판 필인
+    if (L >= 1 && (s === 4 || s === 12)) hiss(b, at, 0.16, 0.3, 'bandpass', 1800, { q: 0.7 });
+    if (L >= 3 && bar % 2 === 1 && s >= 12) hiss(b, at, 0.08, 0.22, 'bandpass', 2000, { q: 0.7 });
+    // 하이햇
+    if (L >= 2 || s % 2 === 0) hiss(b, at, 0.04, s % 4 === 2 ? 0.1 : 0.06, 'highpass', 7000);
+    // 째깍째깍 시계 (시작부터 계속)
+    if (s % 4 === 0) osc(b, 'square', s === 0 ? 2100 : 1700, at, 0.03, 0.04);
+    // 아르페지오 리드
+    if (L >= 1) {
+      const n = ch.tones[[0, 1, 2, 1][s % 4]] + 12 + (s >= 8 && L >= 2 ? 12 : 0);
+      osc(b, 'square', midi(n), at, beat * 0.2, 0.035, { cutoff: 2600 });
+    }
+  }
 
   // ---------- 설정 화면 ----------
   function renderCount() {
@@ -812,11 +982,26 @@ function aggregate(list, n) {
     muteBtn.setAttribute('aria-label', settings.muted ? '효과음 켜기' : '효과음 끄기');
     muteBtn.setAttribute('aria-pressed', String(settings.muted));
   }
-  muteBtn.onclick = () => { settings.muted = !settings.muted; save(); renderMute(); if (!settings.muted) audio(); };
+  muteBtn.onclick = () => { settings.muted = !settings.muted; save(); renderMute(); };
+  const bgmBtn = $('bgmBtn');
+  function renderBgm() {
+    bgmBtn.textContent = '🎵';
+    bgmBtn.style.opacity = settings.bgm ? '1' : '0.45';
+    bgmBtn.setAttribute('aria-label', settings.bgm ? '배경음악 끄기' : '배경음악 켜기');
+    bgmBtn.setAttribute('aria-pressed', String(!settings.bgm));
+  }
+  bgmBtn.onclick = () => {
+    settings.bgm = !settings.bgm;
+    save();
+    renderBgm();
+    if (!settings.bgm) bgmStop(0.2);
+    else if (G && G.phase === 'race') { bgmStart(); bgmIntensity(G.bgmLevel || 0); }
+  };
 
   renderCount();
   renderNames();
   renderMute();
+  renderBgm();
 
   function show(id) {
     for (const s of ['setup', 'race', 'result']) $(s).hidden = s !== id;
@@ -987,12 +1172,11 @@ function aggregate(list, n) {
     // 레인(코스) 점선
     g.strokeStyle = 'rgba(255,255,255,0.55)';
     g.setLineDash([2, 6]);
-    for (const off of [4, 88]) {
+    for (const lane of [-0.04, 1.08]) {
       g.beginPath();
       for (let i = 0; i < PATH.length; i += 3) {
-        const p = PATH[i], s = laneScale(i / (PATH.length - 1));
-        const x = p.x + p.nx * off * s, y = p.y + p.ny * off * s;
-        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        const p = laneXY(mi, i / (PATH.length - 1), lane);
+        if (i === 0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y);
       }
       g.stroke();
     }
@@ -1000,7 +1184,8 @@ function aggregate(list, n) {
     g.fillStyle = 'rgba(111,78,55,0.75)';
     g.font = '700 10px sans-serif';
     g.textAlign = 'left';
-    g.fillText('😵 깔딱고개', k1.x + 92, (k1.y + k2.y) / 2 + 3);
+    g.textAlign = 'right';
+    g.fillText('😵 깔딱고개', W - 6, (k1.y + k2.y) / 2 + 3);
     // 땅
     g.fillStyle = shade(T.body, -18);
     g.fillRect(0, BASE_Y + 6, W, H - BASE_Y);
@@ -1073,10 +1258,13 @@ function aggregate(list, n) {
       g.strokeStyle = '#E9E4DA';
       g.lineWidth = 5;
       g.beginPath();
-      for (let i = 30; i <= 180; i += 2) { const p = PATH[i]; const x = p.x + p.nx * 92, y = p.y + p.ny * 92; if (i === 30) g.moveTo(x, y); else g.lineTo(x, y); }
+      R.forEach((p, i) => { if (i === 0) g.moveTo(p.x, p.y + 6); else g.lineTo(p.x, p.y + 6); });
       g.stroke();
       g.fillStyle = '#E9E4DA';
-      for (let i = 30; i <= 180; i += 6) { const p = PATH[i]; g.fillRect(p.x + p.nx * 92 - 2, p.y + p.ny * 92 - 6, 4, 4); }
+      for (let i = 1; i < R.length; i++) {
+        const a = R[i - 1], b = R[i];
+        for (let k = 0; k < 1; k += 0.25) g.fillRect(a.x + (b.x - a.x) * k - 2, a.y + (b.y - a.y) * k, 4, 4);
+      }
       g.lineWidth = 1;
     }
   }
@@ -1090,6 +1278,32 @@ function aggregate(list, n) {
     g.fillText(name, x, y + 13);
   }
   function laneScale(u) { return u > 0.93 ? Math.max(0, (1 - u) / 0.07) : 1; }
+  // 레인: 같은 고도(y)에서 가로로 펼침. 오른쪽 능선 안쪽까지 최대 폭을 써서 모바일에서도 덜 겹치게
+  const LANE_MAX = 150;
+  const laneCache = new Map();
+  function laneTable(mi) {
+    if (laneCache.has(mi)) return laneCache.get(mi);
+    const R = [{ x: PX, y: PEAK_Y }, ...ridge(mulberry32(mi * 7919 + 13))];
+    const ridgeX = (y) => {
+      for (let i = 1; i < R.length; i++) {
+        const a = R[i - 1], b = R[i];
+        if (y >= Math.min(a.y, b.y) && y <= Math.max(a.y, b.y) && b.y !== a.y) return a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x);
+      }
+      return W + 30;
+    };
+    const tab = PATH.map((p, i) => {
+      const room = Math.min(ridgeX(p.y) - p.x - 26, W - 22 - p.x - 10);
+      return Math.max(0, Math.min(LANE_MAX, room)) * laneScale(i / (PATH.length - 1));
+    });
+    laneCache.set(mi, tab);
+    return tab;
+  }
+  function laneXY(mi, u, lane) {
+    const p = pathAt(u), tab = laneTable(mi);
+    const f = Math.max(0, Math.min(1, u)) * (tab.length - 1), i = Math.min(tab.length - 2, Math.floor(f));
+    const span = tab[i] + (tab[i + 1] - tab[i]) * (f - i);
+    return { x: p.x + (10 + lane * span) * laneScale(u), y: p.y };
+  }
 
   // 구름 (패럴랙스)
   const clouds = Array.from({ length: 7 }, (_, i) => ({
@@ -1147,7 +1361,8 @@ function aggregate(list, n) {
   let lastSeed = null;
 
   function startGame() {
-    audio();
+    unlockAudio();
+    bgmStop(0.1);
     const n = settings.n;
     const typed = settings.names.slice(0, n).map(clip);
     const extra = uniqueNicks(typed.filter(Boolean), n);
@@ -1214,6 +1429,7 @@ function aggregate(list, n) {
         g.phase = 'race';
         $('slot').hidden = true;
         banner('🧗 출발!', 900);
+        bgmStart();
         SFX.go();
         log(`📣 ${race.M.name}(${fmtH(race.M.h)}m) 등반 시작! ${race.n}명 출발합니다`);
       }
@@ -1239,7 +1455,15 @@ function aggregate(list, n) {
     g.pops = g.pops.filter((p) => (p.life -= dt) > 0);
     for (const p of g.parts) { p.vy += (p.g ?? 260) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
     g.parts = g.parts.filter((p) => p.life > 0);
-    if (g.wall >= g.hudAt) { g.hudAt = g.wall + 0.15; hud(); }
+    if (g.wall >= g.hudAt) {
+      g.hudAt = g.wall + 0.15;
+      hud();
+      // BGM 긴장도: 깔딱고개 → 정상 직전/40초 → 막판 강제 스퍼트
+      const top = race.standings().find((p) => !p.finished);
+      const lvl = race.t >= CONFIG.FORCE_T ? 3 : (top && top.p >= CONFIG.SPURT_FROM) || race.t >= 40 ? 2 : top && top.p >= CONFIG.KALDAK[0] ? 1 : 0;
+      g.bgmLevel = Math.max(g.bgmLevel || 0, lvl);
+      bgmIntensity(g.bgmLevel);
+    }
   }
 
   function setSlot(i, land) {
@@ -1259,17 +1483,14 @@ function aggregate(list, n) {
       return { x: PX + 8 + col * 11 + row * 5, y: PEAK_Y - 7 - row * 11 };
     }
     const lane = race.n > 1 ? pl.id / (race.n - 1) : 0.5;
-    const off = 12 + lane * 70;
     if (pl.tw && pl.tw.kind === 'hand') {
-      const a = pathAt(pl.tw.from / 100), s = laneScale(pl.tw.from / 100);
-      const sx = a.x + a.nx * off * s, sy = a.y + a.ny * off * s;
+      const { x: sx, y: sy } = laneXY(race.mIdx, pl.tw.from / 100, lane);
       const q = Math.max(0, Math.min(1, (race.t - pl.tw.t0) / pl.tw.dur));
       const lift = (race.t < pl.tw.t0 ? Math.min(1, (race.t - (pl.tw.t0 - CONFIG.GOD_HAND_ANNOUNCE)) / CONFIG.GOD_HAND_ANNOUNCE) * 8 : 8);
       const e = q * q * (3 - 2 * q);
       return { x: sx + (PX + 20 - sx) * e, y: sy + (PEAK_Y - 10 - sy) * e - Math.sin(e * Math.PI) * 70 - lift, flying: true };
     }
-    const u = pl.p / 100, a = pathAt(u), s = laneScale(u);
-    return { x: a.x + a.nx * off * s, y: a.y + a.ny * off * s };
+    return laneXY(race.mIdx, pl.p / 100, lane);
   }
 
   function handleEvents() {
@@ -1297,6 +1518,7 @@ function aggregate(list, n) {
           banner('✋ 신의 손이 내려옵니다!', 1600);
           log(say('godhand', { n: nm(ev.id) }));
           SFX.hand();
+          bgmDuck(CONFIG.GOD_HAND_ANNOUNCE + CONFIG.GOD_HAND_LIFT);
           break;
         }
         case 'reaper':
@@ -1343,6 +1565,7 @@ function aggregate(list, n) {
           banner(`☕ 꼴찌 확정: ${nm(ev.id)}님!`, 2200);
           log(say('loser', { n: nm(ev.id) }));
           g.shake = 14;
+          bgmStop(1.2);
           SFX.loser();
           try { if (navigator.vibrate) navigator.vibrate([120, 60, 220]); } catch (e) { /* ignore */ }
           break;
@@ -1895,10 +2118,9 @@ function aggregate(list, n) {
     if (st.pose === 'fall' && Math.random() < 0.6) dust(it.x, it.y);
     // 호랑이 추격
     if (st.key === 'tiger' && st.age < ICON_SEC.tiger) {
-      const b = pathAt(Math.max(0, pl.p - 5) / 100);
       ctx.font = '18px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('🐯', b.x + b.nx * 40 + Math.sin(time * 22) * 2, b.y + b.ny * 40 + 2 - Math.abs(Math.sin(time * 14)) * 4);
+      ctx.fillText('🐯', it.x - tx * 26 + Math.sin(time * 22) * 2, it.y - ty * 26 + 2 - Math.abs(Math.sin(time * 14)) * 4);
     }
     // 바나나 껍질 (밟은 자리)
     const f = g.fx[pl.id];
@@ -2095,6 +2317,7 @@ function aggregate(list, n) {
   function showResult() {
     const g = G, race = g.race;
     cancelAnimationFrame(raf);
+    bgmStop(0.2);
     G = null;
     show('result');
     const loserId = race.order[race.n - 1];
@@ -2192,13 +2415,24 @@ function aggregate(list, n) {
 
   $('startBtn').onclick = startGame;
   $('againBtn').onclick = startGame;
-  $('homeBtn').onclick = () => show('setup');
-  $('quitBtn').onclick = () => { cancelAnimationFrame(raf); G = null; show('setup'); };
+  $('homeBtn').onclick = () => { bgmStop(0.2); show('setup'); };
+  $('quitBtn').onclick = () => { cancelAnimationFrame(raf); G = null; bgmStop(0.3); show('setup'); };
   $('fastBtn').onclick = () => {
     if (!G) return;
     G.fast = G.fast === 1 ? 4 : 1;
     $('fastBtn').textContent = G.fast === 1 ? '⏩ 4배속' : '▶ 1배속';
   };
+
+  if (DEBUG) {
+    window.__audioDebug = () => {
+      if (!analyser) return { state: actx ? actx.state : 'none' };
+      const d = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(d);
+      let sum = 0;
+      for (const v of d) sum += v * v;
+      return { state: actx.state, rms: Math.sqrt(sum / d.length), bgm: BGM.on, level: BGM.level, bpm: BGM.bpm };
+    };
+  }
 
   // ---------- 디버그: 헤드리스 시뮬레이션 ----------
   if (DEBUG) {
