@@ -1,6 +1,6 @@
 // 🏹 쓰리조 챌린지 (탐관오리 토벌전) - 게임 엔진
 // DOM 없이 동작하는 순수 Canvas/JS 모듈. 화면 껍데기(시작·게임오버·랭킹)는 ThreeJoGame.jsx
-// createGame(env) => { update(dt, input), draw(ctx, t), special(), player(), snapshot() }
+// createGame(env) => { update(dt, input), draw(ctx, t), drawUi(ctx, t), special(), setAuto(on), player(), snapshot() }
 // env: { sfx, over({ score, killer, stage, time, grazes, bosses }), bombs(n) }
 // input: { dx, dy: -1|0|1 (키보드), tx, ty: number|null (마우스·터치 목표 위치) }
 
@@ -18,6 +18,8 @@ const MAX_POWER = 11;       // 0~11, 3단계마다 무기 진화
 const MAX_HP = 3;
 const xpNeed = (p) => 6 + p * 4;
 const MAX_BOMBS = 5;
+export const HELP_SEC = 10;   // 개발자 도움 1회 = 10초 자동 플레이
+export const HELP_USES = 3;   // 판당 사용 횟수
 
 // 아이템: 지속형 버프는 sec 동안 유지
 export const POWERUPS = {
@@ -72,6 +74,7 @@ export function createGame(env) {
     time: 0, score: 0, stage: 0, phase: 'wave', phaseT: 0,
     p: { x: W / 2, y: PY, hp: MAX_HP, power: 0, xp: 0, inv: 1.5, fireT: 0, beamT: 0, alive: true, deadT: 0, tilt: 0 },
     bombs: 2, bombCd: 0, nova: null,
+    auto: false, autoLeft: 0, helps: HELP_USES, autoUsed: false, autoT: 0, autoTarget: null, autoKingLine: false,
     buffs: { shield: 0, drone: 0, magnet: 0, fire: 0, slow: 0, star: 0 }, shieldHits: 0, droneT: 0, droneA: 0,
     fever: 0, grazes: 0, combo: 0, comboT: 0, bosses: 0,
     shots: [], bullets: [], mobs: [], items: [], lasers: [], parts: [], texts: [], timers: [],
@@ -546,7 +549,14 @@ export function createGame(env) {
       if (tm.t <= 0) { s.timers.splice(i, 1); tm.fn(); }
     }
 
-    // 플레이어 이동 (좌우만)
+    // 개발자 도움(자동 플레이)이 켜져 있으면 AI가 입력을 대신함
+    if (s.auto && p.alive) {
+      input = autoPilot(dt);
+      s.autoLeft -= dt;
+      if (s.autoLeft <= 0) setAuto(false);
+    }
+
+    // 플레이어 이동 (상하좌우)
     if (p.alive) {
       const ox = p.x;
       if (input.dx || input.dy) {
@@ -567,7 +577,7 @@ export function createGame(env) {
       p.deadT += dt;
       if (p.deadT > 1.8 && !s.ended) {
         s.ended = true;
-        env.over && env.over({ score: Math.floor(s.score), killer: s.killer, stage: s.stage, time: s.time, grazes: s.grazes, bosses: s.bosses, power: p.power });
+        env.over && env.over({ score: Math.floor(s.score), killer: s.killer, stage: s.stage, time: s.time, grazes: s.grazes, bosses: s.bosses, power: p.power, autoUsed: s.autoUsed });
       }
     }
     s.fever = Math.max(0, s.fever - dt);
@@ -718,6 +728,81 @@ export function createGame(env) {
     s.flash = Math.max(0, s.flash - dt * 1.5);
   }
 
+  // ---------- 개발자 도움: 자동 플레이 AI ----------
+  // 후보 위치마다 '앞으로 0.6초 동안 탄·적·레이저에 닿을 위험'을 계산해 가장 안전한 곳으로 이동,
+  // 안전하면 아이템을 줍고 적 밑으로 파고들어 조준. 탄이 몰리면 필살기 사용
+  // 개발자 도움 요청: 10초 자동 플레이 후 수동 복귀 (판당 HELP_USES회)
+  const helpChanged = () => env.help && env.help({ auto: s.auto, left: s.helps });
+  function setAuto(on) {
+    if (on) {
+      if (s.auto || s.helps <= 0 || !s.p.alive) return false;
+      s.helps--;
+      s.auto = true;
+      s.autoLeft = HELP_SEC;
+      s.autoUsed = true;
+      s.autoTarget = null;
+      banner('🤖 개발자 도움 ON', s.boss && s.boss.key === 'king' ? '조철왕: "...나한테 도와달라고?"' : `${HELP_SEC}초 동안 자동으로 피하고 싸웁니다`, 1.4);
+    } else {
+      if (!s.auto) return false;
+      s.auto = false;
+      banner('🎮 다시 직접 조작!', '', 1);
+    }
+    helpChanged();
+    return true;
+  }
+  function autoPilot(dt) {
+    const p = s.p;
+    if (s.boss && s.boss.key === 'king' && !s.autoKingLine) {
+      s.autoKingLine = true;
+      popText(W / 2, H * 0.5, '조철왕: "내가 만든 AI로 날 이기겠다고?"', '#E040FB', 13, 2.2);
+    }
+    // 필살기: 주변에 탄이 몰리면
+    const near = s.bullets.filter((b) => Math.hypot(b.x - p.x, b.y - p.y) < 70).length;
+    if (s.bombs > 0 && (near >= 8 || (p.hp === 1 && near >= 4))) special();
+    s.autoT -= dt;
+    if (s.autoT > 0 && s.autoTarget) return s.autoTarget;
+    s.autoT = 0.05;
+    const bs = s.bullets.filter((b) => Math.hypot(b.x - p.x, b.y - p.y) < 260);
+    const slow = s.buffs.slow > 0 ? 0.45 : 1;
+    const homeY = H - 110;
+    const ys = [p.y - 45, p.y, p.y + 45, homeY].map((y) => clamp(y, MIN_Y + 40, MAX_Y));
+    let best = { x: p.x, y: p.y }, bestV = Infinity;
+    for (let x = 16; x <= W - 16; x += 12) {
+      for (const y of ys) {
+        const dx = x - p.x, dy = y - p.y, dist = Math.hypot(dx, dy) || 1;
+        let v = dist * 0.015 + Math.abs(y - homeY) * 0.04;
+        for (const b of bs) {
+          for (let la = 0.04; la < 0.62; la += 0.08) {
+            const step = Math.min(dist, SPEED * 1.6 * la);
+            const qx = p.x + (dx / dist) * step, qy = p.y + (dy / dist) * step;
+            const bx = b.x + b.vx * la * slow, by = b.y + b.vy * la * slow;
+            const d = Math.hypot(bx - qx, by - qy);
+            if (d < HIT_R + b.r + 7) v += 400 / (1 + la * 4);
+            else if (d < HIT_R + b.r + 22) v += 3;
+          }
+        }
+        for (const lz of s.lasers) if (!lz.final && lz.ranges.some(([a, c]) => x > a - 6 && x < c + 6)) v += 5000;
+        for (const m of s.mobs) {
+          for (const la of [0.2, 0.5, 0.9]) {
+            if (Math.hypot(m.x + m.vx * la - x, m.y + m.vy * la - y) < m.r + 22) v += 80;
+          }
+          if (m.y < y - 80 && m.y > 0 && Math.abs(m.x - x) < 14) v -= 5;
+        }
+        const b = s.boss;
+        if (b && !b.dead) {
+          if (Math.abs(b.x - x) < b.w / 2 + 16 && Math.abs(b.y - y) < b.h / 2 + 30) v += 600;
+          if (Math.abs(b.x - x) < b.w / 2 - 6) v -= 8;
+        }
+        for (const it of s.items) {
+          if (Math.hypot(it.x - x, it.y - y) < 34) v -= it.kind === 'coin' ? 4 : 10;
+        }
+        if (v < bestV) { bestV = v; best = { x, y }; }
+      }
+    }
+    s.autoTarget = { tx: best.x, ty: best.y };
+    return s.autoTarget;
+  }
+
   function collectPowerup(kind) {
     const pu = POWERUPS[kind], p = s.p;
     addScore(30);
@@ -863,6 +948,8 @@ export function createGame(env) {
     draw,
     drawUi,
     special,
+    setAuto,
+    isAuto: () => s.auto,
     player: () => ({ x: s.p.x, y: s.p.y }),
     snapshot: () => ({ score: Math.floor(s.score), stage: s.stage, hp: s.p.hp, power: s.p.power, alive: s.p.alive, boss: s.boss && { key: s.boss.key, hp: s.boss.hp, max: s.boss.max, mode: s.boss.mode }, time: s.time }),
     // 헤드리스 밸런스 테스트용
@@ -1491,6 +1578,11 @@ function drawHud(ctx, s, t) {
     ctx.fillStyle = '#FFE082';
     ctx.textAlign = 'left';
     ctx.fillText(`⚡ 아슬아슬 피버 ${s.fever.toFixed(1)}s`, 12, by - 6);
+  }
+  if (s.auto) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = Math.floor(t * 2) % 2 ? '#69F0AE' : '#B9F6CA';
+    ctx.fillText(`🤖 개발자 도움 중 ${Math.ceil(s.autoLeft)}초`, W / 2, by - 6);
   }
   if (s.combo > 1) {
     ctx.textAlign = 'right';

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
-import { W, H, FONT, createGame, weaponLabel, POWERUPS } from './threejo/engine';
+import { W, H, FONT, createGame, weaponLabel, POWERUPS, HELP_SEC, HELP_USES } from './threejo/engine';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const MUTED_KEY = 'threejoMuted';
+const PLAYS_KEY = 'threejoPlays';
+const HELP_UNLOCK = 5; // 개발자 도움 요청은 5판 이상 플레이 후 해금
 const PIXEL = 2.5; // 도트 1칸 = 게임 좌표 2.5 (월드를 저해상도로 그린 뒤 확대)
 const LW = Math.round(W / PIXEL), LH = Math.round(H / PIXEL);
 const PIXEL_FONT_CSS = 'https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css';
@@ -26,6 +28,10 @@ function loadMuted() {
   try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (e) { return false; }
 }
 
+function loadPlays() {
+  try { return Number(localStorage.getItem(PLAYS_KEY)) || 0; } catch (e) { return 0; }
+}
+
 // 🏹 쓰리조 챌린지 (탐관오리 토벌전) - 화면 껍데기. 게임 로직·드로잉은 threejo/engine.js
 const ThreeJoGame = () => {
   const canvasRef = useRef(null);
@@ -41,6 +47,10 @@ const ThreeJoGame = () => {
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isMuted, setIsMuted] = useState(loadMuted);
+  const [plays, setPlays] = useState(loadPlays);
+  const [help, setHelp] = useState({ auto: false, left: HELP_USES });
+  const stageRef = useRef(null);
+  const helpUnlocked = plays >= HELP_UNLOCK;
   usePixelFont();
 
   useEffect(() => {
@@ -66,13 +76,17 @@ const ThreeJoGame = () => {
     inputRef.current = { dx: 0, dy: 0, tx: null, ty: null };
     keysRef.current = {};
     setBombs(2);
+    setHelp({ auto: false, left: HELP_USES });
     setResult(null);
     setSubmitted(false);
     setGameState('playing');
     setRound((r) => r + 1);
+    // 모바일: 게임판이 화면에 꽉 차도록 스크롤
+    requestAnimationFrame(() => stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   const fireSpecial = () => { gameRef.current?.special(); };
+  const askHelp = () => { if (helpUnlocked) gameRef.current?.setAuto(true); };
 
   // 키보드: 방향키 / WASD 이동, Space / X 필살기
   useEffect(() => {
@@ -82,6 +96,10 @@ const ThreeJoGame = () => {
       if (down && (e.key === ' ' || e.key === 'x' || e.key === 'X')) {
         e.preventDefault();
         if (!e.repeat) fireSpecial();
+        return;
+      }
+      if (down && (e.key === 'h' || e.key === 'H')) {
+        if (!e.repeat) askHelp();
         return;
       }
       const k = KEYS[e.key] || KEYS[e.key.toLowerCase()];
@@ -101,7 +119,8 @@ const ThreeJoGame = () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [gameState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, helpUnlocked]);
 
   // 마우스: 커서 위치로 따라감 / 터치: 누른 곳 기준 상대 드래그 (손가락이 캐릭터를 가리지 않게)
   const toCanvas = (e) => {
@@ -150,9 +169,14 @@ const ThreeJoGame = () => {
     const game = createGame({
       sfx,
       bombs: setBombs,
+      help: setHelp,
       over: (r) => {
         setResult(r);
         setGameState('over');
+        setPlays((n) => {
+          try { localStorage.setItem(PLAYS_KEY, String(n + 1)); } catch (e) { /* ignore */ }
+          return n + 1;
+        });
       },
     });
 
@@ -182,8 +206,10 @@ const ThreeJoGame = () => {
     if (!nickname.trim() || submitted || !result) return;
     setSubmitted(true);
     try {
+      // 개발자 도움을 쓴 판은 랭킹에 🤖 표시
+      const name = (result.autoUsed ? '🤖 ' : '') + nickname.trim();
       await addDoc(collection(db, 'threejo_scores'), {
-        nickname: nickname.trim(),
+        nickname: name,
         score: result.score,
         timestamp: serverTimestamp(),
       });
@@ -213,12 +239,14 @@ const ThreeJoGame = () => {
     <div style={containerStyle}>
       <h1 style={titleStyle}>🏹 쓰리조 챌린지</h1>
       <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 상하좌우로 피하세요, 공격은 자동!</p>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
-        <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리 OFF' : '🔊 소리 ON'}</button>
+
+      <div ref={stageRef} style={stageWrap}>
+      <div style={topBar}>
+        <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리' : '🔊 소리'}</button>
         {gameState === 'playing' && <button onClick={() => setGameState('menu')} style={smallBtn}>✖ 그만하기</button>}
       </div>
 
-      <div style={{ position: 'relative', width: W, maxWidth: '100%', margin: '0 auto' }}>
+      <div style={{ position: 'relative', width: '100%', margin: '0 auto' }}>
         <canvas
           ref={canvasRef}
           width={W}
@@ -229,17 +257,6 @@ const ThreeJoGame = () => {
           onPointerCancel={onPointerUp}
           style={canvasStyle}
         />
-
-        {gameState === 'playing' && (
-          <button
-            onPointerDown={(e) => { e.preventDefault(); fireSpecial(); }}
-            disabled={bombs <= 0}
-            style={{ ...specialBtn, opacity: bombs > 0 ? 1 : 0.45 }}
-            aria-label={`필살기 사용, 남은 횟수 ${bombs}`}
-          >
-            💥<span style={{ fontSize: 11, display: 'block', lineHeight: 1 }}>필살기 ×{bombs}</span>
-          </button>
-        )}
 
         {gameState === 'menu' && (
           <div style={overlayStyle}>
@@ -254,7 +271,8 @@ const ThreeJoGame = () => {
               <li>⚡ 탄을 <b>아슬아슬하게</b> 피하면 경험치 + 연사 속도 폭발</li>
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
               <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
-              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기 · 모바일: 화면을 누른 채 드래그</li>
+              <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 자동 플레이 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
+              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
             </ul>
             <div style={itemGrid}>
               {Object.values(POWERUPS).map((pu) => (
@@ -281,6 +299,8 @@ const ThreeJoGame = () => {
               <span>⚡ 아슬아슬 {result.grazes}회</span>
               <span>⏱ {Math.floor(result.time)}초</span>
               <span style={{ gridColumn: '1 / -1' }}>🔫 최종 무기 Lv.{result.power + 1} {weaponLabel(result.power)}</span>
+              {result.autoUsed && <span style={{ gridColumn: '1 / -1' }}>🤖 개발자 도움 사용 (랭킹에 🤖 표시)</span>}
+              {!helpUnlocked && <span style={{ gridColumn: '1 / -1' }}>🔒 개발자 도움 해금까지 {HELP_UNLOCK - plays}판</span>}
             </div>
             {result.killer === '조철왕' && (
               <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>※ 조철왕은 이 게임의 제작자라 아무도 이길 수 없습니다. 오래 버틸수록 점수가 올라가요!</p>
@@ -304,6 +324,35 @@ const ThreeJoGame = () => {
             {ranking}
           </div>
         )}
+      </div>
+
+      {gameState === 'playing' && (
+        // 모바일: 엄지가 닿는 게임판 바로 아래에 큰 버튼 2개 (게임 화면은 가리지 않음)
+        <div style={controlBar}>
+          <button
+            onPointerDown={(e) => { e.preventDefault(); askHelp(); }}
+            disabled={!helpUnlocked || help.auto || help.left <= 0}
+            style={{ ...ctrlBtn, background: help.auto ? '#2E7D32' : '#3e2723', opacity: helpUnlocked && (help.auto || help.left > 0) ? 1 : 0.5 }}
+            aria-label="개발자에게 도움 요청"
+          >
+            <span style={{ fontSize: 22 }}>{helpUnlocked ? '🤖' : '🔒'}</span>
+            <span style={ctrlLabel}>
+              {!helpUnlocked ? `개발자 도움 (${plays}/${HELP_UNLOCK}판 후 해금)`
+                : help.auto ? '도움 받는 중…'
+                  : help.left > 0 ? `개발자 도움 ×${help.left}` : '도움 소진'}
+            </span>
+          </button>
+          <button
+            onPointerDown={(e) => { e.preventDefault(); fireSpecial(); }}
+            disabled={bombs <= 0}
+            style={{ ...ctrlBtn, background: '#c62828', opacity: bombs > 0 ? 1 : 0.5 }}
+            aria-label={`필살기 사용, 남은 횟수 ${bombs}`}
+          >
+            <span style={{ fontSize: 22 }}>💥</span>
+            <span style={ctrlLabel}>필살기 ×{bombs}</span>
+          </button>
+        </div>
+      )}
       </div>
     </div>
   );
@@ -362,25 +411,44 @@ const tipList = {
   wordBreak: 'keep-all',
 };
 
-const specialBtn = {
-  position: 'absolute',
-  right: 14,
-  bottom: 40,
-  width: 64,
-  height: 64,
-  borderRadius: 0,
-  border: '3px solid #FFD166',
-  background: '#c62828',
-  fontFamily: PIXEL_UI,
-  color: '#fff',
-  fontSize: 22,
-  fontWeight: 900,
-  boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
-  cursor: 'pointer',
-  touchAction: 'none',
-  userSelect: 'none',
-  padding: 0,
+// 게임판 + 버튼이 한 화면(모바일 세로)에 들어오도록 높이 기준으로 폭 제한
+const stageWrap = {
+  width: `min(${W}px, 100%, calc((100dvh - 230px) * ${W / H}))`,
+  minWidth: 260,
+  margin: '0 auto',
+  scrollMarginTop: 72, // 사이트 상단 고정 헤더 높이만큼
 };
+
+const topBar = { display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 6 };
+
+const controlBar = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 8,
+  marginTop: 8,
+  paddingBottom: 'env(safe-area-inset-bottom)',
+};
+
+const ctrlBtn = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 2,
+  minHeight: 64,
+  padding: '6px 4px',
+  border: '3px solid #FFD166',
+  borderRadius: 0,
+  boxShadow: '4px 4px 0 #a1887f',
+  color: '#fff',
+  fontFamily: PIXEL_UI,
+  cursor: 'pointer',
+  touchAction: 'manipulation',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+};
+
+const ctrlLabel = { fontSize: 12, fontWeight: 700, lineHeight: 1.2, wordBreak: 'keep-all' };
 
 const itemGrid = {
   display: 'flex',
