@@ -1,328 +1,230 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { W, H, createGame, weaponLabel } from './threejo/engine';
+import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
-const W = 400;
-const H = 600;
-const PLAYER_Y = H - 80;
-const PLAYER_R = 20;
-const ARROW_SPEED = 7;
-const ENEMY_SPEED_BASE = 2;
+const MUTED_KEY = 'threejoMuted';
+const STAGE_NAMES = ['1탄 캐슬조', '2탄 제로조', '3탄 조철왕'];
 
-// --- Drawing Helpers ---
-
-function drawBackground(ctx) {
-  // Traditional Paper (Hanji) look
-  ctx.fillStyle = '#f5f5dc';
-  ctx.fillRect(0, 0, W, H);
-
-  // Simple Joseon-style floor/wall line
-  ctx.strokeStyle = '#8d6e63';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(0, H - 40);
-  ctx.lineTo(W, H - 40);
-  ctx.stroke();
-
-  // Pattern
-  ctx.globalAlpha = 0.1;
-  ctx.fillStyle = '#3e2723';
-  for(let i=0; i<W; i+=40) {
-    for(let j=0; j<H; j+=40) {
-      ctx.fillText('🏹', i+10, j+20);
-    }
-  }
-  ctx.globalAlpha = 1.0;
+function loadMuted() {
+  try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (e) { return false; }
 }
 
-function drawPlayer(ctx, x) {
-  ctx.save();
-  ctx.translate(x, PLAYER_Y);
-  
-  // Gat (Hat)
-  ctx.fillStyle = '#212121';
-  ctx.fillRect(-15, -35, 30, 5); // Brim
-  ctx.fillRect(-8, -45, 16, 12); // Top
-  
-  // Face
-  ctx.fillStyle = '#ffe0b2';
-  ctx.beginPath();
-  ctx.arc(0, -20, 15, 0, Math.PI * 2);
-  ctx.fill();
-  
-  // Body (Dopo)
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(-15, -5);
-  ctx.lineTo(15, -5);
-  ctx.lineTo(20, 20);
-  ctx.lineTo(-20, 20);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#e0e0e0';
-  ctx.stroke();
-
-  // Bow
-  ctx.strokeStyle = '#5d4037';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(15, -5, 20, -Math.PI/2, Math.PI/2);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
-function drawEnemy(ctx, e) {
-  ctx.save();
-  ctx.translate(e.x, e.y);
-  
-  // Ninja/Enemy Outfit
-  ctx.fillStyle = '#c62828';
-  ctx.beginPath();
-  ctx.arc(0, 0, 15, 0, Math.PI * 2);
-  ctx.fill();
-  
-  // Mask eyes
-  ctx.fillStyle = '#000';
-  ctx.fillRect(-8, -5, 5, 3);
-  ctx.fillRect(3, -5, 5, 3);
-  
-  ctx.restore();
-}
-
-function drawArrow(ctx, a) {
-  ctx.strokeStyle = '#3e2723';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(a.x, a.y - 15);
-  ctx.stroke();
-  
-  // Arrow head
-  ctx.fillStyle = '#757575';
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y - 20);
-  ctx.lineTo(a.x - 3, a.y - 15);
-  ctx.lineTo(a.x + 3, a.y - 15);
-  ctx.closePath();
-  ctx.fill();
-}
-
+// 🏹 쓰리조 챌린지 (탐관오리 토벌전) - 화면 껍데기. 게임 로직·드로잉은 threejo/engine.js
 const ThreeJoGame = () => {
   const canvasRef = useRef(null);
-  const [gameState, setGameState] = useState('menu'); // menu, playing, over
-  const [score, setScore] = useState(0);
+  const inputRef = useRef({ dir: 0, targetX: null, left: false, right: false });
+  const [gameState, setGameState] = useState('menu'); // menu | playing | over
+  const [round, setRound] = useState(0);
+  const [result, setResult] = useState(null);
   const [highScores, setHighScores] = useState([]);
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isMuted, setIsMuted] = useState(loadMuted);
 
-  const stateRef = useRef({
-    px: W / 2,
-    arrows: [],
-    enemies: [],
-    score: 0,
-    frame: 0,
-    lastShot: 0
-  });
+  useEffect(() => {
+    setMuted(isMuted);
+    try { localStorage.setItem(MUTED_KEY, isMuted ? '1' : '0'); } catch (e) { /* ignore */ }
+  }, [isMuted]);
 
   const loadHighScores = async () => {
     try {
-      const q = query(collection(db, 'threejo_scores'), orderBy('score', 'desc'), limit(5));
+      const q = query(collection(db, 'threejo_scores'), orderBy('score', 'desc'), limit(10));
       const snap = await getDocs(q);
-      const scores = snap.docs.map(doc => doc.data());
-      setHighScores(scores);
+      setHighScores(snap.docs.map((d) => d.data()));
     } catch (e) {
-      console.error("Score load error:", e);
+      console.error('Score load error:', e);
     }
+  };
+
+  useEffect(() => { loadHighScores(); }, []);
+
+  const startGame = () => {
+    unlockAudio();
+    inputRef.current = { dir: 0, targetX: null, left: false, right: false };
+    setResult(null);
+    setSubmitted(false);
+    setGameState('playing');
+    setRound((r) => r + 1);
+  };
+
+  // 키보드: ← → / A D
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const inp = inputRef.current;
+    const set = (e, down) => {
+      const k = e.key;
+      if (k === 'ArrowLeft' || k === 'a' || k === 'A') inp.left = down;
+      else if (k === 'ArrowRight' || k === 'd' || k === 'D') inp.right = down;
+      else return;
+      e.preventDefault();
+      inp.dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+      if (inp.dir) inp.targetX = null;
+    };
+    const down = (e) => set(e, true);
+    const up = (e) => set(e, false);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, [gameState]);
+
+  // 마우스·터치: 손가락(커서) x 위치로 따라감
+  const pointerX = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return (e.clientX - rect.left - canvas.clientLeft) * (W / canvas.clientWidth);
+  };
+  const onPointerDown = (e) => {
+    if (gameState !== 'playing') return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    inputRef.current.targetX = pointerX(e);
+  };
+  const onPointerMove = (e) => {
+    if (gameState !== 'playing') return;
+    if (e.pointerType === 'mouse' || e.buttons) inputRef.current.targetX = pointerX(e);
   };
 
   useEffect(() => {
-    loadHighScores();
-  }, []);
-
-  const startGame = () => {
-    stateRef.current = {
-      px: W / 2,
-      arrows: [],
-      enemies: [],
-      score: 0,
-      frame: 0,
-      lastShot: 0
-    };
-    setScore(0);
-    setSubmitted(false);
-    setGameState('playing');
-  };
-
-  // Canvas may be scaled down on mobile, so convert client coords to canvas coords
-  const movePlayer = (clientX) => {
+    if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const border = canvas.clientLeft;
-    const mx = (clientX - rect.left - border) * (W / canvas.clientWidth);
-    stateRef.current.px = Math.max(20, Math.min(W - 20, mx));
-  };
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
 
-  const handlePointerMove = (e) => {
-    if (gameState !== 'playing') return;
-    movePlayer(e.clientX);
-  };
+    const game = createGame({
+      sfx,
+      over: (r) => {
+        setResult(r);
+        setGameState('over');
+      },
+    });
 
-  const handlePointerDown = (e) => {
-    if (gameState !== 'playing') return;
-    movePlayer(e.clientX);
-    const now = Date.now();
-    if (now - stateRef.current.lastShot > 300) {
-      stateRef.current.arrows.push({ x: stateRef.current.px, y: PLAYER_Y - 20 });
-      stateRef.current.lastShot = now;
-    }
-  };
+    let raf;
+    let last = performance.now();
+    const frame = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      game.update(dt, inputRef.current);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      game.draw(ctx, now / 1000);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+    // round가 바뀔 때마다 새 판
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
 
   const submitScore = async () => {
-    if (!nickname.trim() || submitted) return;
+    if (!nickname.trim() || submitted || !result) return;
     setSubmitted(true);
     try {
       await addDoc(collection(db, 'threejo_scores'), {
         nickname: nickname.trim(),
-        score,
-        timestamp: serverTimestamp()
+        score: result.score,
+        timestamp: serverTimestamp(),
       });
       loadHighScores();
       setNickname('');
-      alert('점수가 등록되었습니다!');
     } catch (e) {
-      console.error("Score submit error:", e);
+      console.error('Score submit error:', e);
       setSubmitted(false);
       alert('점수 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
 
-  useEffect(() => {
-    if (gameState !== 'playing') return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-
-    const update = () => {
-      const s = stateRef.current;
-      s.frame++;
-
-      // Spawn enemies
-      if (s.frame % Math.max(20, 60 - Math.floor(s.score / 5)) === 0) {
-        s.enemies.push({ x: Math.random() * (W - 40) + 20, y: -20 });
-      }
-
-      // Move arrows
-      s.arrows = s.arrows.filter(a => {
-        a.y -= ARROW_SPEED;
-        return a.y > -20;
-      });
-
-      // Move enemies
-      let hit = false;
-      s.enemies = s.enemies.filter(e => {
-        e.y += ENEMY_SPEED_BASE + (s.score * 0.1);
-        
-        // Collision with player
-        const dx = e.x - s.px;
-        const dy = e.y - PLAYER_Y;
-        if (Math.sqrt(dx*dx + dy*dy) < 30) {
-          hit = true;
-        }
-        
-        return e.y < H;
-      });
-
-      if (hit) {
-        setScore(s.score);
-        setGameState('over');
-        return;
-      }
-
-      // Collision Arrow-Enemy (one arrow kills at most one enemy)
-      const deadEnemies = new Set();
-      s.arrows = s.arrows.filter(a => {
-        const target = s.enemies.find(e => {
-          if (deadEnemies.has(e)) return false;
-          const dx = a.x - e.x;
-          const dy = a.y - e.y;
-          return Math.sqrt(dx*dx + dy*dy) < 20;
-        });
-        if (!target) return true;
-        deadEnemies.add(target);
-        return false;
-      });
-      if (deadEnemies.size > 0) {
-        s.enemies = s.enemies.filter(e => !deadEnemies.has(e));
-        s.score += deadEnemies.size;
-        setScore(s.score);
-      }
-
-      // Draw
-      drawBackground(ctx);
-      s.arrows.forEach(a => drawArrow(ctx, a));
-      s.enemies.forEach(e => drawEnemy(ctx, e));
-      drawPlayer(ctx, s.px);
-
-      // UI Score on Canvas
-      ctx.fillStyle = '#3e2723';
-      ctx.font = 'bold 20px sans-serif';
-      ctx.fillText(`처단 수: ${s.score}`, 20, 40);
-
-      animationFrameId = requestAnimationFrame(update);
-    };
-
-    update();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [gameState]);
+  const ranking = (
+    <div style={rankStyle}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#3e2723' }}>🏆 명예의 전당</h3>
+      {highScores.length === 0 && <div style={{ color: '#aaa' }}>아직 기록이 없어요</div>}
+      {highScores.map((s, i) => (
+        <div key={i} style={rankRow}>
+          <span>{['🥇', '🥈', '🥉'][i] || `${i + 1}.`} {s.nickname}</span>
+          <b>{Number(s.score).toLocaleString('ko-KR')}점</b>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div style={containerStyle}>
-      <h1 style={titleStyle}>🏹 쓰리조 (Three Jo) 챌린지</h1>
-      <p style={{ color: '#666', marginBottom: '20px' }}>마우스(터치)로 이동하고 클릭(탭)하여 화살을 쏘세요!</p>
+      <h1 style={titleStyle}>🏹 쓰리조 챌린지</h1>
+      <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 좌우로만 피하세요, 공격은 자동!</p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
+        <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리 OFF' : '🔊 소리 ON'}</button>
+        {gameState === 'playing' && <button onClick={() => setGameState('menu')} style={smallBtn}>✖ 그만하기</button>}
+      </div>
 
-      <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+      <div style={{ position: 'relative', width: W, maxWidth: '100%', margin: '0 auto' }}>
         <canvas
           ref={canvasRef}
           width={W}
           height={H}
-          onPointerMove={handlePointerMove}
-          onPointerDown={handlePointerDown}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
           style={canvasStyle}
         />
 
         {gameState === 'menu' && (
           <div style={overlayStyle}>
-            <h2 style={{ color: '#3e2723' }}>조선의 궁수여, 준비되었는가?</h2>
-            <button onClick={startGame} style={btnStyle}>게임 시작</button>
-            <div style={rankStyle}>
-              <h3>🏆 명예의 전당</h3>
-              {highScores.map((s, i) => (
-                <div key={i}>{i+1}. {s.nickname}: {s.score}점</div>
-              ))}
-            </div>
+            <div style={{ fontSize: 40 }}>🏹⚔️</div>
+            <h2 style={{ color: '#3e2723', margin: '6px 0', fontSize: 20 }}>탐관오리 토벌전</h2>
+            <p style={{ fontSize: 13, color: '#5d4037', lineHeight: 1.6, margin: '0 0 8px', wordBreak: 'keep-all' }}>
+              평민 궁수에서 시작해 <b>활 → 조총 → 대포 → 기관총·레이저</b>로 진화!<br />
+              캐슬조 · 제로조 · 조철왕을 차례로 토벌하라
+            </p>
+            <ul style={tipList}>
+              <li>🪙 엽전·📦 무기 상자로 레벨업, 레벨이 오를수록 엄호 병사와 발사체 증가</li>
+              <li>⚡ 탄을 <b>아슬아슬하게</b> 피하면 경험치 + 연사 속도 폭발</li>
+              <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
+              <li>🎮 PC: ← → / A D · 모바일: 화면을 누른 채 좌우로</li>
+            </ul>
+            <button onClick={startGame} style={btnStyle}>▶ 토벌 시작</button>
+            {ranking}
           </div>
         )}
 
-        {gameState === 'over' && (
+        {gameState === 'over' && result && (
           <div style={overlayStyle}>
-            <h2 style={{ color: '#c62828' }}>임무 실패...</h2>
-            <p style={{ fontSize: '24px', fontWeight: 800 }}>최종 점수: {score}</p>
-            <div style={{ margin: '20px 0' }}>
-              <input 
-                type="text" 
+            <div style={{ fontSize: 40, animation: 'none' }}>{result.killer === '조철왕' ? '👑' : '💀'}</div>
+            <h2 style={{ color: '#c62828', margin: '4px 0 6px', fontSize: 19, wordBreak: 'keep-all' }}>
+              {result.killer}에게 당했습니다!
+            </h2>
+            <p style={{ margin: 0, fontSize: 15, wordBreak: 'keep-all' }}>
+              당신의 최종 점수는 <b style={{ color: '#c62828', fontSize: 24 }}>{result.score.toLocaleString('ko-KR')}</b>점 입니다.
+            </p>
+            <div style={statGrid}>
+              <span>🗺️ {STAGE_NAMES[result.stage]}</span>
+              <span>👑 보스 {result.bosses}/2 격파</span>
+              <span>⚡ 아슬아슬 {result.grazes}회</span>
+              <span>⏱ {Math.floor(result.time)}초</span>
+              <span style={{ gridColumn: '1 / -1' }}>🔫 최종 무기 Lv.{result.power + 1} {weaponLabel(result.power)}</span>
+            </div>
+            {result.killer === '조철왕' && (
+              <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>※ 조철왕은 이 게임의 제작자라 아무도 이길 수 없습니다. 오래 버틸수록 점수가 올라가요!</p>
+            )}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+              <input
+                type="text"
                 placeholder="닉네임 입력"
                 maxLength={12}
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitScore(); }}
                 style={inputStyle}
+                disabled={submitted}
               />
-              <button onClick={submitScore} disabled={submitted} style={{ ...btnStyle, opacity: submitted ? 0.5 : 1 }}>
+              <button onClick={submitScore} disabled={submitted || !nickname.trim()} style={{ ...btnStyle, marginTop: 0, padding: '10px 14px', fontSize: 15, opacity: submitted || !nickname.trim() ? 0.5 : 1 }}>
                 {submitted ? '등록 완료' : '점수 등록'}
               </button>
             </div>
-            <button onClick={startGame} style={{ ...btnStyle, background: '#3e2723' }}>다시 도전</button>
+            <button onClick={startGame} style={{ ...btnStyle, background: '#3e2723', width: '100%' }}>🔁 다시 도전</button>
+            {ranking}
           </div>
         )}
       </div>
@@ -332,70 +234,106 @@ const ThreeJoGame = () => {
 
 const containerStyle = {
   textAlign: 'center',
-  padding: '40px 20px',
+  padding: '28px 16px',
   background: '#fdfbf7',
   minHeight: '100vh',
-  fontFamily: '"Noto Sans KR", sans-serif'
+  fontFamily: '"Noto Sans KR", sans-serif',
+  boxSizing: 'border-box',
 };
 
 const titleStyle = {
-  fontSize: '32px',
+  fontSize: 28,
   fontWeight: 900,
   color: '#3e2723',
-  marginBottom: '10px'
+  margin: '0 0 6px',
 };
 
 const canvasStyle = {
-  border: '8px solid #3e2723',
-  borderRadius: '12px',
+  display: 'block',
+  width: '100%',
+  aspectRatio: `${W} / ${H}`,
+  border: '6px solid #3e2723',
+  borderRadius: 12,
   boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-  cursor: 'crosshair',
-  background: '#fff',
-  maxWidth: '100%',
-  height: 'auto',
+  background: '#F3E9D2',
   boxSizing: 'border-box',
-  touchAction: 'none'
+  touchAction: 'none',
+  userSelect: 'none',
 };
 
 const overlayStyle = {
   position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  background: 'rgba(255, 255, 255, 0.95)',
-  padding: '30px',
-  borderRadius: '20px',
-  width: '300px',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+  inset: 6,
+  borderRadius: 8,
+  background: 'rgba(253, 251, 247, 0.96)',
+  padding: '16px 18px',
+  overflowY: 'auto',
+  boxSizing: 'border-box',
+};
+
+const tipList = {
+  textAlign: 'left',
+  margin: '0 0 6px',
+  paddingLeft: 18,
+  fontSize: 12,
+  color: '#555',
+  lineHeight: 1.65,
+  wordBreak: 'keep-all',
+};
+
+const statGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 4,
+  margin: '10px 0',
+  fontSize: 12,
+  color: '#5d4037',
+  background: '#f6efe9',
+  borderRadius: 10,
+  padding: '8px 10px',
+  textAlign: 'left',
 };
 
 const btnStyle = {
   padding: '12px 24px',
-  fontSize: '18px',
-  fontWeight: 700,
+  fontSize: 17,
+  fontWeight: 800,
   color: '#fff',
   background: '#c62828',
   border: 'none',
-  borderRadius: '8px',
+  borderRadius: 10,
   cursor: 'pointer',
-  marginTop: '10px'
+  marginTop: 10,
+};
+
+const smallBtn = {
+  padding: '7px 12px',
+  fontSize: 12,
+  fontWeight: 700,
+  background: '#fff',
+  color: '#333',
+  border: '1px solid #ddd',
+  borderRadius: 8,
+  cursor: 'pointer',
 };
 
 const inputStyle = {
-  padding: '10px',
-  width: '150px',
-  borderRadius: '8px',
+  padding: 10,
+  width: 140,
+  borderRadius: 8,
   border: '2px solid #ddd',
-  marginRight: '10px'
+  fontSize: 14,
 };
 
 const rankStyle = {
-  marginTop: '20px',
+  marginTop: 14,
   textAlign: 'left',
-  fontSize: '14px',
+  fontSize: 13,
   color: '#555',
-  borderTop: '1px solid #ddd',
-  paddingTop: '10px'
+  borderTop: '1px solid #e0d6cf',
+  paddingTop: 10,
 };
+
+const rankRow = { display: 'flex', justifyContent: 'space-between', padding: '2px 0' };
 
 export default ThreeJoGame;
