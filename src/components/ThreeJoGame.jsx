@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
-import { W, H, createGame, weaponLabel } from './threejo/engine';
+import { W, H, FONT, createGame, weaponLabel, POWERUPS } from './threejo/engine';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const MUTED_KEY = 'threejoMuted';
+const PIXEL = 2.5; // 도트 1칸 = 게임 좌표 2.5 (월드를 저해상도로 그린 뒤 확대)
+const LW = Math.round(W / PIXEL), LH = Math.round(H / PIXEL);
+const PIXEL_FONT_CSS = 'https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css';
+
+// 픽셀 폰트는 이 게임 페이지에서만 로드
+function usePixelFont() {
+  useEffect(() => {
+    if (document.querySelector(`link[href="${PIXEL_FONT_CSS}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = PIXEL_FONT_CSS;
+    document.head.appendChild(link);
+  }, []);
+}
+
 const STAGE_NAMES = ['1탄 캐슬조', '2탄 제로조', '3탄 조철왕'];
 
 function loadMuted() {
@@ -14,7 +29,11 @@ function loadMuted() {
 // 🏹 쓰리조 챌린지 (탐관오리 토벌전) - 화면 껍데기. 게임 로직·드로잉은 threejo/engine.js
 const ThreeJoGame = () => {
   const canvasRef = useRef(null);
-  const inputRef = useRef({ dir: 0, targetX: null, left: false, right: false });
+  const inputRef = useRef({ dx: 0, dy: 0, tx: null, ty: null });
+  const keysRef = useRef({});
+  const gameRef = useRef(null);
+  const dragRef = useRef(null);
+  const [bombs, setBombs] = useState(2);
   const [gameState, setGameState] = useState('menu'); // menu | playing | over
   const [round, setRound] = useState(0);
   const [result, setResult] = useState(null);
@@ -22,6 +41,7 @@ const ThreeJoGame = () => {
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isMuted, setIsMuted] = useState(loadMuted);
+  usePixelFont();
 
   useEffect(() => {
     setMuted(isMuted);
@@ -42,25 +62,36 @@ const ThreeJoGame = () => {
 
   const startGame = () => {
     unlockAudio();
-    inputRef.current = { dir: 0, targetX: null, left: false, right: false };
+    document.fonts?.load(`11px ${FONT}`).catch(() => {});
+    inputRef.current = { dx: 0, dy: 0, tx: null, ty: null };
+    keysRef.current = {};
+    setBombs(2);
     setResult(null);
     setSubmitted(false);
     setGameState('playing');
     setRound((r) => r + 1);
   };
 
-  // 키보드: ← → / A D
+  const fireSpecial = () => { gameRef.current?.special(); };
+
+  // 키보드: 방향키 / WASD 이동, Space / X 필살기
   useEffect(() => {
     if (gameState !== 'playing') return;
-    const inp = inputRef.current;
+    const KEYS = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'u', w: 'u', ArrowDown: 'd', s: 'd' };
     const set = (e, down) => {
-      const k = e.key;
-      if (k === 'ArrowLeft' || k === 'a' || k === 'A') inp.left = down;
-      else if (k === 'ArrowRight' || k === 'd' || k === 'D') inp.right = down;
-      else return;
+      if (down && (e.key === ' ' || e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        if (!e.repeat) fireSpecial();
+        return;
+      }
+      const k = KEYS[e.key] || KEYS[e.key.toLowerCase()];
+      if (!k) return;
       e.preventDefault();
-      inp.dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-      if (inp.dir) inp.targetX = null;
+      const keys = keysRef.current, inp = inputRef.current;
+      keys[k] = down;
+      inp.dx = (keys.r ? 1 : 0) - (keys.l ? 1 : 0);
+      inp.dy = (keys.d ? 1 : 0) - (keys.u ? 1 : 0);
+      if (inp.dx || inp.dy) { inp.tx = null; inp.ty = null; }
     };
     const down = (e) => set(e, true);
     const up = (e) => set(e, false);
@@ -72,20 +103,35 @@ const ThreeJoGame = () => {
     };
   }, [gameState]);
 
-  // 마우스·터치: 손가락(커서) x 위치로 따라감
-  const pointerX = (e) => {
+  // 마우스: 커서 위치로 따라감 / 터치: 누른 곳 기준 상대 드래그 (손가락이 캐릭터를 가리지 않게)
+  const toCanvas = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    return (e.clientX - rect.left - canvas.clientLeft) * (W / canvas.clientWidth);
+    const k = W / canvas.clientWidth;
+    return { x: (e.clientX - rect.left - canvas.clientLeft) * k, y: (e.clientY - rect.top - canvas.clientTop) * k };
   };
   const onPointerDown = (e) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || !gameRef.current) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    inputRef.current.targetX = pointerX(e);
+    const c = toCanvas(e), inp = inputRef.current;
+    if (e.pointerType === 'mouse') { inp.tx = c.x; inp.ty = c.y; return; }
+    dragRef.current = { fx: c.x, fy: c.y, ...gameRef.current.player() };
   };
   const onPointerMove = (e) => {
     if (gameState !== 'playing') return;
-    if (e.pointerType === 'mouse' || e.buttons) inputRef.current.targetX = pointerX(e);
+    const c = toCanvas(e), inp = inputRef.current;
+    if (e.pointerType === 'mouse') { inp.tx = c.x; inp.ty = c.y; return; }
+    const d = dragRef.current;
+    if (!d) return;
+    inp.tx = d.x + (c.x - d.fx) * 1.3;
+    inp.ty = d.y + (c.y - d.fy) * 1.3;
+  };
+  const onPointerUp = (e) => {
+    if (e.pointerType === 'mouse') return;
+    dragRef.current = null;
+    const inp = inputRef.current;
+    inp.tx = null;
+    inp.ty = null;
   };
 
   useEffect(() => {
@@ -95,27 +141,39 @@ const ThreeJoGame = () => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = W * dpr;
     canvas.height = H * dpr;
+    // 월드는 저해상도 캔버스에 그린 뒤 최근접 확대 → 도트 그래픽
+    const low = document.createElement('canvas');
+    low.width = LW;
+    low.height = LH;
+    const lctx = low.getContext('2d', { willReadFrequently: true });
 
     const game = createGame({
       sfx,
+      bombs: setBombs,
       over: (r) => {
         setResult(r);
         setGameState('over');
       },
     });
 
+    gameRef.current = game;
     let raf;
     let last = performance.now();
     const frame = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       game.update(dt, inputRef.current);
+      lctx.setTransform(LW / W, 0, 0, LH / H, 0, 0);
+      game.draw(lctx, now / 1000);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(low, 0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      game.draw(ctx, now / 1000);
+      game.drawUi(ctx, now / 1000);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); gameRef.current = null; };
     // round가 바뀔 때마다 새 판
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
@@ -154,7 +212,7 @@ const ThreeJoGame = () => {
   return (
     <div style={containerStyle}>
       <h1 style={titleStyle}>🏹 쓰리조 챌린지</h1>
-      <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 좌우로만 피하세요, 공격은 자동!</p>
+      <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 상하좌우로 피하세요, 공격은 자동!</p>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
         <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리 OFF' : '🔊 소리 ON'}</button>
         {gameState === 'playing' && <button onClick={() => setGameState('menu')} style={smallBtn}>✖ 그만하기</button>}
@@ -167,8 +225,21 @@ const ThreeJoGame = () => {
           height={H}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           style={canvasStyle}
         />
+
+        {gameState === 'playing' && (
+          <button
+            onPointerDown={(e) => { e.preventDefault(); fireSpecial(); }}
+            disabled={bombs <= 0}
+            style={{ ...specialBtn, opacity: bombs > 0 ? 1 : 0.45 }}
+            aria-label={`필살기 사용, 남은 횟수 ${bombs}`}
+          >
+            💥<span style={{ fontSize: 11, display: 'block', lineHeight: 1 }}>필살기 ×{bombs}</span>
+          </button>
+        )}
 
         {gameState === 'menu' && (
           <div style={overlayStyle}>
@@ -182,8 +253,14 @@ const ThreeJoGame = () => {
               <li>🪙 엽전·📦 무기 상자로 레벨업, 레벨이 오를수록 엄호 병사와 발사체 증가</li>
               <li>⚡ 탄을 <b>아슬아슬하게</b> 피하면 경험치 + 연사 속도 폭발</li>
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
-              <li>🎮 PC: ← → / A D · 모바일: 화면을 누른 채 좌우로</li>
+              <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
+              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기 · 모바일: 화면을 누른 채 드래그</li>
             </ul>
+            <div style={itemGrid}>
+              {Object.values(POWERUPS).map((pu) => (
+                <span key={pu.name} style={{ ...itemChip, borderColor: pu.color }}>{pu.icon} {pu.name}</span>
+              ))}
+            </div>
             <button onClick={startGame} style={btnStyle}>▶ 토벌 시작</button>
             {ranking}
           </div>
@@ -232,12 +309,14 @@ const ThreeJoGame = () => {
   );
 };
 
+const PIXEL_UI = '"Galmuri11", "Noto Sans KR", sans-serif';
+
 const containerStyle = {
   textAlign: 'center',
   padding: '28px 16px',
   background: '#fdfbf7',
   minHeight: '100vh',
-  fontFamily: '"Noto Sans KR", sans-serif',
+  fontFamily: PIXEL_UI,
   boxSizing: 'border-box',
 };
 
@@ -253,8 +332,9 @@ const canvasStyle = {
   width: '100%',
   aspectRatio: `${W} / ${H}`,
   border: '6px solid #3e2723',
-  borderRadius: 12,
-  boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+  borderRadius: 0,
+  boxShadow: '6px 6px 0 #a1887f',
+  imageRendering: 'pixelated',
   background: '#F3E9D2',
   boxSizing: 'border-box',
   touchAction: 'none',
@@ -264,8 +344,9 @@ const canvasStyle = {
 const overlayStyle = {
   position: 'absolute',
   inset: 6,
-  borderRadius: 8,
+  borderRadius: 0,
   background: 'rgba(253, 251, 247, 0.96)',
+  boxShadow: 'inset 0 0 0 3px #3e2723',
   padding: '16px 18px',
   overflowY: 'auto',
   boxSizing: 'border-box',
@@ -279,6 +360,44 @@ const tipList = {
   color: '#555',
   lineHeight: 1.65,
   wordBreak: 'keep-all',
+};
+
+const specialBtn = {
+  position: 'absolute',
+  right: 14,
+  bottom: 40,
+  width: 64,
+  height: 64,
+  borderRadius: 0,
+  border: '3px solid #FFD166',
+  background: '#c62828',
+  fontFamily: PIXEL_UI,
+  color: '#fff',
+  fontSize: 22,
+  fontWeight: 900,
+  boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+  cursor: 'pointer',
+  touchAction: 'none',
+  userSelect: 'none',
+  padding: 0,
+};
+
+const itemGrid = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  justifyContent: 'center',
+  margin: '4px 0 2px',
+};
+
+const itemChip = {
+  fontSize: 11,
+  padding: '2px 7px',
+  borderRadius: 999,
+  border: '1.5px solid',
+  background: '#fff',
+  color: '#3e2723',
+  fontWeight: 700,
 };
 
 const statGrid = {
@@ -301,7 +420,9 @@ const btnStyle = {
   color: '#fff',
   background: '#c62828',
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 0,
+  boxShadow: '4px 4px 0 #3e2723',
+  fontFamily: PIXEL_UI,
   cursor: 'pointer',
   marginTop: 10,
 };
