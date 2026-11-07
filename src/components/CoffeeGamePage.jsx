@@ -1,36 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 import ShareButtons from './ShareButtons';
-import { shuffle, easeOutElastic, updateParticles, drawParticles } from './coffee/coffeeGames';
-import { OW as W, OH as H, LOOKS } from './coffee/officeCommon';
-import { OFFICE_GAMES } from './coffee/officeGames';
+import { CHARACTERS, shuffle, easeOutElastic, updateParticles, drawParticles } from './coffee/coffeeGames';
+import { LOOKS } from './coffee/officeCommon';
+import { COFFEE_GAMES, MIN_PLAYERS, MAX_PLAYERS, gameTitle } from './coffee/games';
+import { loadNames, saveNames, loadMuted, saveMuted, loadOptions, saveOptions } from './coffee/players';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
-const STORAGE_KEY = 'coffeeBetPlayers'; // 기존 커피내기와 참가자 명단 공유
-const DEFAULT_NAMES = ['김대리', '이과장', '박사원', '최팀장'];
-const MIN_PLAYERS = 2;
-const MAX_PLAYERS = 10;
 const CONFETTI_COLORS = ['#FFD166', '#EF476F', '#06D6A0', '#118AB2', '#F78C6B', '#fff'];
 
-function loadNames() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Array.isArray(saved) && saved.length >= MIN_PLAYERS) return saved.slice(0, MAX_PLAYERS).map(String);
-  } catch (e) { /* 저장소 접근 불가 시 기본값 */ }
-  return DEFAULT_NAMES;
+// 캐릭터 세트별 참가자 외형 (hanbok: 조선 동물 캐릭터, office: 회사원)
+function dressUp(chars, n) {
+  if (chars === 'office') return shuffle(LOOKS).slice(0, n).map((look) => ({ look, color: look.color }));
+  return shuffle(CHARACTERS).slice(0, n).map((ch) => ({ ch, color: ch.color }));
 }
 
-function saveNames(names) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(names)); } catch (e) { /* ignore */ }
-}
+// 공통 포맷 게임 화면: 설정 → 플레이 → 결과 (게임 5종 동일)
+const CoffeeGamePage = () => {
+  const { gameId } = useParams();
+  const game = COFFEE_GAMES[gameId];
+  if (!game) return <Navigate to="/coffee-bet" replace />;
+  if (game.href) {
+    // 단독 정적 페이지 게임은 전체 페이지 이동
+    window.location.replace(game.href);
+    return null;
+  }
+  return <GameRunner key={gameId} gameId={gameId} game={game} />;
+};
 
-const OfficeBetGame = ({ gameKey }) => {
-  const game = OFFICE_GAMES[gameKey];
+const GameRunner = ({ gameId, game }) => {
+  const [W, H] = game.size;
   const [names, setNames] = useState(loadNames);
   const [phase, setPhase] = useState('setup'); // setup | playing | result
   const [round, setRound] = useState(0);
   const [fast, setFast] = useState(false);
-  const [isMuted, setIsMuted] = useState(true); // 효과음 기본 OFF
+  const [isMuted, setIsMuted] = useState(loadMuted);
+  const [options, setOptions] = useState(() => loadOptions(gameId, game.options));
   const [board, setBoard] = useState([]);
   const [logs, setLogs] = useState([]);
   const [result, setResult] = useState(null);
@@ -52,13 +57,20 @@ const OfficeBetGame = ({ gameKey }) => {
     const m = !isMuted;
     setMuted(m);
     setIsMuted(m);
+    saveMuted(m);
     if (!m) unlockAudio();
   };
 
+  const setOption = (key, value) => setOptions((prev) => {
+    const next = { ...prev, [key]: value };
+    saveOptions(gameId, next);
+    return next;
+  });
+
   const startGame = () => {
     unlockAudio(); // 사용자 클릭 시점에 오디오 잠금 해제
-    const looks = shuffle(LOOKS);
-    rosterRef.current = names.map((n, i) => ({ name: n.trim() || `참가자${i + 1}`, look: looks[i % looks.length] }));
+    const outfits = dressUp(game.chars, names.length);
+    rosterRef.current = names.map((n, i) => ({ name: n.trim() || `참가자${i + 1}`, ...outfits[i] }));
     saveNames(names);
     setResult(null);
     setLogs([]);
@@ -80,13 +92,15 @@ const OfficeBetGame = ({ gameKey }) => {
     let banner = null;
     let logId = 0;
     let g = null;
+    let gameT = 0; // 게임 내부 경과 시간 (중계 로그 시각)
     const logBuf = [];
     const env = {
       particles: [],
       shake: 0,
+      slow: 1, // 슬로모션 배율 (최후의 결투 등)
       sfx: Object.fromEntries(Object.entries(sfx).map(([k, f]) => [k, () => { if (!quiet) f(); }])),
       banner: (text) => { if (!quiet) banner = { text, t: 0 }; },
-      log: (text) => { logBuf.push({ id: ++logId, text, time: g ? g.time : 0 }); },
+      log: (text) => { logBuf.push({ id: ++logId, text, time: gameT }); },
       finish: (rows) => {
         if (finished) return;
         finished = true;
@@ -95,7 +109,7 @@ const OfficeBetGame = ({ gameKey }) => {
         setPhase('result');
       },
     };
-    g = game.create(rosterRef.current, env);
+    g = game.create(rosterRef.current, env, options);
 
     const flush = () => {
       if (logBuf.length) {
@@ -106,8 +120,9 @@ const OfficeBetGame = ({ gameKey }) => {
     };
     skipRef.current = () => {
       quiet = true;
-      for (let k = 0; k < 40000 && !finished; k++) g.update(0.05);
+      for (let k = 0; k < 40000 && !finished; k++) { g.update(0.05); gameT += 0.05; }
       quiet = false;
+      env.slow = 1;
       env.particles.length = 0;
       flush();
     };
@@ -119,11 +134,13 @@ const OfficeBetGame = ({ gameKey }) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const steps = fastRef.current && !finished ? 2 : 1;
+      const sdt = dt * env.slow;
       for (let k = 0; k < steps; k++) {
-        g.update(dt);
-        updateParticles(env.particles, dt);
+        g.update(sdt);
+        gameT += sdt;
+        updateParticles(env.particles, sdt);
       }
-      simT += dt * steps;
+      simT += sdt * steps;
       env.shake *= Math.pow(0.02, dt);
       flushAcc += dt;
       if (flushAcc > 0.25) { flushAcc = 0; flush(); }
@@ -136,6 +153,13 @@ const OfficeBetGame = ({ gameKey }) => {
       drawParticles(ctx, env.particles);
       ctx.restore();
 
+      if (env.slow < 1) {
+        const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.7);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, 'rgba(0,0,0,0.55)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, W, H);
+      }
       if (banner) {
         banner.t += dt;
         if (banner.t > 1.8) banner = null;
@@ -143,7 +167,7 @@ const OfficeBetGame = ({ gameKey }) => {
           const sc = easeOutElastic(Math.min(1, banner.t / 0.7));
           ctx.save();
           ctx.globalAlpha = banner.t > 1.4 ? (1.8 - banner.t) / 0.4 : 1;
-          ctx.translate(W / 2, 92);
+          ctx.translate(W / 2, game.bannerY);
           ctx.scale(sc, sc);
           ctx.font = '900 22px "Noto Sans KR", sans-serif';
           const w = ctx.measureText(banner.text).width + 32;
@@ -167,14 +191,27 @@ const OfficeBetGame = ({ gameKey }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round, inGame]);
 
-  if (!game) return null;
+  const title = gameTitle(game);
+  const header = (
+    <header style={topBar}>
+      <Link to="/coffee-bet" style={backLink}>← 게임 목록</Link>
+      <h1 style={topTitle}>{title}</h1>
+      <button onClick={toggleSound} style={iconRound} aria-label={isMuted ? '소리 켜기' : '소리 끄기'} aria-pressed={!isMuted}>{isMuted ? '🔇' : '🔊'}</button>
+    </header>
+  );
 
   if (!inGame) {
     return (
       <div style={containerStyle}>
-        <Link to="/coffee-bet" style={backLink}>← 커피내기 게임 목록</Link>
-        <h1 style={titleStyle}>{game.title}</h1>
-        <p style={{ color: '#666', margin: '0 auto 20px', maxWidth: 420, wordBreak: 'keep-all' }}>{game.desc}</p>
+        {header}
+        <div style={heroCard}>
+          <div style={{ fontSize: 44, lineHeight: 1 }} aria-hidden="true">{game.emoji}☕</div>
+          <p style={{ margin: '10px 0 6px', color: '#5d4037', fontWeight: 700, wordBreak: 'keep-all', lineHeight: 1.5 }}>{game.desc}</p>
+          <div style={chipRow}>
+            <span style={infoChip}>👥 {MIN_PLAYERS}~{MAX_PLAYERS}명</span>
+            <span style={infoChip}>⏱ {game.duration}</span>
+          </div>
+        </div>
 
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -185,7 +222,7 @@ const OfficeBetGame = ({ gameKey }) => {
               <button onClick={addPlayer} disabled={names.length >= MAX_PLAYERS} style={stepBtn} aria-label="인원 늘리기">+</button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
             {names.map((n, i) => (
               <div key={i} style={{ display: 'flex', gap: 4 }}>
                 <input
@@ -207,8 +244,29 @@ const OfficeBetGame = ({ gameKey }) => {
           {names.length < MAX_PLAYERS && (
             <button onClick={addPlayer} style={addBtn}>+ 참가자 추가</button>
           )}
-          <p style={{ color: '#999', fontSize: 12, margin: '8px 0 0' }}>2~10명 · 이름을 비우면 "참가자1" 형식으로 자동 입력돼요.</p>
+          <p style={{ color: '#999', fontSize: 12, margin: '8px 0 0' }}>{MIN_PLAYERS}~{MAX_PLAYERS}명 · 5개 게임이 같은 명단을 써요 · 이름을 비우면 "참가자1" 형식으로 자동 입력돼요.</p>
         </div>
+
+        {game.options && (
+          <div style={cardStyle}>
+            <h3 style={sectionTitle}>⚙️ 게임 옵션</h3>
+            {game.options.map((o) => (
+              <div key={o.key} style={optionRow}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#5D4037' }}>{o.label}</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {o.choices.map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => setOption(o.key, c.value)}
+                      aria-pressed={options[o.key] === c.value}
+                      style={options[o.key] === c.value ? { ...pillBtn, ...pillActive } : pillBtn}
+                    >{c.label}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={cardStyle}>
           <h3 style={sectionTitle}>📜 게임 규칙</h3>
@@ -228,16 +286,15 @@ const OfficeBetGame = ({ gameKey }) => {
   return (
     <div style={{ ...containerStyle, padding: '16px 16px 32px' }}>
       <style>{keyframes}</style>
-      <h1 style={{ ...titleStyle, fontSize: 20 }}>{game.title}</h1>
+      {header}
       <div style={toolbar}>
         <button onClick={() => setPhase('setup')} style={smallBtn}>← 설정</button>
         <button onClick={() => setFast((f) => !f)} style={fast ? { ...smallBtn, ...activeBtn } : smallBtn}>⏩ 2배속{fast ? ' ON' : ''}</button>
         <button onClick={() => skipRef.current?.()} disabled={phase === 'result'} style={{ ...smallBtn, opacity: phase === 'result' ? 0.4 : 1 }}>⏭ 결과 바로보기</button>
-        <button onClick={toggleSound} style={smallBtn}>{isMuted ? '🔇 소리 OFF' : '🔊 소리 ON'}</button>
       </div>
 
       <div style={{ position: 'relative', width: W, maxWidth: '100%', margin: '0 auto' }}>
-        <canvas ref={canvasRef} style={canvasStyle} />
+        <canvas ref={canvasRef} style={{ ...canvasStyle, aspectRatio: `${W} / ${H}` }} />
 
         {phase === 'result' && result && (
           <div style={resultOverlay}>
@@ -266,7 +323,7 @@ const OfficeBetGame = ({ gameKey }) => {
                 return (
                   <li key={r.idx} style={last ? { ...rankRow, ...loserRow } : rankRow}>
                     <span style={{ fontWeight: 900, flexShrink: 0 }}>{['🥇', '🥈', '🥉'][k] || `${k + 1}위`}</span>
-                    <span style={{ ...dot, background: r.look.color }} />
+                    <span style={{ ...dot, background: r.color }} />
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                     <span style={{ fontSize: 10, opacity: 0.85, whiteSpace: 'nowrap' }}>{last ? `☕ 커피 당첨! · ${r.detail}` : r.detail}</span>
                   </li>
@@ -286,23 +343,23 @@ const OfficeBetGame = ({ gameKey }) => {
 
       {phase === 'playing' && (
         <div style={panelStyle}>
-          <div style={panelTitle}>🏆 실시간 순위</div>
+          <div style={panelTitle}>{game.boardTitle}</div>
           <ol style={boardGrid}>
             {board.map((b, k) => {
               const pl = rosterRef.current[b.idx];
               return (
                 <li key={b.idx} style={{ ...boardItem, background: b.done ? '#E8F5E9' : '#fff' }}>
                   <b style={{ width: 18, color: '#8D6E63' }}>{k + 1}</b>
-                  <span style={{ ...dot, background: pl.look.color }} />
+                  <span style={{ ...dot, background: pl.color }} />
                   <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 64 }}>{pl.name}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 11, color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.text}</span>
                 </li>
               );
             })}
           </ol>
-          <div style={{ ...panelTitle, marginTop: 12 }}>📢 이벤트 로그</div>
+          <div style={{ ...panelTitle, marginTop: 12 }}>📢 중계</div>
           <div style={logBox}>
-            {logs.length === 0 && <div style={{ color: '#aaa' }}>출발 준비 중…</div>}
+            {logs.length === 0 && <div style={{ color: '#aaa' }}>게임 준비 중…</div>}
             {logs.map((l) => (
               <div key={l.id} style={{ padding: '2px 0' }}>
                 <span style={{ color: '#aaa', marginRight: 6 }}>{l.time.toFixed(1)}s</span>{l.text}
@@ -315,7 +372,7 @@ const OfficeBetGame = ({ gameKey }) => {
       {phase === 'result' && loser && (
         <div style={{ maxWidth: 420, margin: '20px auto 0' }}>
           <ShareButtons
-            shareText={`오늘 커피는 ${loser.name}님이 쏩니다! ☕ ${game.title}에서 당첨!`}
+            shareText={`오늘 커피는 ${loser.name}님이 쏩니다! ☕ ${title}에서 당첨!`}
             testTitle="점심 커피내기 랜덤 게임"
           />
         </div>
@@ -358,22 +415,85 @@ const containerStyle = {
   boxSizing: 'border-box',
 };
 
-const titleStyle = {
-  fontSize: 26,
+const topBar = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  maxWidth: 420,
+  margin: '0 auto 12px',
+};
+
+const topTitle = {
+  flex: 1,
+  minWidth: 0,
+  margin: 0,
+  fontSize: 18,
   fontWeight: 900,
   color: '#3e2723',
-  margin: '0 0 8px',
   wordBreak: 'keep-all',
 };
 
 const backLink = {
-  display: 'inline-block',
-  marginBottom: 12,
+  flexShrink: 0,
   fontSize: 13,
   color: '#8d6e63',
   textDecoration: 'none',
   fontWeight: 700,
+  whiteSpace: 'nowrap',
 };
+
+const iconRound = {
+  flexShrink: 0,
+  width: 38,
+  height: 38,
+  borderRadius: '50%',
+  border: '1px solid #e8dfd9',
+  background: '#fff',
+  fontSize: 17,
+  cursor: 'pointer',
+};
+
+const heroCard = {
+  maxWidth: 420,
+  margin: '0 auto 16px',
+  padding: '18px 16px',
+  borderRadius: 16,
+  background: 'linear-gradient(160deg, #FFF1D6 0%, #FBE3D6 100%)',
+  boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+  boxSizing: 'border-box',
+};
+
+const chipRow = { display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' };
+
+const infoChip = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#5d4037',
+  background: 'rgba(255,255,255,0.75)',
+  borderRadius: 999,
+  padding: '3px 10px',
+};
+
+const optionRow = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  flexWrap: 'wrap',
+};
+
+const pillBtn = {
+  padding: '6px 14px',
+  fontSize: 13,
+  fontWeight: 700,
+  background: '#fff',
+  color: '#5D4037',
+  border: '2px solid #d7ccc8',
+  borderRadius: 999,
+  cursor: 'pointer',
+};
+
+const pillActive = { background: '#c62828', color: '#fff', borderColor: '#c62828' };
 
 const cardStyle = {
   background: '#fff',
@@ -467,7 +587,6 @@ const activeBtn = { background: '#3e2723', color: '#FFD166', borderColor: '#3e27
 const canvasStyle = {
   display: 'block',
   width: '100%',
-  aspectRatio: `${W} / ${H}`,
   borderRadius: 12,
   border: '5px solid #3e2723',
   boxSizing: 'border-box',
@@ -554,7 +673,7 @@ const dot = {
 };
 
 const panelStyle = {
-  maxWidth: W,
+  maxWidth: 400,
   margin: '12px auto 0',
   background: '#fff',
   borderRadius: 12,
@@ -596,4 +715,4 @@ const logBox = {
   padding: '6px 8px',
 };
 
-export default OfficeBetGame;
+export default CoffeeGamePage;

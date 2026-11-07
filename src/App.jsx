@@ -21,7 +21,7 @@ import EmotionTypeTest from './components/EmotionTypeTest';
 import GoalkeeperGame from './components/GoalkeeperGame';
 import ThreeJoGame from './components/ThreeJoGame';
 import CoffeeBetGame from './components/CoffeeBetGame';
-import OfficeBetGame from './components/OfficeBetGame';
+import CoffeeGamePage from './components/CoffeeGamePage';
 import GameHub from './components/GameHub';
 import SoccerTypeTest from './components/SoccerTypeTest';
 import Trend2027Test from './components/Trend2027Test';
@@ -73,7 +73,7 @@ const App = () => {
             <Route path="/goalkeeper-game" element={<GoalkeeperGame />} />
             <Route path="/three-jo-game" element={<ThreeJoGame />} />
             <Route path="/coffee-bet" element={<CoffeeBetGame />} />
-            <Route path="/coffee-bet/report" element={<OfficeBetGame key="report" gameKey="report" />} />
+            <Route path="/coffee-bet/:gameId" element={<CoffeeGamePage />} />
             <Route path="/dodge-game" element={<Navigate to="/game-hub" replace />} />
             <Route path="/soccer-type" element={<div className="mbti-wrapper"><SoccerTypeTest /></div>} />
             {/* 5월 신규 테스트 */}

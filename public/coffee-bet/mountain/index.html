@@ -10,13 +10,13 @@
 <link rel="canonical" href="https://cc1st.pages.dev/coffee-bet/mountain/">
 <style>
 :root {
-  --bg: #FFF8F0;
+  --bg: #FDFBF7;
   --card: #FFFFFF;
-  --ink: #3A3335;
-  --sub: #8A7F7A;
+  --ink: #3E2723;
+  --sub: #8D6E63;
   --line: #EFE4DA;
-  --brand: #6F4E37;
-  --accent: #E4572E;
+  --brand: #5D4037;
+  --accent: #C62828;
   --mint: #CDEFE3;
   --sky: #DCEEFB;
   --radius: 16px;
@@ -27,25 +27,32 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", sans-serif;
+  font-family: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent;
   min-height: 100vh;
 }
 button { font: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #F2A900; outline-offset: 2px; }
-#app { max-width: 600px; margin: 0 auto; padding: 0 12px calc(16px + env(safe-area-inset-bottom)); }
+#app { max-width: 444px; margin: 0 auto; padding: 0 12px calc(16px + env(safe-area-inset-bottom)); }
 .top { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
-.top a { color: var(--sub); text-decoration: none; font-size: 13px; white-space: nowrap; }
-.top h1 { flex: 1; margin: 0; font-size: 17px; text-align: center; letter-spacing: -0.3px; }
+.top a { color: var(--sub); text-decoration: none; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.top h1 { flex: 1; margin: 0; font-size: 18px; font-weight: 900; text-align: center; letter-spacing: -0.3px; word-break: keep-all; }
 .icon-btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; width: 38px; height: 38px; font-size: 17px; }
 [hidden] { display: none !important; }
 
 /* ---------- 설정 ---------- */
 .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
-.hero { text-align: center; padding: 18px 16px; background: linear-gradient(160deg, #DCEEFB 0%, #F9E2EC 55%, #FFF1D6 100%); }
+.hero { text-align: center; padding: 18px 16px; background: linear-gradient(160deg, #FFF1D6 0%, #FBE3D6 100%); }
+.info-chips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.info-chips span { font-size: 12px; font-weight: 700; color: var(--brand); background: rgba(255,255,255,0.75); border-radius: 999px; padding: 3px 10px; }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper b { min-width: 34px; text-align: center; font-size: 15px; }
+.stepper button { width: 32px; height: 32px; border: 0; border-radius: 8px; background: #EFEBE9; color: var(--brand); font-size: 18px; font-weight: 800; }
+.stepper button:disabled { opacity: 0.35; cursor: default; }
+.hint { color: #999; font-size: 12px; margin: 8px 0 0; }
+.rules { margin: 0; padding-left: 18px; font-size: 13px; color: #555; line-height: 1.7; }
 .hero .big { font-size: 44px; line-height: 1; }
-.hero h2 { margin: 8px 0 4px; font-size: 21px; }
-.hero p { margin: 0; color: #6E625C; font-size: 14px; line-height: 1.5; }
+.hero p { margin: 10px 0 6px; color: var(--brand); font-weight: 700; font-size: 14px; line-height: 1.5; word-break: keep-all; }
 .label { font-weight: 800; font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
 .label small { font-weight: 400; color: var(--sub); font-size: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -62,7 +69,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .radio-row label { flex: 1; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
 .radio-row label:has(input:checked) { border-color: var(--brand); background: #F7EFE8; }
 select { width: 100%; margin-top: 10px; padding: 10px; border-radius: 12px; border: 1.5px solid var(--line); font: inherit; font-size: 15px; background: #fff; color: var(--ink); }
-.primary { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-size: 19px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #E4572E, #F2A900); box-shadow: 0 8px 18px rgba(228, 87, 46, 0.3); }
+.primary { display: block; width: 100%; border: 0; border-radius: 10px; padding: 16px; font-size: 16px; font-weight: 800; color: #fff; background: var(--accent); text-align: center; text-decoration: none; }
 .primary:active { transform: translateY(1px); }
 details { font-size: 13px; color: #5E5450; line-height: 1.7; }
 details summary { font-weight: 800; font-size: 14px; cursor: pointer; color: var(--ink); }
@@ -91,22 +98,27 @@ details ul { padding-left: 18px; margin: 8px 0 0; }
 .ticker { list-style: none; margin: 6px 0 0; padding: 8px 10px; background: #fff; border-radius: 12px; min-height: 76px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .ticker li { font-size: 13px; line-height: 1.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
 .ticker li:first-child { color: var(--ink); font-weight: 700; font-size: 14px; }
-.race-tools { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
-.race-tools button { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 10px; font-size: 12px; color: var(--sub); }
+.race-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.race-tools button { border: 1px solid #ddd; background: #fff; border-radius: 8px; padding: 7px 10px; font-size: 12px; font-weight: 700; color: #333; }
+.race-tools button[aria-pressed="true"] { background: var(--ink); color: #FFD166; border-color: var(--ink); }
 
 /* ---------- 결과 ---------- */
-.result-head { text-align: center; padding: 22px 14px; background: linear-gradient(160deg, #FFE1D6, #FFF1D6); }
+.result-head { text-align: center; padding: 22px 14px; background: radial-gradient(circle, rgba(120,20,20,0.88), rgba(0,0,0,0.93)); color: #fff; }
+.result-head .win { color: #FFD166; font-size: 24px; font-weight: 900; }
 .result-head .cup { font-size: 64px; display: inline-block; animation: wobble 1s ease-in-out infinite; }
 @keyframes wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
-.result-head h2 { margin: 6px 0 4px; font-size: 22px; line-height: 1.35; word-break: keep-all; }
-.result-head p { margin: 0; color: #7A6A62; font-size: 13px; }
+.result-head h2 { margin: 2px 0 4px; font-size: 20px; line-height: 1.35; word-break: keep-all; }
+.result-head h2 em { font-style: normal; color: #FFD166; }
+.result-head p { margin: 0; color: #ddd; font-size: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 9px 6px; border-bottom: 1px solid var(--line); text-align: left; }
 th { font-size: 12px; color: var(--sub); font-weight: 700; }
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.loser td { background: #FFEDE6; font-weight: 800; }
 .btn-col { display: grid; gap: 8px; }
-.btn2 { border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 13px; font-weight: 800; font-size: 15px; color: var(--ink); }
+.btn-row { display: flex; gap: 8px; }
+.btn-row > * { flex: 1; font-size: 13px; background: var(--brand); }
+.btn2 { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 14px; color: var(--ink); }
 .shake { animation: shake 0.5s linear; }
 @keyframes shake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-8px,4px); } 40% { transform: translate(7px,-5px); } 60% { transform: translate(-6px,-3px); } 80% { transform: translate(5px,4px); } }
 #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
@@ -132,7 +144,7 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
 <body>
 <div id="app">
   <header class="top">
-    <a href="/coffee-bet">← 커피내기</a>
+    <a href="/coffee-bet">← 게임 목록</a>
     <h1>⛰️ 커피내기 산악 레이스</h1>
     <button class="icon-btn" id="bgmBtn" type="button" aria-label="배경음악 끄기">🎵</button>
     <button class="icon-btn" id="muteBtn" type="button" aria-label="효과음 끄기">🔊</button>
@@ -141,27 +153,26 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
   <!-- 설정 화면 -->
   <section id="setup">
     <div class="card hero">
-      <div class="big" aria-hidden="true">🧗☕</div>
-      <h2>정상에 꼴찌로 도착하면 커피!</h2>
-      <p>랜덤 산에서 최대 10명이 자동으로 등반해요.<br>낙석·호랑이·<b>신의 손</b>까지, 순위는 끝까지 몰라요. 한 판 약 50초!</p>
+      <div class="big" aria-hidden="true">⛰️☕</div>
+      <p>랜덤 산을 오르는 등반 레이스! 신의 손·낙석·호랑이 추격, 꼴찌로 정상에 오른 사람이 커피</p>
+      <div class="info-chips"><span>👥 2~10명</span><span>⏱ 약 50초</span></div>
     </div>
 
     <div class="card">
-      <p class="label">👥 참가 인원 <small id="countLabel"></small></p>
-      <div class="chips" id="countChips" role="group" aria-label="참가 인원"></div>
-    </div>
-
-    <div class="card">
-      <p class="label">✏️ 이름 <small>최대 8자 · 비우면 랜덤 별명</small></p>
-      <div class="names" id="names"></div>
-      <div class="row-btns">
-        <button class="ghost" id="fillBtn" type="button">🎲 랜덤 이름 채우기</button>
-        <button class="ghost" id="clearBtn" type="button">🧹 모두 지우기</button>
+      <div class="label">👥 참가자
+        <div class="stepper">
+          <button type="button" id="minusBtn" aria-label="인원 줄이기">−</button>
+          <b id="countLabel"></b>
+          <button type="button" id="plusBtn" aria-label="인원 늘리기">+</button>
+        </div>
       </div>
+      <div class="names" id="names"></div>
+      <p class="hint">2~10명 · 5개 게임이 같은 명단을 써요 · 이름을 비우면 랜덤 별명이 붙어요.</p>
     </div>
 
     <div class="card">
-      <p class="label">🏔️ 산 선택</p>
+      <p class="label">⚙️ 게임 옵션</p>
+      <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:var(--brand)">🏔️ 산 선택</p>
       <div class="radio-row">
         <label><input type="radio" name="mmode" value="random" checked> 🎰 랜덤</label>
         <label><input type="radio" name="mmode" value="pick"> 👆 직접 선택</label>
@@ -169,10 +180,15 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
       <select id="mountainSel" aria-label="산 선택" hidden></select>
     </div>
 
-    <button class="primary" id="startBtn" type="button">🧗 등산 시작!</button>
-
-    <div class="card" style="margin-top:12px">
-      <details>
+    <div class="card">
+      <p class="label">📜 게임 규칙</p>
+      <ul class="rules">
+        <li>전원 자동 등반! 정상에 꼴찌로 도착한 사람이 커피</li>
+        <li>불운은 앞서갈수록, 행운은 뒤처질수록 잘 걸려요</li>
+        <li>✋ 신의 손 · 💀 저승사자 · ⛰️ 산사태 · 🚁 헬기로 막판 역전</li>
+        <li>결과 화면에서 전원 도착 기록 공개</li>
+      </ul>
+      <details style="margin-top:8px">
         <summary>📖 이벤트 도감</summary>
         <ul>
           <li><b>불운</b>: 🍌 바나나 · 🪨 낙석 · 🌫️ 안개 · 🐗 멧돼지 · 📱 인증샷 · 🥾 신발끈 · 🍜 컵라면 · 🐿️ 다람쥐 — 앞서갈수록 잘 걸려요</li>
@@ -183,10 +199,17 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
         </ul>
       </details>
     </div>
+
+    <button class="primary" id="startBtn" type="button">▶ 게임 시작</button>
   </section>
 
   <!-- 레이스 화면 -->
   <section id="race" hidden>
+    <div class="race-tools">
+      <button type="button" id="quitBtn">← 설정</button>
+      <button type="button" id="fastBtn" aria-pressed="false">⏩ 2배속</button>
+      <button type="button" id="skipBtn">⏭ 결과 바로보기</button>
+    </div>
     <div class="hud">
       <div class="clock"><span id="clock">0.0초</span><small id="zone">출발 전</small></div>
       <div class="ranks" id="ranks" aria-label="실시간 순위"></div>
@@ -197,16 +220,13 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
       <div class="banner" id="banner" hidden></div>
     </div>
     <ul class="ticker" id="ticker" aria-live="polite" aria-label="중계"></ul>
-    <div class="race-tools">
-      <button type="button" id="fastBtn" hidden>⏩ 4배속</button>
-      <button type="button" id="quitBtn">✖ 그만하기</button>
-    </div>
   </section>
 
   <!-- 결과 화면 -->
   <section id="result" hidden>
     <div class="card result-head">
       <div class="cup" aria-hidden="true">☕</div>
+      <div class="win">커피 당첨!</div>
       <h2 id="loserTitle"></h2>
       <p id="resultMeta"></p>
     </div>
@@ -217,9 +237,12 @@ tr.loser td { background: #FFEDE6; font-weight: 800; }
       </table>
     </div>
     <div class="btn-col">
-      <button class="primary" id="againBtn" type="button">🔁 같은 멤버로 다시 하기</button>
+      <button class="primary" id="againBtn" type="button">🔁 다시하기</button>
+      <div class="btn-row">
+        <button class="primary" id="homeBtn" type="button">✏️ 참가자 수정</button>
+        <a class="primary" href="/coffee-bet">🎮 다른 게임</a>
+      </div>
       <button class="btn2" id="copyBtn" type="button">📋 결과 텍스트 복사</button>
-      <button class="btn2" id="homeBtn" type="button">🏠 처음으로</button>
     </div>
   </section>
 
@@ -647,7 +670,8 @@ function aggregate(list, n) {
   const DEBUG = params.get('debug') === '1';
   const urlSeed = params.has('seed') ? (parseInt(params.get('seed'), 10) >>> 0) : null;
   const STORE_KEY = 'coffeeMountainRace';
-  const LEGACY_KEY = 'coffeeBetPlayers'; // 기존 커피내기 게임과 명단 공유
+  const SHARED_KEY = 'coffeeBetPlayers'; // 커피내기 5종 공용 명단 (React 게임들과 같은 키)
+  const MUTED_KEY = 'coffeeBetMuted';    // 커피내기 5종 공용 소리 설정
   const MAX_NAME = 8;
   const COLORS = ['#E4572E', '#3B82F6', '#16A34A', '#D97706', '#9B5DE5', '#EC4899', '#0E9F9A', '#8B5E3C', '#64748B', '#65A30D'];
   const NICKS = ['산신령', '다람쥐', '곰돌이', '등산왕', '막걸리러버', '깔딱고개장인', '백패커', '컵라면', '청설모', '삼각김밥',
@@ -666,16 +690,23 @@ function aggregate(list, n) {
       if (s.mountain >= 0 && s.mountain < MOUNTAINS.length) settings.mountain = s.mountain | 0;
       settings.muted = !!s.muted;
       if (s.bgm === false) settings.bgm = false;
-    } else {
-      const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY));
-      if (Array.isArray(legacy) && legacy.length >= 2) {
-        settings.n = Math.min(10, legacy.length);
-        legacy.slice(0, 10).forEach((v, i) => { settings.names[i] = clip(String(v || '')); });
-      }
     }
+    // 명단·소리는 다른 커피내기 게임과 공유하므로 공용 키가 우선
+    const shared = JSON.parse(localStorage.getItem(SHARED_KEY));
+    if (Array.isArray(shared) && shared.length >= 2) {
+      settings.n = Math.min(10, shared.length);
+      settings.names = Array(10).fill('');
+      shared.slice(0, 10).forEach((v, i) => { settings.names[i] = clip(String(v || '')); });
+    }
+    const m = JSON.parse(localStorage.getItem(MUTED_KEY));
+    if (typeof m === 'boolean') settings.muted = m;
   } catch (e) { /* 저장소 접근 불가 → 기본값 */ }
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(settings));
+      localStorage.setItem(SHARED_KEY, JSON.stringify(settings.names.slice(0, settings.n)));
+      localStorage.setItem(MUTED_KEY, JSON.stringify(settings.muted));
+    } catch (e) { /* ignore */ }
   }
   function clip(s) { return Array.from(s.trim()).slice(0, MAX_NAME).join(''); }
   const fmtH = (h) => h.toLocaleString('ko-KR');
@@ -907,21 +938,19 @@ function aggregate(list, n) {
   }
 
   // ---------- 설정 화면 ----------
-  function renderCount() {
-    const box = $('countChips');
-    box.textContent = '';
-    for (let k = 2; k <= 10; k++) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.textContent = String(k);
-      b.setAttribute('aria-pressed', String(settings.n === k));
-      b.setAttribute('aria-label', `${k}명`);
-      b.onclick = () => { settings.n = k; save(); renderCount(); renderNames(); };
-      box.appendChild(b);
-    }
-    $('countLabel').textContent = `${settings.n}명 · 꼴찌 확률 각 ${(100 / settings.n).toFixed(1)}%`;
+  function setCount(k) {
+    settings.n = Math.max(2, Math.min(10, k));
+    save();
+    renderCount();
+    renderNames();
   }
+  function renderCount() {
+    $('countLabel').textContent = `${settings.n}명`;
+    $('minusBtn').disabled = settings.n <= 2;
+    $('plusBtn').disabled = settings.n >= 10;
+  }
+  $('minusBtn').onclick = () => setCount(settings.n - 1);
+  $('plusBtn').onclick = () => setCount(settings.n + 1);
   function renderNames() {
     const box = $('names');
     box.textContent = '';
@@ -949,17 +978,6 @@ function aggregate(list, n) {
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     return pool.slice(0, count);
   }
-  $('fillBtn').onclick = () => {
-    // 빈칸만 채우고, 빈칸이 없으면 전원 새 별명으로
-    const idx = [];
-    for (let i = 0; i < settings.n; i++) if (!settings.names[i]) idx.push(i);
-    const targets = idx.length ? idx : [...Array(settings.n).keys()];
-    const keep = settings.names.slice(0, settings.n).filter((_, i) => !targets.includes(i));
-    uniqueNicks(keep, targets.length).forEach((nick, k) => { settings.names[targets[k]] = nick; });
-    save();
-    renderNames();
-  };
-  $('clearBtn').onclick = () => { settings.names = Array(10).fill(''); save(); renderNames(); };
 
   const sel = $('mountainSel');
   MOUNTAINS.forEach((m, i) => {
@@ -1021,7 +1039,7 @@ function aggregate(list, n) {
   function fit() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     const avail = stage.parentElement.clientWidth || 360;
-    const reserve = 250; // 헤더·HUD·중계창
+    const reserve = 290; // 헤더·툴바·HUD·중계창
     const w = Math.max(280, Math.min(avail, (window.innerHeight - reserve) * (W / H)));
     stage.style.width = `${w}px`;
     stage.style.height = `${w * (H / W)}px`;
@@ -1387,8 +1405,7 @@ function aggregate(list, n) {
     $('ranks').textContent = '';
     $('banner').hidden = true;
     $('slot').hidden = false;
-    $('fastBtn').hidden = !DEBUG;
-    $('fastBtn').textContent = '⏩ 4배속';
+    renderFast();
     $('clock').textContent = '0.0초';
     $('zone').textContent = '산 추첨 중';
     cancelAnimationFrame(raf);
@@ -2321,7 +2338,9 @@ function aggregate(list, n) {
     G = null;
     show('result');
     const loserId = race.order[race.n - 1];
-    $('loserTitle').textContent = `☕ 오늘의 커피 당번은 ${g.names[loserId]}님!`;
+    const em = document.createElement('em');
+    em.textContent = g.names[loserId];
+    $('loserTitle').replaceChildren(em, '님이 쏩니다!');
     $('resultMeta').textContent = `${race.M.name} ${fmtH(race.M.h)}m · ${race.n}명 · 판 번호 #${g.seed}`;
     const body = $('resultBody');
     body.textContent = '';
@@ -2417,10 +2436,22 @@ function aggregate(list, n) {
   $('againBtn').onclick = startGame;
   $('homeBtn').onclick = () => { bgmStop(0.2); show('setup'); };
   $('quitBtn').onclick = () => { cancelAnimationFrame(raf); G = null; bgmStop(0.3); show('setup'); };
+  function renderFast() {
+    const on = !!G && G.fast > 1;
+    $('fastBtn').textContent = on ? '⏩ 2배속 ON' : '⏩ 2배속';
+    $('fastBtn').setAttribute('aria-pressed', String(on));
+  }
   $('fastBtn').onclick = () => {
     if (!G) return;
-    G.fast = G.fast === 1 ? 4 : 1;
-    $('fastBtn').textContent = G.fast === 1 ? '⏩ 4배속' : '▶ 1배속';
+    G.fast = G.fast === 1 ? (DEBUG ? 4 : 2) : 1;
+    renderFast();
+  };
+  // 남은 레이스를 연출 없이 끝까지 계산하고 결과로 이동
+  $('skipBtn').onclick = () => {
+    if (!G) return;
+    const race = G.race;
+    for (let k = 0; k < 100000 && !race.done; k++) { race.step(); race.events.length = 0; }
+    showResult();
   };
 
   if (DEBUG) {

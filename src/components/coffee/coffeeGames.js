@@ -1,19 +1,23 @@
 // 점심 커피내기 미니게임 3종 - 게임 로직 & 캔버스 드로잉
-// 각 게임은 create*(players, env) => { update(dt), draw(ctx, t) } 형태
-// env: { particles, shake, slow, sfx, banner(text), finish(loserIndex) }
+// 각 게임은 create*(players, env, opts) => { update(dt), draw(ctx, t), standings() } 형태
+// env: { particles, shake, slow, sfx, banner(text), log(text), finish(rows) }
+// finish(rows): [{ idx, detail }] 순위순, 마지막 행이 커피 당첨자
 
 export const W = 400;
 export const H = 560;
 
+// color는 순위표 점 색상 (최대 10명이라 10종 모두 다름)
 export const CHARACTERS = [
-  { name: '옐로하이브리드', body: '#FFD93D', hanbok: '#4D96FF', accent: '#FF5D8F', hat: 'gat' },
-  { name: '불댕이', body: '#FF7B39', hanbok: '#2EC4B6', accent: '#FFD166', ear: 'dog', earColor: '#C8501A', hat: 'gat', flame: true },
-  { name: '감자선비', body: '#D9A86C', hanbok: '#F1FAEE', accent: '#3A86FF', hat: 'gat' },
-  { name: '토끼낭자', body: '#FFF3F8', hanbok: '#FF5D8F', accent: '#FFD166', ear: 'rabbit', hat: 'crown' },
-  { name: '펭도령', body: '#2B3A55', hanbok: '#E9C46A', accent: '#E63946', belly: true, hat: 'gat' },
-  { name: '곰포졸', body: '#8B5E3C', hanbok: '#E63946', accent: '#264653', ear: 'bear', hat: 'jeonrip' },
-  { name: '냥이아씨', body: '#F4A261', hanbok: '#9B5DE5', accent: '#FFD166', ear: 'cat', hat: 'crown' },
-  { name: '개구리어사', body: '#7BD389', hanbok: '#3A86FF', accent: '#E63946', ear: 'frog', hat: 'gat' },
+  { name: '옐로하이브리드', body: '#FFD93D', hanbok: '#4D96FF', accent: '#FF5D8F', hat: 'gat', color: '#E9B200' },
+  { name: '불댕이', body: '#FF7B39', hanbok: '#2EC4B6', accent: '#FFD166', ear: 'dog', earColor: '#C8501A', hat: 'gat', flame: true, color: '#FF7B39' },
+  { name: '감자선비', body: '#D9A86C', hanbok: '#F1FAEE', accent: '#3A86FF', hat: 'gat', color: '#A97B45' },
+  { name: '토끼낭자', body: '#FFF3F8', hanbok: '#FF5D8F', accent: '#FFD166', ear: 'rabbit', hat: 'crown', color: '#FF5D8F' },
+  { name: '펭도령', body: '#2B3A55', hanbok: '#E9C46A', accent: '#E63946', belly: true, hat: 'gat', color: '#2B3A55' },
+  { name: '곰포졸', body: '#8B5E3C', hanbok: '#E63946', accent: '#264653', ear: 'bear', hat: 'jeonrip', color: '#6B4226' },
+  { name: '냥이아씨', body: '#F4A261', hanbok: '#9B5DE5', accent: '#FFD166', ear: 'cat', hat: 'crown', color: '#9B5DE5' },
+  { name: '개구리어사', body: '#7BD389', hanbok: '#3A86FF', accent: '#E63946', ear: 'frog', hat: 'gat', color: '#3FA34D' },
+  { name: '판다무관', body: '#F4F4F4', hanbok: '#264653', accent: '#E63946', ear: 'bear', hat: 'jeonrip', color: '#264653' },
+  { name: '여우공주', body: '#E76F51', hanbok: '#FFE5EC', accent: '#3A86FF', ear: 'cat', hat: 'crown', color: '#C0392B' },
 ];
 
 export const rand = (a, b) => a + Math.random() * (b - a);
@@ -352,6 +356,7 @@ export function drawName(ctx, name, x, y, highlight = false) {
 // --- Game 1: 시한폭탄 패스 ---
 
 export const BOMB_TIMES = [30, 60];
+export const timeLabel = (sec) => (sec >= 60 ? `${sec / 60}분` : `${sec}초`);
 
 export function createBombGame(players, env, opts = {}) {
   const n = players.length;
@@ -366,6 +371,9 @@ export function createBombGame(players, env, opts = {}) {
   let time = 0, holder = Math.floor(Math.random() * n), target = null;
   let flightT = 0, flightDur = 0, wait = 0, tickAcc = 0;
   let exploded = false, loser = -1, endT = 0, finished = false;
+  const held = players.map((_, i) => (i === holder ? 1 : 0)); // 폭탄 받은 횟수
+  const alerts = [10, 5].filter((s) => s < fuse);
+  env.log(`💣 ${timeLabel(fuse)} 시한폭탄 점화! ${players[holder].name}부터 시작`);
 
   // 남은 시간에 비례해 패스 간격이 지수적으로 짧아짐 (30초·1분 모두 끝으로 갈수록 정신없게)
   const interval = () => Math.max(0.13, 1.1 * Math.pow(0.12, Math.min(1, time / fuse)));
@@ -384,7 +392,7 @@ export function createBombGame(players, env, opts = {}) {
       if (!exploded) {
         if (target !== null) {
           flightT += dt;
-          if (flightT >= flightDur) { holder = target; target = null; wait = 0; }
+          if (flightT >= flightDur) { holder = target; target = null; wait = 0; held[holder]++; }
         } else {
           wait += dt;
           if (wait >= interval()) {
@@ -397,6 +405,7 @@ export function createBombGame(players, env, opts = {}) {
           }
         }
         const remain = fuse - time;
+        if (alerts.length && remain <= alerts[0]) env.log(`⏱ ${alerts.shift()}초 남음! 현재 ${players[holder].name} 손에 폭탄`);
         tickAcc += dt;
         if (tickAcc >= (remain < 5 ? 0.12 : remain < 12 ? 0.3 : 0.5)) { tickAcc = 0; env.sfx.tick(); }
         const b = bombPos();
@@ -412,11 +421,31 @@ export function createBombGame(players, env, opts = {}) {
           env.shake = 28;
           env.sfx.explosion();
           env.banner('💥 펑!!');
+          env.log(`💥 펑!! ${players[loser].name} 손에서 폭발 → 커피 당첨 (폭탄 ${held[loser]}번 받음)`);
         }
       } else if (!finished) {
         endT += dt;
-        if (endT > 1.8) { finished = true; env.finish(loser); }
+        if (endT > 1.8) {
+          finished = true;
+          // 폭탄을 덜 만진 사람이 상위
+          const rest = players.map((_, i) => i).filter((i) => i !== loser).sort((a, b) => held[a] - held[b]);
+          env.finish([
+            ...rest.map((i) => ({ idx: i, detail: `폭탄 ${held[i]}번 받음` })),
+            { idx: loser, detail: `💥 폭발 (폭탄 ${held[loser]}번 받음)` },
+          ]);
+        }
       }
+    },
+
+    standings() {
+      const cur = exploded ? loser : target ?? holder;
+      return players.map((_, i) => i)
+        .sort((a, b) => (a === cur) - (b === cur) || held[a] - held[b])
+        .map((i) => ({
+          idx: i,
+          text: i === cur ? (exploded ? '💥 폭발!' : '💣 폭탄 보유!') : `${held[i]}번 받음`,
+          done: exploded && i !== loser,
+        }));
     },
 
     draw(ctx, t) {
@@ -571,7 +600,7 @@ export function createLadderGame(players, env) {
     update(dt) {
       timer += dt;
       if (phase === 'intro') {
-        if (timer > 1.2) { phase = 'run'; timer = 0; env.banner(`${players[order[0]].name} 출발!`); }
+        if (timer > 1.2) { phase = 'run'; timer = 0; env.banner(`${players[order[0]].name} 출발!`); env.log(`🪜 ${players[order[0]].name} 출발!`); }
       } else if (phase === 'run') {
         const path = paths[order[k]];
         const pos = pointAt(path, dist);
@@ -590,7 +619,9 @@ export function createLadderGame(players, env) {
             env.shake = 18;
             burst(env, xs[slot], bottom + 40, 90, { colors: ['#6F4E37', '#A67B5B', '#3E2723', '#fff'], speed: [60, 300], life: 1.2, size: [2, 6], gravity: 200 });
             env.banner('☕ 커피 당첨...');
+            env.log(`☕ ${players[loser].name} ${slot + 1}번 칸 도착… 커피 당첨!`);
           } else {
+            env.log(`✅ ${players[order[k]].name} ${slot + 1}번 칸 도착, 안전!`);
             env.sfx.ding();
             burst(env, xs[slot], bottom + 40, 20, { colors: ['#2EC4B6', '#FFD166', '#fff'], speed: [40, 150], life: 0.6, size: [2, 4] });
             phase = 'gap';
@@ -598,11 +629,26 @@ export function createLadderGame(players, env) {
           }
         }
       } else if (phase === 'gap') {
-        if (timer > 0.6) { k++; dist = 0; phase = 'run'; timer = 0; env.banner(`${players[order[k]].name} 출발!`); }
+        if (timer > 0.6) { k++; dist = 0; phase = 'run'; timer = 0; env.banner(`${players[order[k]].name} 출발!`); env.log(`🪜 ${players[order[k]].name} 출발!`); }
       } else if (phase === 'done' && !finished && timer > 2) {
         finished = true;
-        env.finish(loser);
+        // 먼저 안전하게 도착한 순 → 사다리를 타지 않고 면제된 사람 → 당첨자
+        const ran = order.slice(0, k).map((i) => ({ idx: i, detail: `${paths[i].end + 1}번 칸 안전` }));
+        const skipped = order.slice(k + 1).map((i) => ({ idx: i, detail: '타기 전 면제' }));
+        env.finish([...ran, ...skipped, { idx: loser, detail: `☕ ${loserSlot + 1}번 칸 당첨` }]);
       }
+    },
+
+    standings() {
+      const arrived = phase === 'intro' ? 0 : k + (phase === 'run' ? 0 : 1);
+      return order.map((i, j) => {
+        if (j < arrived) {
+          const bad = i === loser;
+          return { idx: i, text: bad ? '☕ 커피 당첨' : `✅ ${paths[i].end + 1}번 칸 안전`, done: !bad };
+        }
+        if (j === k && phase === 'run') return { idx: i, text: '🏃 내려가는 중', done: false };
+        return { idx: i, text: phase === 'done' ? '면제' : '⏳ 대기', done: phase === 'done' };
+      });
     },
 
     draw(ctx, t) {
@@ -717,7 +763,8 @@ export function createLadderGame(players, env) {
           drawChar(ctx, end.x, end.y - 16, 12, p.ch, expr, t, i);
         } else {
           drawChar(ctx, xs[i], top - 46, 13, p.ch, 'idle', t, i);
-          drawName(ctx, p.name, xs[i], top - 14);
+          // 인원이 많으면 이름표를 위아래로 엇갈려 겹침 방지
+          drawName(ctx, p.name, xs[i], top - 14 + (n > 6 && i % 2 ? 16 : 0));
         }
       });
     },
@@ -740,6 +787,8 @@ export function createBridgeGame(players, env) {
   }));
   const grain = Array.from({ length: 9 }, () => ({ f: rand(-0.9, 0.9), a: rand(0, 0.5), b: rand(0.5, 1) }));
   let time = 0, evT = 0, slowOn = false, loser = -1, endT = 0, finished = false;
+  const fallOrder = []; // 물에 빠진 순서
+  env.log(`🌊 ${n}명 외나무다리 입장! 마지막에 빠지는 사람이 커피`);
 
   const randomEvent = (alive) => {
     if (halfTarget > R * 1.7 && Math.random() < 0.5) {
@@ -747,17 +796,20 @@ export function createBridgeGame(players, env) {
       env.shake = 8;
       env.sfx.crack();
       env.banner('🪵 다리가 좁아진다!');
+      env.log('🪵 우지끈! 다리가 좁아졌다');
     } else if (Math.random() < 0.5) {
       const dir = Math.random() < 0.5 ? -1 : 1;
       alive.forEach((b) => { b.vy += dir * rand(120, 220); });
       env.sfx.whoosh();
       env.banner('🌪️ 돌풍!');
+      env.log('🌪️ 돌풍이 다리를 휩쓴다!');
     } else {
       const b = pick(alive);
       b.vy += (Math.random() < 0.5 ? -1 : 1) * rand(260, 380);
       burst(env, b.x, b.y, 25, { colors: ['#9AD0F5', '#fff', '#4FC3F7'], speed: [60, 200], life: 0.6, size: [2, 4], gravity: 300 });
       env.sfx.splash();
       env.banner(`🐟 잉어 습격! → ${players[b.i].name}`);
+      env.log(`🐟 잉어가 ${players[b.i].name}에게 박치기!`);
     }
   };
 
@@ -773,6 +825,7 @@ export function createBridgeGame(players, env) {
           slowOn = true;
           env.slow = 0.45;
           env.banner('⚔️ 최후의 결투! 슬로모션');
+          env.log(`⚔️ 최후의 결투: ${alive.map((b) => players[b.i].name).join(' vs ')}`);
         }
       }
       half += (halfTarget - half) * Math.min(1, dt * 3);
@@ -823,10 +876,12 @@ export function createBridgeGame(players, env) {
 
       const fell = [];
       for (const b of alive) {
-        if (Math.abs(b.y - cy) > half + R * 0.2) {
+        // 승부가 난 뒤에는 생존자가 미끄러져도 빠지지 않음
+        if (loser < 0 && Math.abs(b.y - cy) > half + R * 0.2) {
           b.alive = false;
           b.fallT = 0;
           fell.push(b);
+          fallOrder.push(b.i);
           burst(env, b.x, b.y, 40, { colors: ['#9AD0F5', '#fff', '#4FC3F7', '#1E88E5'], speed: [60, 260], life: 0.9, size: [2, 5], gravity: 400, angle: [Math.PI, Math.PI * 2] });
           env.sfx.splash();
         }
@@ -840,13 +895,35 @@ export function createBridgeGame(players, env) {
           env.shake = 16;
           burst(env, last.x, last.y, 120, { colors: ['#9AD0F5', '#fff', '#4FC3F7', '#1E88E5'], speed: [100, 380], life: 1.4, size: [2, 6], gravity: 400, angle: [Math.PI, Math.PI * 2] });
           env.banner(`💦 ${players[loser].name} 풍덩!`);
+          env.log(`☕ ${players[loser].name} 결투에서 풍덩! 커피 당첨`);
+        } else {
+          fell.forEach((b) => env.log(`💦 ${players[b.i].name} 풍덩! (${fallOrder.indexOf(b.i) + 1}번째 · 커피 면제)`));
         }
       }
       for (const b of bodies) if (!b.alive) b.fallT += dt;
       if (loser >= 0 && !finished) {
         endT += dt;
-        if (endT > 1.2) { finished = true; env.slow = 1; env.finish(loser); }
+        if (endT > 1.2) {
+          finished = true;
+          env.slow = 1;
+          // 끝까지 버틴 사람 → 늦게 빠진 순 → 결투 패배자
+          const order = [...bodies.filter((b) => b.alive).map((b) => b.i), ...fallOrder.filter((i) => i !== loser).reverse()];
+          env.finish([
+            ...order.map((i, k) => ({ idx: i, detail: k === 0 ? '🏆 최후의 생존자' : `${fallOrder.indexOf(i) + 1}번째로 풍덩` })),
+            { idx: loser, detail: '⚔️ 결투 패배 풍덩' },
+          ]);
+        }
       }
+    },
+
+    standings() {
+      const alive = bodies.filter((b) => b.alive).map((b) => b.i);
+      return [
+        ...alive.map((i) => ({ idx: i, text: loser >= 0 ? '🏆 생존' : '🪵 버티는 중', done: loser >= 0 })),
+        ...[...fallOrder].reverse().map((i) => ({
+          idx: i, text: i === loser ? '☕ 결투 패배' : '💦 풍덩 (면제)', done: i !== loser,
+        })),
+      ];
     },
 
     draw(ctx, t) {
@@ -927,22 +1004,3 @@ export function createBridgeGame(players, env) {
     },
   };
 }
-
-export const GAMES = {
-  bomb: {
-    title: '💣 시한폭탄 패스',
-    desc: '폭탄이 점점 빨라진다! 터지는 순간 들고 있는 사람이 커피',
-    create: createBombGame,
-    times: BOMB_TIMES,
-  },
-  ladder: {
-    title: '🪜 조선 사다리 타기',
-    desc: '안개 속 사다리, 단 한 칸만 커피 당첨!',
-    create: createLadderGame,
-  },
-  bridge: {
-    title: '🌊 외나무다리 밀치기',
-    desc: '밀고 밀리는 배틀로얄! 최후의 결투에서 빠지는 사람이 커피',
-    create: createBridgeGame,
-  },
-};
