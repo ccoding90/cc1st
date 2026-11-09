@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { COFFEE_GAMES } from './coffee/games';
 
 const GameHub = () => {
   return (
@@ -13,7 +14,7 @@ const GameHub = () => {
           🏹 쓰리조 (Three Jo) 챌린지
         </Link>
         <Link to="/coffee-bet" style={gameButtonStyle}>
-          ☕ 점심 커피내기 랜덤 게임 3종
+          ☕ 점심 커피내기 랜덤 게임 {Object.keys(COFFEE_GAMES).length}종
         </Link>
       </div>
     </div>
