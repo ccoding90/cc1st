@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
-import { W, H, FONT, createGame, weaponLabel, POWERUPS, HELP_SEC, HELP_USES } from './threejo/engine';
+import { W, H, FONT, createGame, weaponLabel, POWERUPS, HELP_SEC, HELP_USES, STAGE_COUNT } from './threejo/engine';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const MUTED_KEY = 'threejoMuted';
@@ -22,7 +22,14 @@ function usePixelFont() {
   }, []);
 }
 
-const STAGE_NAMES = ['1탄 캐슬조', '2탄 제로조', '3탄 조철왕'];
+const STAGE_NAMES = ['1탄 캐슬조', '2탄 제로조', '3탄 킬러조', '4탄 조철왕'];
+const KILLER_EMOJI = { 조철왕: '👑', 킬러조: '🚗' };
+const BLESS_TAPS = 3;       // 숨은 '도움' 버튼 연속 클릭 횟수
+const BLESS_GAP_MS = 700;   // 이 간격 안에 눌러야 '연속'으로 인정
+
+// 브라우저 Fullscreen API (사파리 webkit 접두사 대응)
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const fsSupported = () => typeof document !== 'undefined' && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 
 function loadMuted() {
   try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (e) { return false; }
@@ -49,7 +56,10 @@ const ThreeJoGame = () => {
   const [isMuted, setIsMuted] = useState(loadMuted);
   const [plays, setPlays] = useState(loadPlays);
   const [help, setHelp] = useState({ auto: false, left: HELP_USES });
+  const [isFs, setIsFs] = useState(false);
+  const [canFs] = useState(fsSupported);
   const stageRef = useRef(null);
+  const blessTapRef = useRef({ n: 0, last: 0 });
   const helpUnlocked = plays >= HELP_UNLOCK;
   usePixelFont();
 
@@ -69,6 +79,37 @@ const ThreeJoGame = () => {
   };
 
   useEffect(() => { loadHighScores(); }, []);
+
+  // 전체화면 상태 동기화 (Esc로 빠져나와도 반영)
+  useEffect(() => {
+    const sync = () => setIsFs(!!fsElement());
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = stageRef.current;
+    if (!el) return;
+    const req = fsElement()
+      ? (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)
+      : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+    req?.catch?.(() => {});
+  };
+
+  // 숨은 '도움' 버튼: 연속 3번 클릭 → 개발자의 가호
+  const tapBless = () => {
+    const now = performance.now(), tap = blessTapRef.current;
+    tap.n = now - tap.last < BLESS_GAP_MS ? tap.n + 1 : 1;
+    tap.last = now;
+    if (tap.n >= BLESS_TAPS) {
+      tap.n = 0;
+      gameRef.current?.blessing();
+    }
+  };
 
   const startGame = () => {
     unlockAudio();
@@ -102,6 +143,10 @@ const ThreeJoGame = () => {
         if (!e.repeat) askHelp();
         return;
       }
+      if (down && (e.key === 'f' || e.key === 'F')) {
+        if (!e.repeat && canFs) toggleFullscreen();
+        return;
+      }
       const k = KEYS[e.key] || KEYS[e.key.toLowerCase()];
       if (!k) return;
       e.preventDefault();
@@ -126,8 +171,10 @@ const ThreeJoGame = () => {
   const toCanvas = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const k = W / canvas.clientWidth;
-    return { x: (e.clientX - rect.left - canvas.clientLeft) * k, y: (e.clientY - rect.top - canvas.clientTop) * k };
+    return {
+      x: (e.clientX - rect.left - canvas.clientLeft) * (W / canvas.clientWidth),
+      y: (e.clientY - rect.top - canvas.clientTop) * (H / canvas.clientHeight),
+    };
   };
   const onPointerDown = (e) => {
     if (gameState !== 'playing' || !gameRef.current) return;
@@ -157,9 +204,17 @@ const ThreeJoGame = () => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
+    // 반응형: 화면에 표시되는 실제 크기 × DPR로 캔버스 해상도를 맞춤 (전체화면·창 크기 변경 시 선명하게)
+    const fit = () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round((canvas.clientWidth || W) * dpr));
+      const h = Math.max(1, Math.round((canvas.clientHeight || H) * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    };
+    fit();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    ro?.observe(canvas);
+    window.addEventListener('resize', fit);
     // 월드는 저해상도 캔버스에 그린 뒤 최근접 확대 → 도트 그래픽
     const low = document.createElement('canvas');
     low.width = LW;
@@ -192,12 +247,17 @@ const ThreeJoGame = () => {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(low, 0, 0, canvas.width, canvas.height);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
       game.drawUi(ctx, now / 1000);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); gameRef.current = null; };
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+      window.removeEventListener('resize', fit);
+      gameRef.current = null;
+    };
     // round가 바뀔 때마다 새 판
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
@@ -240,8 +300,14 @@ const ThreeJoGame = () => {
       <h1 style={titleStyle}>🏹 쓰리조 챌린지</h1>
       <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 상하좌우로 피하세요, 공격은 자동!</p>
 
-      <div ref={stageRef} style={stageWrap}>
+      <div ref={stageRef} style={isFs ? fsShell : { scrollMarginTop: 72 }}>
+      <div style={isFs ? fsStageWrap : stageWrap}>
       <div style={topBar}>
+        {canFs && (
+          <button onClick={toggleFullscreen} style={smallBtn} aria-pressed={isFs}>
+            {isFs ? '🗗 창 모드' : '⛶ 전체화면 모드'}
+          </button>
+        )}
         <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리' : '🔊 소리'}</button>
         {gameState === 'playing' && <button onClick={() => setGameState('menu')} style={smallBtn}>✖ 그만하기</button>}
       </div>
@@ -258,13 +324,25 @@ const ThreeJoGame = () => {
           style={canvasStyle}
         />
 
+        {gameState === 'playing' && (
+          // 눈에 잘 안 띄는 숨은 '도움' 버튼 (연속 3번 → 개발자의 가호)
+          <button
+            onPointerDown={(e) => { e.preventDefault(); tapBless(); }}
+            style={secretBtn}
+            aria-label="도움"
+            title="도움"
+          >
+            🛠
+          </button>
+        )}
+
         {gameState === 'menu' && (
           <div style={overlayStyle}>
             <div style={{ fontSize: 40 }}>🏹⚔️</div>
             <h2 style={{ color: '#3e2723', margin: '6px 0', fontSize: 20 }}>탐관오리 토벌전</h2>
             <p style={{ fontSize: 13, color: '#5d4037', lineHeight: 1.6, margin: '0 0 8px', wordBreak: 'keep-all' }}>
               평민 궁수에서 시작해 <b>활 → 조총 → 대포 → 기관총·레이저</b>로 진화!<br />
-              캐슬조 · 제로조 · 조철왕을 차례로 토벌하라
+              캐슬조 · 제로조 · 킬러조 · 조철왕을 차례로 토벌하라
             </p>
             <ul style={tipList}>
               <li>🪙 엽전·📦 무기 상자로 레벨업, 레벨이 오를수록 엄호 병사와 발사체 증가</li>
@@ -272,7 +350,7 @@ const ThreeJoGame = () => {
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
               <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
               <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 자동 플레이 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
-              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
+              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움{canFs ? ', F 전체화면' : ''} · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
             </ul>
             <div style={itemGrid}>
               {Object.values(POWERUPS).map((pu) => (
@@ -286,7 +364,7 @@ const ThreeJoGame = () => {
 
         {gameState === 'over' && result && (
           <div style={overlayStyle}>
-            <div style={{ fontSize: 40, animation: 'none' }}>{result.killer === '조철왕' ? '👑' : '💀'}</div>
+            <div style={{ fontSize: 40, animation: 'none' }}>{KILLER_EMOJI[result.killer] || '💀'}</div>
             <h2 style={{ color: '#c62828', margin: '4px 0 6px', fontSize: 19, wordBreak: 'keep-all' }}>
               {result.killer}에게 당했습니다!
             </h2>
@@ -295,7 +373,7 @@ const ThreeJoGame = () => {
             </p>
             <div style={statGrid}>
               <span>🗺️ {STAGE_NAMES[result.stage]}</span>
-              <span>👑 보스 {result.bosses}/2 격파</span>
+              <span>👑 보스 {result.bosses}/{STAGE_COUNT - 1} 격파</span>
               <span>⚡ 아슬아슬 {result.grazes}회</span>
               <span>⏱ {Math.floor(result.time)}초</span>
               <span style={{ gridColumn: '1 / -1' }}>🔫 최종 무기 Lv.{result.power + 1} {weaponLabel(result.power)}</span>
@@ -354,6 +432,7 @@ const ThreeJoGame = () => {
         </div>
       )}
       </div>
+      </div>
     </div>
   );
 };
@@ -411,15 +490,52 @@ const tipList = {
   wordBreak: 'keep-all',
 };
 
-// 게임판 + 버튼이 한 화면(모바일 세로)에 들어오도록 높이 기준으로 폭 제한
+// 게임판 + 버튼이 한 화면에 들어오도록 창 높이 기준으로 폭 결정 (PC 큰 창에서는 최대 720px까지 확대)
 const stageWrap = {
-  width: `min(${W}px, 100%, calc((100dvh - 230px) * ${W / H}))`,
+  width: `min(720px, 100%, calc((100dvh - 230px) * ${W / H}))`,
   minWidth: 260,
   margin: '0 auto',
-  scrollMarginTop: 72, // 사이트 상단 고정 헤더 높이만큼
+};
+
+// 전체화면: 어두운 배경 가운데에 화면 높이를 꽉 채우는 게임판
+const fsShell = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+  height: '100%',
+  background: '#1A1220',
+  overflow: 'auto',
+  boxSizing: 'border-box',
+  padding: 8,
+};
+
+const fsStageWrap = {
+  width: `min(calc(100vw - 16px), calc((100dvh - 150px) * ${W / H}))`,
+  minWidth: 260,
+  margin: '0 auto',
 };
 
 const topBar = { display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 6 };
+
+const secretBtn = {
+  position: 'absolute',
+  right: 8,
+  bottom: 30,
+  width: 22,
+  height: 22,
+  padding: 0,
+  fontSize: 11,
+  lineHeight: '22px',
+  border: 'none',
+  borderRadius: 4,
+  background: 'transparent',
+  opacity: 0.22,
+  cursor: 'pointer',
+  touchAction: 'manipulation',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+};
 
 const controlBar = {
   display: 'grid',

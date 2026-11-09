@@ -51,19 +51,27 @@ const tierOf = (p) => Math.min(3, Math.floor(p / 3));
 const shotsOf = (p) => (tierOf(p) === 3 ? 3 + (p % 3) : 1 + (p % 3));
 export const weaponLabel = (p) => `${p >= 10 ? '레이저 ' : ''}${WEAPON_NAMES[tierOf(p)]} ×${shotsOf(p)}`;
 
+// 1~3탄은 '성장의 재미' 구간: 적·보스 체력 -30%, 적 탄속 ×0.8, 적 등장·사격 간격 ↑ (bulletK·spawnK·fireK·bossK)
+// 4탄 판교(조철왕)는 원래 난이도 유지
 const STAGES = [
-  { name: '1탄 · 조선 저잣거리', wave: 30, boss: 'castle', mob: { name: '포졸', hp: 2, speed: 80 }, heavy: { name: '세곡 수레', hp: 8 } },
-  { name: '2탄 · 개화기 경성', wave: 32, boss: 'zero', mob: { name: '신식 군인', hp: 4, speed: 95 }, heavy: { name: '인력거', hp: 16 } },
-  { name: '3탄 · 2077 판교', wave: 16, boss: 'king', mob: { name: '사이보그 병사', hp: 9, speed: 120 }, heavy: { name: '수송 드론', hp: 26 } },
+  { name: '1탄 · 조선 저잣거리', wave: 30, boss: 'castle', mob: { name: '포졸', hp: 1.4, speed: 72 }, heavy: { name: '세곡 수레', hp: 5.6 }, bulletK: 0.8, spawnK: 1.45, fireK: 1.8, heavyT: 8.5, bossK: 1.2 },
+  { name: '2탄 · 개화기 경성', wave: 32, boss: 'zero', mob: { name: '신식 군인', hp: 2.8, speed: 85 }, heavy: { name: '인력거', hp: 11.2 }, bulletK: 0.8, spawnK: 1.25, fireK: 1.3, heavyT: 8.5, bossK: 1.15 },
+  { name: '3탄 · 중고차 매매단지', wave: 28, boss: 'killer', mob: { name: '호객꾼', hp: 4.2, speed: 90 }, heavy: { name: '폐차 직전 중고차', hp: 14 }, bulletK: 0.8, spawnK: 1.2, fireK: 1.25, heavyT: 8, bossK: 1.15 },
+  { name: '4탄 · 2077 판교', wave: 16, boss: 'king', mob: { name: '사이보그 병사', hp: 9, speed: 120 }, heavy: { name: '수송 드론', hp: 26 }, bulletK: 1, spawnK: 0.9, fireK: 1, heavyT: 7, bossK: 1 },
 ];
+export const STAGE_COUNT = STAGES.length;
 
 const BOSSES = {
-  castle: { name: '캐슬조', title: '조선 탐관오리', hp: 190, w: 72, h: 84 },
-  zero: { name: '제로조', title: '개화기 군벌 장군', hp: 1100, w: 74, h: 84 },
-  king: { name: '조철왕', title: '이 게임의 제작자', hp: 3200, w: 90, h: 92 },
+  castle: { name: '캐슬조', title: '조선 탐관오리', hp: 133, w: 72, h: 84, reward: 1000 },
+  zero: { name: '제로조', title: '개화기 군벌 장군', hp: 770, w: 74, h: 84, reward: 3000 },
+  killer: { name: '킬러조', title: '악덕 중고차 딜러', hp: 1250, w: 80, h: 92, reward: 4000 },
+  king: { name: '조철왕', title: '이 게임의 제작자', hp: 3200, w: 90, h: 92, reward: 0 },
 };
 
-import { U, drawSprite, heroSprite, heroFace, mobSprite, castleSprite, zeroSprite, kingSprite } from './sprites.js';
+// 적 탄 색: 어떤 배경(특히 청록색 판교)에서도 튀는 형광 주황·빨강 + 흰 테두리 (drawBullet)
+const E_ORANGE = '#FF6D00', E_RED = '#FF1744', E_HOT = '#FF3D00';
+
+import { U, drawSprite, heroSprite, heroFace, mobSprite, castleSprite, zeroSprite, killerSprite, kingSprite } from './sprites.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -79,7 +87,7 @@ export function createGame(env) {
     fever: 0, grazes: 0, combo: 0, comboT: 0, bosses: 0,
     shots: [], bullets: [], mobs: [], items: [], lasers: [], parts: [], texts: [], timers: [],
     boss: null, banner: null, shake: 0, flash: 0, scroll: 0,
-    spawnT: 1.2, heavyT: 6, killer: '', ended: false, beams: [],
+    spawnT: 1.6, heavyT: 7, killer: '', ended: false, beams: [], blessed: false,
   };
   const sfx = env.sfx || {};
   const play = (k) => sfx[k] && sfx[k]();
@@ -95,10 +103,15 @@ export function createGame(env) {
     }
   };
   // 적 탄환
-  const fire = (x, y, ang, speed, o = {}) => s.bullets.push({
-    x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r: o.r || 5, kind: o.kind || 'orb',
-    color: o.color || '#ff5252', src: o.src, grazed: false, homing: o.homing || 0, acc: o.acc || 0, t: 0,
-  });
+  // 1~3탄은 스테이지별 bulletK로 탄속을 늦춤
+  const fire = (x, y, ang, speed, o = {}) => {
+    const v = speed * STAGES[s.stage].bulletK;
+    s.bullets.push({
+      x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, r: o.r || 5, kind: o.kind || 'orb',
+      color: o.color || E_RED, src: o.src, grazed: false, homing: o.homing || 0, acc: o.acc || 0, t: 0,
+      bounce: o.bounce || 0, drag: o.drag || 0, minV: (o.minV || 0) * STAGES[s.stage].bulletK, spin: rand(0, 6),
+    });
+  };
   const aim = (x, y) => Math.atan2(s.p.y - y, s.p.x - x);
   const setBombs = (n) => { s.bombs = clamp(n, 0, MAX_BOMBS); env.bombs && env.bombs(s.bombs); };
   const addScore = (v) => { s.score += v; };
@@ -233,26 +246,29 @@ export function createGame(env) {
       const cx = rand(120, W - 120);
       for (let i = 0; i < 4; i++) later(i * 0.35, () => spawnMob(cx, -20, 'mob', { zig: 70 }));
     }
-    if (st === 2) {
+    if (st === 3) {
       // 드론은 내려와 잠시 머물며 사격
-      s.mobs.forEach((m) => { if (m.stage === 2 && !m.hover && m.kind === 'mob') m.hover = rand(80, 220); });
+      s.mobs.forEach((m) => { if (m.stage === 3 && !m.hover && m.kind === 'mob') m.hover = rand(80, 220); });
     }
   }
   function mobShoot(m) {
     const src = m.name;
-    if (m.stage === 0) fire(m.x, m.y, aim(m.x, m.y) + rand(-0.15, 0.15), 140, { src, kind: 'orb', color: '#E53935', r: 5 });
+    if (m.stage === 0) fire(m.x, m.y, aim(m.x, m.y) + rand(-0.15, 0.15), 140, { src, kind: 'orb', color: E_RED, r: 5 });
     else if (m.stage === 1) {
       const a = aim(m.x, m.y);
-      fire(m.x, m.y, a - 0.12, 175, { src, kind: 'rice', color: '#ff7043' });
-      fire(m.x, m.y, a + 0.12, 175, { src, kind: 'rice', color: '#ff7043' });
+      fire(m.x, m.y, a - 0.12, 175, { src, kind: 'rice', color: E_ORANGE });
+      fire(m.x, m.y, a + 0.12, 175, { src, kind: 'rice', color: E_ORANGE });
+    } else if (m.stage === 2) {
+      // 호객꾼: 명함 2장 연속 투척
+      for (let i = 0; i < 2; i++) later(i * 0.18, () => { if (m.hp > 0) fire(m.x, m.y, aim(m.x, m.y) + rand(-0.08, 0.08), 180, { src, kind: 'orb', color: E_ORANGE, r: 5 }); });
     } else {
-      for (let i = 0; i < 3; i++) later(i * 0.12, () => { if (m.hp > 0) fire(m.x, m.y, aim(m.x, m.y), 230, { src, kind: 'orb', color: '#00E5FF', r: 4 }); });
+      for (let i = 0; i < 3; i++) later(i * 0.12, () => { if (m.hp > 0) fire(m.x, m.y, aim(m.x, m.y), 230, { src, kind: 'orb', color: E_RED, r: 4 }); });
     }
   }
   function killMob(m) {
     const heavy = m.kind === 'heavy';
     addScore((heavy ? 60 : 15) * (m.stage + 1));
-    burst(m.x, m.y, heavy ? 36 : 14, m.stage === 2 ? ['#00E5FF', '#fff', '#90A4AE'] : ['#FFD166', '#ff7043', '#fff'], [60, 220], 0.6);
+    burst(m.x, m.y, heavy ? 36 : 14, m.stage === 3 ? ['#00E5FF', '#fff', '#90A4AE'] : ['#FFD166', '#ff7043', '#fff'], [60, 220], 0.6);
     play(heavy ? 'crack' : 'whoosh');
     if (heavy) {
       dropItem(m.x, m.y, 'box');
@@ -276,7 +292,7 @@ export function createGame(env) {
     s.boss = {
       key, ...d, max: d.hp, x: W / 2, y: -100, ty: key === 'king' ? 135 : 128, t: 0, entering: true,
       atkT: 2, moveT: 0, tx: W / 2, rage: false, mode: 'normal', modeT: 0, shield: 0, floorT: 0, flashT: 0,
-      deathT: 0, dead: false, lastAtk: '',
+      deathT: 0, dead: false, lastAtk: '', dash: null, smokeT: 0,
     };
     s.shake = 22;
     play('doom');
@@ -289,12 +305,12 @@ export function createGame(env) {
       const atk = pick(['fan', 'aimed', 'tax'].filter((a) => a !== b.lastAtk));
       b.lastAtk = atk;
       if (atk === 'fan') {
-        for (let i = 0; i < 7; i++) fire(b.x, b.y + 30, Math.PI / 2 + (i - 3) * 0.15, 140, { src, kind: 'orb', color: '#D50000', r: 6 });
+        for (let i = 0; i < 7; i++) fire(b.x, b.y + 30, Math.PI / 2 + (i - 3) * 0.15, 140, { src, kind: 'orb', color: E_RED, r: 6 });
       } else if (atk === 'aimed') {
-        for (let i = 0; i < 3; i++) later(i * 0.18, () => fire(b.x, b.y + 30, aim(b.x, b.y + 30), 170, { src, kind: 'orb', color: '#D50000', r: 6 }));
+        for (let i = 0; i < 3; i++) later(i * 0.18, () => fire(b.x, b.y + 30, aim(b.x, b.y + 30), 170, { src, kind: 'orb', color: E_RED, r: 6 }));
       } else {
         popText(b.x, b.y + 50, '세금 징수!', '#FFD166', 14);
-        for (let i = 0; i < 8; i++) later(i * 0.12, () => fire(rand(20, W - 20), -10, Math.PI / 2, 120, { src, kind: 'orb', color: '#D50000', r: 6 }));
+        for (let i = 0; i < 8; i++) later(i * 0.12, () => fire(rand(20, W - 20), -10, Math.PI / 2, 120, { src, kind: 'orb', color: E_RED, r: 6 }));
       }
       return b.rage ? 1.2 : 1.6;
     }
@@ -307,8 +323,8 @@ export function createGame(env) {
         for (let i = 0; i < 26; i++) {
           later(i * 0.06, () => {
             const a = base + i * 0.42;
-            fire(b.x, b.y + 20, a, 150 * k, { src, kind: 'rice', color: '#B388FF' });
-            fire(b.x, b.y + 20, a + Math.PI, 150 * k, { src, kind: 'rice', color: '#B388FF' });
+            fire(b.x, b.y + 20, a, 150 * k, { src, kind: 'rice', color: E_ORANGE });
+            fire(b.x, b.y + 20, a + Math.PI, 150 * k, { src, kind: 'rice', color: E_ORANGE });
           });
         }
         return 2.1;
@@ -317,7 +333,7 @@ export function createGame(env) {
         for (let r = 0; r < 3; r++) {
           later(r * 0.35, () => {
             const a = aim(b.x, b.y + 30);
-            for (let i = -2; i <= 2; i++) fire(b.x, b.y + 30, a + i * 0.16, 230 * k, { src, kind: 'orb', color: '#ff5252' });
+            for (let i = -2; i <= 2; i++) fire(b.x, b.y + 30, a + i * 0.16, 230 * k, { src, kind: 'orb', color: E_RED });
           });
         }
         return 1.6;
@@ -326,7 +342,7 @@ export function createGame(env) {
         for (let r = 0; r < 2; r++) {
           later(r * 0.9, () => {
             const gap = rand(40, W - 110);
-            for (let x = 10; x < W; x += 24) if (x < gap || x > gap + 74) fire(x, -10, Math.PI / 2, 130 * k, { src, kind: 'orb', color: '#F50057', r: 6 });
+            for (let x = 10; x < W; x += 24) if (x < gap || x > gap + 74) fire(x, -10, Math.PI / 2, 130 * k, { src, kind: 'orb', color: E_HOT, r: 6 });
           });
         }
         return 2;
@@ -336,11 +352,12 @@ export function createGame(env) {
       for (let i = 0; i < 16; i++) {
         later(i * 0.05, () => {
           const a = Math.PI / 2 + (dirL ? 1 : -1) * (0.9 - i * 0.12);
-          fire(b.x, b.y + 30, a, 200 * k, { src, kind: 'rice', color: '#ff7043' });
+          fire(b.x, b.y + 30, a, 200 * k, { src, kind: 'rice', color: E_ORANGE });
         });
       }
       return 1.4;
     }
+    if (b.key === 'killer') return killerAttack(b, src);
     // 조철왕
     const hard = b.mode === 'floor' ? 2 : b.max * 0.5 > b.hp ? 1 : 0;
     const pool = ['curtain', 'ring', 'missile', 'rain'];
@@ -353,26 +370,84 @@ export function createGame(env) {
       laserCurtain(gapW, warn, src);
       if (atk === 'double') later(warn + 0.5, () => laserCurtain(gapW, warn, src));
       // 레이저 예고 중에도 조준탄으로 압박
-      for (let i = 0; i < 3; i++) later(0.3 + i * 0.3, () => fire(b.x, b.y + 30, aim(b.x, b.y + 30), 200, { src, kind: 'orb', color: '#00E5FF', r: 4 }));
+      for (let i = 0; i < 3; i++) later(0.3 + i * 0.3, () => fire(b.x, b.y + 30, aim(b.x, b.y + 30), 200, { src, kind: 'orb', color: E_RED, r: 4 }));
       return atk === 'double' ? 3.4 : 2.2;
     }
     if (atk === 'ring') {
       for (let r = 0; r < 3; r++) {
         later(r * 0.4, () => {
           const n = 22 + hard * 4, off = r * 0.14;
-          for (let i = 0; i < n; i++) fire(b.x, b.y + 10, off + (i * Math.PI * 2) / n, 140 + hard * 20, { src, kind: 'orb', color: '#E040FB', r: 5 });
+          for (let i = 0; i < n; i++) fire(b.x, b.y + 10, off + (i * Math.PI * 2) / n, 140 + hard * 20, { src, kind: 'orb', color: E_ORANGE, r: 5 });
         });
       }
       return 1.8;
     }
     if (atk === 'missile') {
       for (let i = 0; i < 4 + hard; i++) {
-        later(i * 0.2, () => fire(b.x + (i % 2 ? 40 : -40), b.y + 20, Math.PI / 2 + rand(-0.8, 0.8), 150, { src, kind: 'missile', color: '#FF1744', r: 5, homing: 1.4 }));
+        later(i * 0.2, () => fire(b.x + (i % 2 ? 40 : -40), b.y + 20, Math.PI / 2 + rand(-0.8, 0.8), 150, { src, kind: 'missile', color: E_RED, r: 5, homing: 1.4 }));
       }
       return 1.9;
     }
-    for (let i = 0; i < 22 + hard * 8; i++) later(i * 0.07, () => fire(rand(10, W - 10), -10, Math.PI / 2 + rand(-0.1, 0.1), rand(160, 230), { src, kind: 'rice', color: '#18FFFF' }));
+    for (let i = 0; i < 22 + hard * 8; i++) later(i * 0.07, () => fire(rand(10, W - 10), -10, Math.PI / 2 + rand(-0.1, 0.1), rand(160, 230), { src, kind: 'rice', color: E_HOT }));
     return 1.9;
+  }
+
+  // 킬러조 (악덕 중고차 딜러): 낡은 타이어 굴리기 · 매연 분사 · 고장 난 차로 돌진
+  function killerAttack(b, src) {
+    const k = b.rage ? 1.15 : 1;
+    const atk = pick(['tire', 'smoke', 'charge', 'tire', 'smoke', 'charge'].filter((a) => a !== b.lastAtk));
+    b.lastAtk = atk;
+    if (atk === 'tire') {
+      // 벽에 튕기며 굴러오는 타이어
+      popText(b.x, b.y + 56, pick(['폐타이어 서비스!', '타이어 덤으로 드려요~']), '#FFD166', 13);
+      const n = b.rage ? 5 : 3;
+      for (let i = 0; i < n; i++) {
+        later(i * 0.32, () => {
+          const a = Math.PI / 2 + rand(-0.75, 0.75);
+          fire(b.x + rand(-28, 28), b.y + 40, a, rand(130, 165) * k, { src, kind: 'tire', color: E_HOT, r: 9, bounce: 2 });
+        });
+      }
+      return 2.1;
+    }
+    if (atk === 'smoke') {
+      // 배기구 매연: 퍼지면서 느려지는 독가스 구름 + 조준 매연
+      popText(b.x, b.y + 56, '부릉부릉~ 매연 폭탄!', '#FFAB40', 13);
+      play('whoosh');
+      const n = b.rage ? 16 : 12;
+      for (let i = 0; i < n; i++) {
+        later(i * 0.05, () => fire(b.x + rand(-20, 20), b.y + 30, Math.PI / 2 + rand(-1.15, 1.15), rand(110, 190) * k, { src, kind: 'smoke', color: E_ORANGE, r: 8, drag: 0.35, minV: 45 }));
+      }
+      later(0.7, () => fire(b.x, b.y + 30, aim(b.x, b.y + 30), 180 * k, { src, kind: 'smoke', color: E_ORANGE, r: 9 }));
+      return 2.2;
+    }
+    // 돌진: 예고선 → 고장 난 차를 몰고 화면 아래까지 급발진 → 위에서 다시 등장
+    b.dash = { st: 'warn', t: 0, x: clamp(s.p.x, 50, W - 50), warn: b.rage ? 0.95 : 1.15, vy: 0, trailT: 0 };
+    popText(b.x, b.y + 56, '급발진 돌진!!', '#FF5252', 15, 1.2);
+    play('alarm');
+    return 1.6;
+  }
+  function updateDash(b, dt) {
+    const d = b.dash, src = b.name;
+    d.t += dt;
+    if (d.st === 'warn') {
+      b.x += (d.x - b.x) * Math.min(1, dt * 6);
+      b.y = b.ty - Math.min(18, d.t * 30) + Math.sin(d.t * 60) * 1.5; // 뒤로 살짝 빼며 부르르
+      if (d.t > d.warn) { d.st = 'go'; d.t = 0; d.vy = 120; s.shake = Math.max(s.shake, 10); play('whoosh'); }
+    } else if (d.st === 'go') {
+      d.vy = Math.min(560, d.vy + 1300 * dt);
+      b.y += d.vy * dt;
+      b.x = d.x;
+      d.trailT -= dt;
+      if (d.trailT <= 0) {
+        d.trailT = 0.14;
+        // 지나간 자리에 매연을 좌우로 흘림
+        if (b.y < H - 40) for (const sx of [-1, 1]) fire(b.x + sx * 30, b.y - 40, Math.PI / 2 + sx * 1.35, 55, { src, kind: 'smoke', color: E_ORANGE, r: 7, drag: 0.5, minV: 25 });
+      }
+      if (b.y > H + 90) { d.st = 'back'; d.t = 0; b.x = rand(80, W - 80); b.y = -110; }
+    } else {
+      b.y += (b.ty - b.y) * Math.min(1, dt * 2.2);
+      if (Math.abs(b.y - b.ty) < 3) { b.dash = null; b.atkT = 0.9; }
+    }
   }
 
   // 화면 대부분(약 80%)을 덮는 즉사 레이저 + 좁은 안전지대
@@ -429,7 +504,7 @@ export function createGame(env) {
     if (!b.rage && b.hp <= b.max * 0.5) {
       b.rage = true;
       s.shake = 14;
-      banner(`💢 ${b.name} 분노!`, b.key === 'zero' ? '움직임이 빨라진다' : '공격이 거세진다', 1.6);
+      banner(`💢 ${b.name} 분노!`, b.key === 'zero' ? '움직임이 빨라진다' : b.key === 'killer' ? '엔진 과열! 돌진이 빨라진다' : '공격이 거세진다', 1.6);
     }
     if (b.hp <= 0) bossDown(b);
     return true;
@@ -441,12 +516,13 @@ export function createGame(env) {
     s.bullets.length = 0;
     s.lasers.length = 0;
     s.timers.length = 0;
-    addScore(b.key === 'castle' ? 1000 : 3000);
+    if (b.dash) { b.dash = null; b.y = clamp(b.y, 60, H * 0.45); } // 돌진 중 격파되면 화면 안에서 폭발
+    addScore(b.reward);
     s.shake = 26;
     s.flash = 0.7;
     play('explosion');
     later(0.4, () => play('fanfare'));
-    banner(`🎉 ${b.name} 격파!`, `+${b.key === 'castle' ? 1000 : 3000}점`, 2.2);
+    banner(`🎉 ${b.name} 격파!`, `+${b.reward}점`, 2.2);
     for (let i = 0; i < 6; i++) later(i * 0.15, () => burst(b.x + rand(-40, 40), b.y + rand(-40, 40), 40, ['#FFD166', '#ff7043', '#fff'], [80, 300], 0.9, [2, 6]));
     // 보스 보상: 무기 상자 2개 + 인삼
     later(0.6, () => {
@@ -489,6 +565,18 @@ export function createGame(env) {
       if (b.moveT <= 0) { b.moveT = b.rage ? 0.8 : 1.2; b.tx = rand(60, W - 60); }
       b.x += (b.tx - b.x) * Math.min(1, dt * (b.rage ? 5 : 3.5));
       b.y = b.ty + Math.sin(b.t * 2) * 10;
+    } else if (b.key === 'killer') {
+      if (b.dash) updateDash(b, dt);
+      else {
+        b.x += (W / 2 + Math.sin(b.t * 0.7) * 105 - b.x) * Math.min(1, dt * 3);
+        b.y = b.ty + Math.sin(b.t * 9) * 1.5; // 공회전 진동
+      }
+      // 배기구 매연 (장식)
+      b.smokeT -= dt;
+      if (b.smokeT <= 0 && b.y > -60) {
+        b.smokeT = b.rage ? 0.06 : 0.1;
+        for (const sx of [-14, 14]) burst(b.x + sx, b.y - b.h / 2 + 4, 1, ['#616161', '#9E9E9E', '#424242'], [20, 60], 0.7, [4, 7]);
+      }
     } else {
       b.x = W / 2 + Math.sin(b.t * 0.45) * 90 + Math.sin(b.t * 1.7) * 18;
       b.y = b.ty + Math.sin(b.t * 1.1) * 10;
@@ -496,7 +584,7 @@ export function createGame(env) {
       kingPhases(b, dt);
     }
     b.atkT -= dt;
-    if (b.atkT <= 0 && s.p.alive && b.mode !== 'final') b.atkT = bossAttack(b) * (b.key === 'zero' && b.rage ? 0.8 : 1);
+    if (b.atkT <= 0 && s.p.alive && b.mode !== 'final' && !b.dash) b.atkT = bossAttack(b) * (b.key === 'zero' && b.rage ? 0.8 : 1) * STAGES[s.stage].bossK;
     // 보스 몸통 충돌
     if (Math.abs(b.x - s.p.x) < b.w / 2 && Math.abs(b.y - s.p.y) < b.h / 2 + 10) hurtOrBlock(b.name);
   }
@@ -533,13 +621,13 @@ export function createGame(env) {
     s.phaseT = 0;
     s.spawnT = 2;
     s.heavyT = 4;
-    banner(STAGES[s.stage].name, s.stage === 2 ? '최종 보스가 기다린다…' : '무기를 키워라!', 2.2);
+    banner(STAGES[s.stage].name, s.stage === STAGES.length - 1 ? '최종 보스가 기다린다…' : '무기를 키워라!', 2.2);
   }
 
   // ---------- 메인 업데이트 ----------
   function update(dt, input = {}) {
     s.time += dt;
-    s.scroll += dt * (60 + s.stage * 30);
+    s.scroll += dt * [60, 90, 140, 120][s.stage];
     const p = s.p;
 
     // 타이머
@@ -593,9 +681,9 @@ export function createGame(env) {
     const st = STAGES[s.stage];
     if (s.phase === 'wave') {
       s.spawnT -= dt;
-      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = rand(1.5, 2.3) * (s.stage === 0 ? 1.1 : 0.9); }
+      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = rand(1.5, 2.3) * st.spawnK; }
       s.heavyT -= dt;
-      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = 7; }
+      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = st.heavyT; }
       if (s.phaseT > st.wave) { s.phase = 'warn'; s.phaseT = 0; banner('⚠️ WARNING', `${BOSSES[st.boss].name} 접근 중`, 2); play('alarm'); }
     } else if (s.phase === 'warn') {
       if (s.phaseT > 2.4) { s.phase = 'boss'; s.phaseT = 0; spawnBoss(st.boss); }
@@ -620,8 +708,8 @@ export function createGame(env) {
       if (m.zig) m.x = m.x0 + Math.sin(m.t * 2.4) * m.zig;
       m.fireT -= dt;
       if (m.fireT <= 0 && m.y > 20 && m.y < p.y - 100 && p.alive) {
-        m.fireT = m.kind === 'heavy' ? 99 : rand(1.8, 3.2) * (s.stage === 0 ? 1.4 : 1);
-        if (m.kind !== 'heavy' && Math.random() < (s.stage === 0 ? 0.55 : 0.8)) mobShoot(m);
+        m.fireT = m.kind === 'heavy' ? 99 : rand(1.8, 3.2) * STAGES[m.stage].fireK;
+        if (m.kind !== 'heavy' && Math.random() < (m.stage === 0 ? 0.5 : m.stage < 3 ? 0.7 : 0.8)) mobShoot(m);
       }
       if (p.alive && m.hp > 0 && Math.hypot(m.x - p.x, m.y - p.y) < m.r + HIT_R + 4) {
         // 무적 별·방어막으로 부딪히면 적만 격파
@@ -670,8 +758,12 @@ export function createGame(env) {
         bl.vy = Math.sin(a) * sp;
       }
       const bdt = s.buffs.slow > 0 ? dt * 0.45 : dt;
+      if (bl.drag && Math.hypot(bl.vx, bl.vy) > bl.minV) { const f = Math.pow(bl.drag, bdt); bl.vx *= f; bl.vy *= f; }
       bl.x += bl.vx * bdt;
       bl.y += bl.vy * bdt;
+      bl.spin += bdt * 8;
+      // 타이어: 좌우 벽에 튕김
+      if (bl.bounce > 0 && ((bl.x < bl.r && bl.vx < 0) || (bl.x > W - bl.r && bl.vx > 0))) { bl.vx = -bl.vx; bl.bounce--; }
       if (!p.alive) continue;
       const d = Math.hypot(bl.x - p.x, bl.y - p.y);
       if (s.buffs.shield > 0 && d < 30 + bl.r) { bl.dead = true; shieldHit(bl.x, bl.y); continue; }
@@ -791,7 +883,8 @@ export function createGame(env) {
         const b = s.boss;
         if (b && !b.dead) {
           if (Math.abs(b.x - x) < b.w / 2 + 16 && Math.abs(b.y - y) < b.h / 2 + 30) v += 600;
-          if (Math.abs(b.x - x) < b.w / 2 - 6) v -= 8;
+          if (Math.abs(b.x - x) < b.w / 2 - 6 && !b.dash) v -= 8;
+          if (b.dash && b.dash.st !== 'back' && Math.abs(b.dash.x - x) < b.w / 2 + 20) v += 3000;
         }
         for (const it of s.items) {
           if (Math.hypot(it.x - x, it.y - y) < 34) v -= it.kind === 'coin' ? 4 : 10;
@@ -801,6 +894,29 @@ export function createGame(env) {
     }
     s.autoTarget = { tx: best.x, ty: best.y };
     return s.autoTarget;
+  }
+
+  // 숨겨진 '개발자의 가호': 무기 최종 단계 + 체력 완전 회복 + 방어막 + 필살기 +1 (판당 1회, 랭킹엔 🤖 표시)
+  function blessing() {
+    const p = s.p;
+    if (!p.alive || s.ended) return false;
+    if (s.blessed) { popText(p.x, p.y - 60, '가호는 한 판에 한 번뿐!', '#B9F6CA', 13, 1.2); return false; }
+    s.blessed = true;
+    s.autoUsed = true;
+    const king = s.boss && s.boss.key === 'king';
+    p.power = MAX_POWER;
+    p.xp = 0;
+    p.hp = MAX_HP;
+    p.inv = Math.max(p.inv, 2);
+    s.buffs.shield = POWERUPS.shield.sec;
+    s.shieldHits = SHIELD_HITS;
+    setBombs(s.bombs + 1);
+    s.flash = 0.7;
+    s.shake = Math.max(s.shake, 12);
+    play('fanfare');
+    burst(p.x, p.y, 90, ['#FFD166', '#fff', '#69F0AE', '#9BE7FF'], [80, 320], 1.1, [2, 5]);
+    banner('✨ 개발자의 가호가 깃듭니다!', king ? '조철왕: "그 가호… 내가 준 건데?"' : '무기 최종 진화 · 체력 완전 회복 · 방어막', 2.4);
+    return true;
   }
 
   function collectPowerup(kind) {
@@ -894,6 +1010,7 @@ export function createGame(env) {
     drawBackground(ctx, s.stage, s.scroll, t);
     for (const it of s.items) drawItem(ctx, it, t);
     for (const m of s.mobs) drawMob(ctx, m, t);
+    if (s.boss && s.boss.dash && s.boss.dash.st === 'warn') drawDashWarn(ctx, s.boss, t);
     if (s.boss) drawBoss(ctx, s.boss, t);
     for (const lz of s.lasers) drawLaser(ctx, lz, t, s.p.y);
     for (const bm of s.beams) drawBeam(ctx, bm, s.p.power >= 11, s.p.y);
@@ -929,6 +1046,15 @@ export function createGame(env) {
   function drawUi(ctx, t) {
     for (const it of s.items) drawItemIcon(ctx, it);
     for (const lz of s.lasers) drawLaserLabel(ctx, lz, s.p.y);
+    if (s.boss && s.boss.dash && s.boss.dash.st === 'warn') {
+      ctx.font = `700 15px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.strokeText('🚗 돌진 주의!', s.boss.dash.x, H * 0.62);
+      ctx.fillStyle = Math.floor(t * 8) % 2 ? '#FFD166' : '#FF5252';
+      ctx.fillText('🚗 돌진 주의!', s.boss.dash.x, H * 0.62);
+    }
     for (const tx of s.texts) {
       ctx.globalAlpha = Math.min(1, tx.life / tx.max * 2);
       ctx.font = `700 ${tx.size}px ${FONT}`;
@@ -949,6 +1075,7 @@ export function createGame(env) {
     drawUi,
     special,
     setAuto,
+    blessing,
     isAuto: () => s.auto,
     player: () => ({ x: s.p.x, y: s.p.y }),
     snapshot: () => ({ score: Math.floor(s.score), stage: s.stage, hp: s.p.hp, power: s.p.power, alive: s.p.alive, boss: s.boss && { key: s.boss.key, hp: s.boss.hp, max: s.boss.max, mode: s.boss.mode }, time: s.time }),
@@ -1033,6 +1160,51 @@ function drawBackground(ctx, stage, scroll, t) {
       }
       for (let x = 25; x < W - 25; x += 10) px(ctx, x, y + 12.5 + Math.sin(((x - 25) / (W - 50)) * Math.PI) * 25, 10, 2.5, 'rgba(62,39,35,0.7)');
     }
+  } else if (stage === 2) {
+    // 중고차 매매단지: 가운데 낡은 도로 + 양옆 주차장(매물 차량·급매 깃발)
+    ctx.fillStyle = '#A7ADB2';
+    ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 40; i++) px(ctx, (i * 89) % 85, ((i * 61 + scroll) % (H + 20)) - 10, 5, 2.5, '#979DA2');
+    for (let i = 0; i < 40; i++) px(ctx, 315 + ((i * 47) % 85), ((i * 71 + scroll) % (H + 20)) - 10, 5, 2.5, '#979DA2');
+    px(ctx, 85, 0, 230, H, '#43484F');
+    for (let i = 0; i < 30; i++) px(ctx, 90 + ((i * 67) % 220), ((i * 113 + scroll) % (H + 20)) - 10, 5, 5, i % 4 ? '#4C525A' : '#363A40');
+    px(ctx, 87.5, 0, 5, H, '#ECEFF1');
+    px(ctx, 307.5, 0, 5, H, '#ECEFF1');
+    const dash = scroll % 70;
+    for (let y = -70; y < H + 70; y += 70) {
+      px(ctx, 195, y + dash, 5, 35, '#FFC400');
+      px(ctx, 202.5, y + dash, 2.5, 35, '#FFC400');
+      px(ctx, 145, y + dash + 20, 2.5, 25, 'rgba(236,239,241,0.6)');
+      px(ctx, 255, y + dash + 20, 2.5, 25, 'rgba(236,239,241,0.6)');
+    }
+    // 포트홀
+    for (let k = 0; k < 3; k++) {
+      const y = ((k * 260 + scroll) % (H + 260)) - 120;
+      px(ctx, 110 + k * 70, y, 20, 10, '#2B2E33');
+      px(ctx, 115 + k * 70, y + 2.5, 10, 5, '#1E2024');
+    }
+    // 주차 칸 + 매물 차량
+    const CARS = ['#E53935', '#FDD835', '#1E88E5', '#ECEFF1', '#43A047', '#8E24AA', '#FB8C00', '#546E7A'];
+    const lot = scroll % 56;
+    for (let r = -1; r < H / 56 + 2; r++) {
+      const y = r * 56 + lot;
+      const idx = Math.floor((r * 56 + lot - scroll) / 56);
+      px(ctx, 0, y, 80, 2.5, '#ECEFF1');
+      px(ctx, 320, y, 80, 2.5, '#ECEFF1');
+      const hash = (n) => ((n * 2654435761) >>> 0) % 97;
+      if (hash(idx) % 4 !== 0) parkedCar(ctx, 8, y + 10, CARS[hash(idx) % CARS.length]);
+      if (hash(idx + 31) % 4 !== 0) parkedCar(ctx, 328, y + 10, CARS[hash(idx + 31) % CARS.length]);
+    }
+    // 급매 깃발 줄
+    for (let k = 0; k < 2; k++) {
+      const y = ((k * 330 + scroll * 1.05) % (H + 330)) - 160;
+      for (const x0 of [0, 320]) {
+        for (let x = x0; x < x0 + 80; x += 10) {
+          px(ctx, x, y, 10, 2.5, '#424242');
+          px(ctx, x + 2.5, y + 2.5, 5, 5, ['#FF1744', '#FFEA00', '#2979FF', '#00E676'][(x / 10) % 4]);
+        }
+      }
+    }
   } else {
     // 사이버 기지: 청록 회로 바닥 + 네온 패널
     ctx.fillStyle = '#0B2E35';
@@ -1052,6 +1224,20 @@ function drawBackground(ctx, stage, scroll, t) {
       px(ctx, (i * 73) % W, ((i * 131 + scroll * 2.2) % (H + 40)) - 20, 2.5, 12.5, i % 3 ? 'rgba(224,64,251,0.55)' : 'rgba(0,229,255,0.65)');
     }
   }
+}
+
+// 매매단지 주차 차량 (위에서 본 모습, 가로 주차) + 노란 가격표
+function parkedCar(ctx, x, y, c) {
+  px(ctx, x + 7.5, y - 2.5, 10, 5, '#212121');
+  px(ctx, x + 47.5, y - 2.5, 10, 5, '#212121');
+  px(ctx, x + 7.5, y + 30, 10, 5, '#212121');
+  px(ctx, x + 47.5, y + 30, 10, 5, '#212121');
+  px(ctx, x, y, 65, 32.5, c);
+  px(ctx, x + 2.5, y + 2.5, 60, 2.5, 'rgba(255,255,255,0.35)');
+  px(ctx, x + 15, y + 5, 30, 22.5, 'rgba(0,0,0,0.18)');
+  px(ctx, x + 42.5, y + 5, 7.5, 22.5, '#90CAF9');
+  px(ctx, x + 12.5, y + 5, 5, 22.5, '#64B5F6');
+  px(ctx, x + 22.5, y + 10, 10, 10, '#FFEB3B');
 }
 
 function drawPlayer(ctx, s, t) {
@@ -1165,7 +1351,39 @@ function drawBeam(ctx, bm, big, PY) {
   ctx.fillRect(bm.x - 1.5, 0, 3, PY - 30);
 }
 
+// 적 탄: 형광 주황·빨강 몸체 + 굵은 흰 테두리 → 어떤 배경에서도 분리돼 보이게
+const OUTLINE_W = 3;
 function drawBullet(ctx, bl, t) {
+  if (bl.kind === 'tire') {
+    // 낡은 타이어: 흰 테두리 + 주황 트레드 + 검은 고무 + 회전하는 휠
+    ctx.fillStyle = '#fff';
+    circle(ctx, bl.x, bl.y, bl.r + OUTLINE_W);
+    ctx.fillStyle = bl.color;
+    circle(ctx, bl.x, bl.y, bl.r);
+    ctx.fillStyle = '#212121';
+    circle(ctx, bl.x, bl.y, bl.r * 0.68);
+    ctx.fillStyle = '#FFD166';
+    for (let i = 0; i < 3; i++) {
+      const a = bl.spin + (i * Math.PI * 2) / 3;
+      circle(ctx, bl.x + Math.cos(a) * bl.r * 0.42, bl.y + Math.sin(a) * bl.r * 0.42, 1.6);
+    }
+    ctx.fillStyle = '#fff';
+    circle(ctx, bl.x, bl.y, 1.8);
+    return;
+  }
+  if (bl.kind === 'smoke') {
+    // 매연 구름: 흰 테두리 + 주황 독가스 + 검댕 얼룩
+    ctx.fillStyle = '#fff';
+    circle(ctx, bl.x, bl.y, bl.r + OUTLINE_W);
+    ctx.fillStyle = bl.color;
+    circle(ctx, bl.x, bl.y, bl.r);
+    ctx.fillStyle = 'rgba(66,66,66,0.75)';
+    circle(ctx, bl.x - bl.r * 0.35, bl.y - bl.r * 0.25, bl.r * 0.38);
+    circle(ctx, bl.x + bl.r * 0.3, bl.y + bl.r * 0.3, bl.r * 0.3);
+    ctx.fillStyle = '#FFE0B2';
+    circle(ctx, bl.x + bl.r * 0.25, bl.y - bl.r * 0.35, bl.r * 0.2);
+    return;
+  }
   if (bl.kind === 'coin') {
     // 엽전
     ctx.fillStyle = bl.color;
@@ -1182,13 +1400,17 @@ function drawBullet(ctx, bl, t) {
     ctx.save();
     ctx.translate(bl.x, bl.y);
     ctx.rotate(a);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bl.r * 1.7 + OUTLINE_W, bl.r * 0.8 + OUTLINE_W, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = bl.color;
     ctx.beginPath();
     ctx.ellipse(0, 0, bl.r * 1.7, bl.r * 0.8, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#FFF59D';
     ctx.beginPath();
-    ctx.ellipse(0, 0, bl.r * 0.9, bl.r * 0.35, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, bl.r * 0.8, bl.r * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   } else if (bl.kind === 'missile') {
@@ -1196,22 +1418,26 @@ function drawBullet(ctx, bl, t) {
     ctx.save();
     ctx.translate(bl.x, bl.y);
     ctx.rotate(a);
-    ctx.fillStyle = 'rgba(255,171,64,0.7)';
-    circle(ctx, -9, 0, 3 + Math.random() * 2);
-    ctx.fillStyle = '#ECEFF1';
-    rr(ctx, -7, -3, 14, 6, 3);
+    ctx.fillStyle = 'rgba(255,214,0,0.85)';
+    circle(ctx, -11, 0, 3 + Math.random() * 2);
+    // 미사일: 흰 테두리 + 빨강 동체 + 주황 탄두
+    ctx.fillStyle = '#fff';
+    rr(ctx, -8 - OUTLINE_W, -3.5 - OUTLINE_W, 18 + OUTLINE_W * 2, 7 + OUTLINE_W * 2, 5);
     ctx.fill();
     ctx.fillStyle = bl.color;
-    ctx.fillRect(4, -3, 4, 6);
+    rr(ctx, -8, -3.5, 18, 7, 3.5);
+    ctx.fill();
+    ctx.fillStyle = E_ORANGE;
+    ctx.fillRect(5, -3.5, 5, 7);
     ctx.restore();
   } else {
-    ctx.fillStyle = bl.color;
-    ctx.globalAlpha = 0.35;
-    circle(ctx, bl.x, bl.y, bl.r + 3 + Math.sin(t * 20) * 0.8);
-    ctx.globalAlpha = 1;
-    circle(ctx, bl.x, bl.y, bl.r);
+    // 일반 탄: 흰 테두리 링 + 형광 몸체 + 밝은 심지
     ctx.fillStyle = '#fff';
-    circle(ctx, bl.x, bl.y, bl.r * 0.45);
+    circle(ctx, bl.x, bl.y, bl.r + OUTLINE_W);
+    ctx.fillStyle = bl.color;
+    circle(ctx, bl.x, bl.y, bl.r + (Math.sin(t * 20) > 0 ? 0.6 : 0));
+    ctx.fillStyle = '#FFF59D';
+    circle(ctx, bl.x, bl.y, bl.r * 0.4);
   }
 }
 
@@ -1367,6 +1593,29 @@ function drawMob(ctx, m, t) {
       ctx.fillRect(-4, -9, 3, 2);
       ctx.fillRect(1, -9, 3, 2);
     }
+  } else if (m.stage === 2) {
+    // 폐차 직전 중고차 (정면이 아래): 녹슨 차체 + 금 간 유리 + 깨진 헤드라이트
+    ctx.fillStyle = '#212121';
+    for (const [wx, wy] of [[-17, -15], [13, -15], [-17, 7], [13, 7]]) ctx.fillRect(wx, wy, 4, 9);
+    ctx.fillStyle = '#26A69A';
+    rr(ctx, -14, -22, 28, 44, 5);
+    ctx.fill();
+    ctx.fillStyle = '#8D5524';
+    ctx.fillRect(-12, -18, 7, 5);
+    ctx.fillRect(5, 10, 7, 6);
+    ctx.fillStyle = '#90CAF9';
+    ctx.fillRect(-10, 2, 20, 7);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-4, 2, 1.5, 7);
+    ctx.fillRect(-4, 5, 7, 1.5);
+    ctx.fillStyle = '#00796B';
+    ctx.fillRect(-10, -12, 20, 13);
+    ctx.fillStyle = '#FFEB3B';
+    ctx.fillRect(-12, 18, 6, 3);
+    ctx.fillStyle = '#616161';
+    ctx.fillRect(6, 18, 6, 3);
+    ctx.fillStyle = '#FFEB3B';
+    ctx.fillRect(-5, -7, 10, 5);
   } else {
     // 드론
     const big = heavy ? 1.5 : 1;
@@ -1417,6 +1666,25 @@ function drawBoss(ctx, b, t) {
       ctx.fillStyle = 'rgba(255,235,59,0.9)';
       ctx.fillRect(b.x - 2.5, b.y + 45, 5, 7.5);
     }
+  } else if (b.key === 'killer') {
+    const dashing = b.dash && b.dash.st === 'go';
+    // 헤드라이트 불빛 (아래 = 플레이어 방향)
+    if (!b.dead && (b.rage || (b.dash && b.dash.st !== 'back'))) {
+      ctx.fillStyle = 'rgba(255,241,118,0.22)';
+      for (const sx of [-24, 14]) {
+        ctx.beginPath();
+        ctx.moveTo(b.x + sx, b.y + 44);
+        ctx.lineTo(b.x + sx + 10, b.y + 44);
+        ctx.lineTo(b.x + sx + 30, b.y + (dashing ? 170 : 120));
+        ctx.lineTo(b.x + sx - 20, b.y + (dashing ? 170 : 120));
+        ctx.fill();
+      }
+    }
+    // 돌진 잔상
+    if (dashing) {
+      drawSprite(ctx, killerSprite(b.rage), b.x, b.y - 30, false, 0.3);
+    }
+    drawSprite(ctx, killerSprite(b.rage), b.x + jx, b.y, flash, alpha);
   } else {
     const rage = b.mode === 'floor' || b.mode === 'final';
     // 제트 불꽃
@@ -1438,6 +1706,18 @@ function drawBoss(ctx, b, t) {
       circle(ctx, b.x, b.y, 64);
     }
   }
+}
+
+// 킬러조 돌진 예고: 차 폭만큼 아래로 깜빡이는 주황 경고 띠
+function drawDashWarn(ctx, b, t) {
+  const d = b.dash, k = d.t / d.warn, half = b.w / 2 + 6;
+  ctx.fillStyle = `rgba(255,109,0,${0.12 + 0.18 * k + (Math.floor(t * (6 + k * 10)) % 2) * 0.1})`;
+  ctx.fillRect(d.x - half, b.y, half * 2, H - b.y);
+  ctx.strokeStyle = 'rgba(255,214,0,0.95)';
+  ctx.setLineDash([8, 6]);
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(d.x - half, b.y, half * 2, H - b.y + 4);
+  ctx.setLineDash([]);
 }
 
 function drawLaser(ctx, lz, t, py) {
@@ -1512,14 +1792,16 @@ function drawHud(ctx, s, t) {
   ctx.fillStyle = '#FFD166';
   ctx.fillText(sc, 52, 28);
   ctx.font = `700 11px ${FONT}`;
-  ctx.fillStyle = s.stage === 2 ? '#B2EBF2' : '#3E2723';
+  if (s.stage >= 2) ctx.strokeText(STAGES[s.stage].name, 52, 42);
+  ctx.fillStyle = s.stage === 3 ? '#B2EBF2' : s.stage === 2 ? '#FFFFFF' : '#3E2723';
   ctx.fillText(STAGES[s.stage].name, 52, 42);
   // 체력
   ctx.textAlign = 'right';
   ctx.font = '16px sans-serif';
   for (let i = 0; i < MAX_HP; i++) drawPixelHeart(ctx, W - 34 - i * 26, 12, 3, i < p.hp);
   ctx.font = `700 12px ${FONT}`;
-  ctx.fillStyle = s.stage === 2 ? '#FFD166' : '#BF360C';
+  ctx.fillStyle = s.stage >= 2 ? '#FFD166' : '#BF360C';
+  if (s.stage >= 2) ctx.strokeText(`💥 필살기 ×${s.bombs}`, W - 10, 46);
   ctx.fillText(`💥 필살기 ×${s.bombs}`, W - 10, 46);
   // 활성 버프
   const active = Object.entries(s.buffs).filter(([, v]) => v > 0);
