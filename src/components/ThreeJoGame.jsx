@@ -341,8 +341,9 @@ const ThreeJoGame = () => {
             <div style={{ fontSize: 40 }}>🏹⚔️</div>
             <h2 style={{ color: '#3e2723', margin: '6px 0', fontSize: 20 }}>탐관오리 토벌전</h2>
             <p style={{ fontSize: 13, color: '#5d4037', lineHeight: 1.6, margin: '0 0 8px', wordBreak: 'keep-all' }}>
-              평민 궁수에서 시작해 <b>활 → 조총 → 대포 → 기관총·레이저</b>로 진화!<br />
-              캐슬조 · 제로조 · 킬러조 · 조철왕을 차례로 토벌하라
+              평민 궁수에서 시작해 <b>활 → 조총 → 대포 → 기관총 → 레이저 → 💧물 → 🔥불 → 🌿풀 → ⚡번개 → ⌨️개발자 키보드·마우스 핵폭격</b>까지 10단계 진화!<br />
+              캐슬조 · 제로조 · 킬러조 · 조철왕을 차례로 토벌하라<br />
+              <b style={{ color: '#c62828' }}>…조철왕을 쓰러뜨리면 무슨 일이 벌어질까?</b>
             </p>
             <ul style={tipList}>
               <li>🪙 엽전·📦 무기 상자로 레벨업, 레벨이 오를수록 엄호 병사와 발사체 증가</li>
@@ -365,23 +366,39 @@ const ThreeJoGame = () => {
         {gameState === 'over' && result && (
           <div style={overlayStyle}>
             <div style={{ fontSize: 40, animation: 'none' }}>{KILLER_EMOJI[result.killer] || '💀'}</div>
-            <h2 style={{ color: '#c62828', margin: '4px 0 6px', fontSize: 19, wordBreak: 'keep-all' }}>
-              {result.killer}에게 당했습니다!
-            </h2>
-            <p style={{ margin: 0, fontSize: 15, wordBreak: 'keep-all' }}>
-              당신의 최종 점수는 <b style={{ color: '#c62828', fontSize: 24 }}>{result.score.toLocaleString('ko-KR')}</b>점 입니다.
-            </p>
+            {result.loop > 0 ? (
+              // 어려움 모드(무한 루프)까지 간 판: 도전 성과 강조
+              <>
+                <h2 style={{ color: '#c62828', margin: '4px 0 6px', fontSize: 17, wordBreak: 'keep-all', lineHeight: 1.4 }}>
+                  결국 개발자 조철왕의 분노를 버티지 못하고 패배했습니다!
+                </h2>
+                <div style={hardBox}>
+                  <div>🔥 최종 난이도: <b>어려움 {result.loop}회차 루프</b></div>
+                  <div>🏆 점수: <b style={{ fontSize: 22 }}>{result.score.toLocaleString('ko-KR')}</b>점</div>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>({result.killer}에게 당함)</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ color: '#c62828', margin: '4px 0 6px', fontSize: 19, wordBreak: 'keep-all' }}>
+                  {result.killer}에게 당했습니다!
+                </h2>
+                <p style={{ margin: 0, fontSize: 15, wordBreak: 'keep-all' }}>
+                  당신의 최종 점수는 <b style={{ color: '#c62828', fontSize: 24 }}>{result.score.toLocaleString('ko-KR')}</b>점 입니다.
+                </p>
+              </>
+            )}
             <div style={statGrid}>
-              <span>🗺️ {STAGE_NAMES[result.stage]}</span>
-              <span>👑 보스 {result.bosses}/{STAGE_COUNT - 1} 격파</span>
+              <span>🗺️ {result.loop > 0 ? `🔥${result.loop}회차 · ` : ''}{STAGE_NAMES[result.stage]}</span>
+              <span>👑 보스 {result.bosses}{result.loop > 0 ? '회' : `/${STAGE_COUNT}`} 격파</span>
               <span>⚡ 아슬아슬 {result.grazes}회</span>
               <span>⏱ {Math.floor(result.time)}초</span>
               <span style={{ gridColumn: '1 / -1' }}>🔫 최종 무기 Lv.{result.power + 1} {weaponLabel(result.power)}</span>
               {result.autoUsed && <span style={{ gridColumn: '1 / -1' }}>🤖 개발자 도움 사용 (랭킹에 🤖 표시)</span>}
               {!helpUnlocked && <span style={{ gridColumn: '1 / -1' }}>🔒 개발자 도움 해금까지 {HELP_UNLOCK - plays}판</span>}
             </div>
-            {result.killer === '조철왕' && (
-              <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>※ 조철왕은 이 게임의 제작자라 아무도 이길 수 없습니다. 오래 버틸수록 점수가 올라가요!</p>
+            {(result.killer === '조철왕' || result.loop > 0) && (
+              <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px', wordBreak: 'keep-all' }}>※ 조철왕의 체력을 0으로 만들면 분노하여 🔥어려움 모드 무한 루프가 시작됩니다. 회차가 오를수록 점수 배율 UP! 몇 회차까지 버틸 수 있을까요?</p>
             )}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
               <input
@@ -582,6 +599,11 @@ const itemChip = {
   background: '#fff',
   color: '#3e2723',
   fontWeight: 700,
+};
+
+const hardBox = {
+  margin: '6px auto 4px', padding: '8px 12px', borderRadius: 10, background: 'linear-gradient(135deg, #b71c1c, #e65100)',
+  color: '#fff', fontSize: 14, lineHeight: 1.7, boxShadow: '0 0 12px rgba(255,23,68,0.5)',
 };
 
 const statGrid = {
