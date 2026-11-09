@@ -28,6 +28,7 @@ const BLESS_TAPS = 3;       // 숨은 '도움' 버튼 연속 클릭 횟수
 const BLESS_GAP_MS = 700;   // 이 간격 안에 눌러야 '연속'으로 인정
 
 // 브라우저 Fullscreen API (사파리 webkit 접두사 대응)
+// 아이폰 사파리는 일반 요소의 Fullscreen API를 지원하지 않음 → 화면을 꽉 채우는 '가상 전체화면'으로 대체
 const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
 const fsSupported = () => typeof document !== 'undefined' && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 
@@ -56,8 +57,12 @@ const ThreeJoGame = () => {
   const [isMuted, setIsMuted] = useState(loadMuted);
   const [plays, setPlays] = useState(loadPlays);
   const [help, setHelp] = useState({ auto: false, left: HELP_USES });
-  const [isFs, setIsFs] = useState(false);
-  const [canFs] = useState(fsSupported);
+  const [nativeFs, setNativeFs] = useState(false);
+  const [pseudoFs, setPseudoFs] = useState(false);
+  const [canNativeFs] = useState(fsSupported);
+  const isFs = nativeFs || pseudoFs;
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
   const stageRef = useRef(null);
   const blessTapRef = useRef({ n: 0, last: 0 });
   const helpUnlocked = plays >= HELP_UNLOCK;
@@ -82,7 +87,7 @@ const ThreeJoGame = () => {
 
   // 전체화면 상태 동기화 (Esc로 빠져나와도 반영)
   useEffect(() => {
-    const sync = () => setIsFs(!!fsElement());
+    const sync = () => setNativeFs(!!fsElement());
     document.addEventListener('fullscreenchange', sync);
     document.addEventListener('webkitfullscreenchange', sync);
     return () => {
@@ -94,17 +99,66 @@ const ThreeJoGame = () => {
   const toggleFullscreen = () => {
     const el = stageRef.current;
     if (!el) return;
-    const req = fsElement()
-      ? (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)
-      : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
-    req?.catch?.(() => {});
+    if (pseudoFs) { setPseudoFs(false); return; }
+    if (fsElement()) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+      return;
+    }
+    const request = canNativeFs && (el.requestFullscreen || el.webkitRequestFullscreen);
+    if (!request) { setPseudoFs(true); return; }
+    try {
+      // 거부되면(일부 모바일 브라우저) 가상 전체화면으로 대체
+      request.call(el)?.catch?.(() => setPseudoFs(true));
+    } catch (e) {
+      setPseudoFs(true);
+    }
   };
+
+  // 가상 전체화면 중에는 뒤 페이지 스크롤 잠금
+  useEffect(() => {
+    if (!pseudoFs) return;
+    const { body, documentElement: html } = document;
+    const prev = [body.style.overflow, html.style.overflow];
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+    window.scrollTo(0, 0);
+    return () => { [body.style.overflow, html.style.overflow] = prev; };
+  }, [pseudoFs]);
+
+  // 일시정지: 게임 루프는 pausedRef를 보고 진행을 멈춤
+  const setPause = (on) => {
+    pausedRef.current = on;
+    setPaused(on);
+    if (on) {
+      // 누르고 있던 방향키·드래그 입력 초기화 (재개 시 혼자 움직이지 않게)
+      keysRef.current = {};
+      dragRef.current = null;
+      inputRef.current = { dx: 0, dy: 0, tx: null, ty: null };
+    }
+  };
+  const togglePause = () => setPause(!pausedRef.current);
+  const quitGame = () => { setPause(false); setGameState('menu'); };
+
+  // 탭 전환·화면 잠금·전화 수신 등으로 화면이 가려지면 자동 일시정지
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const onHide = () => { if (document.hidden) setPause(true); };
+    const onPageHide = () => setPause(true);
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState]);
 
   // 숨은 '도움' 버튼: 연속 3번 클릭 → 개발자의 가호
   const tapBless = () => {
     const now = performance.now(), tap = blessTapRef.current;
     tap.n = now - tap.last < BLESS_GAP_MS ? tap.n + 1 : 1;
     tap.last = now;
+    if (pausedRef.current) return;
     if (tap.n >= BLESS_TAPS) {
       tap.n = 0;
       gameRef.current?.blessing();
@@ -120,16 +174,17 @@ const ThreeJoGame = () => {
     setHelp({ auto: false, left: HELP_USES });
     setResult(null);
     setSubmitted(false);
+    setPause(false);
     setGameState('playing');
     setRound((r) => r + 1);
     // 모바일: 게임판이 화면에 꽉 차도록 스크롤
     requestAnimationFrame(() => stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
-  const fireSpecial = () => { gameRef.current?.special(); };
-  const askHelp = () => { if (helpUnlocked) gameRef.current?.setAuto(true); };
+  const fireSpecial = () => { if (!pausedRef.current) gameRef.current?.special(); };
+  const askHelp = () => { if (helpUnlocked && !pausedRef.current) gameRef.current?.setAuto(true); };
 
-  // 키보드: 방향키 / WASD 이동, Space / X 필살기
+  // 키보드: 방향키 / WASD 이동, Space / X 필살기, P / Esc 일시정지
   useEffect(() => {
     if (gameState !== 'playing') return;
     const KEYS = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'u', w: 'u', ArrowDown: 'd', s: 'd' };
@@ -143,10 +198,15 @@ const ThreeJoGame = () => {
         if (!e.repeat) askHelp();
         return;
       }
-      if (down && (e.key === 'f' || e.key === 'F')) {
-        if (!e.repeat && canFs) toggleFullscreen();
+      if (down && (e.key === 'p' || e.key === 'P' || e.key === 'Escape')) {
+        if (!e.repeat) togglePause();
         return;
       }
+      if (down && (e.key === 'f' || e.key === 'F')) {
+        if (!e.repeat) toggleFullscreen();
+        return;
+      }
+      if (pausedRef.current) return;
       const k = KEYS[e.key] || KEYS[e.key.toLowerCase()];
       if (!k) return;
       e.preventDefault();
@@ -165,7 +225,7 @@ const ThreeJoGame = () => {
       window.removeEventListener('keyup', up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, helpUnlocked]);
+  }, [gameState, helpUnlocked, pseudoFs]);
 
   // 마우스: 커서 위치로 따라감 / 터치: 누른 곳 기준 상대 드래그 (손가락이 캐릭터를 가리지 않게)
   const toCanvas = (e) => {
@@ -177,14 +237,14 @@ const ThreeJoGame = () => {
     };
   };
   const onPointerDown = (e) => {
-    if (gameState !== 'playing' || !gameRef.current) return;
+    if (gameState !== 'playing' || !gameRef.current || pausedRef.current) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const c = toCanvas(e), inp = inputRef.current;
     if (e.pointerType === 'mouse') { inp.tx = c.x; inp.ty = c.y; return; }
     dragRef.current = { fx: c.x, fy: c.y, ...gameRef.current.player() };
   };
   const onPointerMove = (e) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || pausedRef.current) return;
     const c = toCanvas(e), inp = inputRef.current;
     if (e.pointerType === 'mouse') { inp.tx = c.x; inp.ty = c.y; return; }
     const d = dragRef.current;
@@ -238,17 +298,21 @@ const ThreeJoGame = () => {
     gameRef.current = game;
     let raf;
     let last = performance.now();
+    let clock = 0; // 일시정지 동안 멈추는 게임 시계 (애니메이션도 정지)
     const frame = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      game.update(dt, inputRef.current);
+      if (!pausedRef.current) {
+        clock += dt;
+        game.update(dt, inputRef.current);
+      }
       lctx.setTransform(LW / W, 0, 0, LH / H, 0, 0);
-      game.draw(lctx, now / 1000);
+      game.draw(lctx, clock);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(low, 0, 0, canvas.width, canvas.height);
       ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
-      game.drawUi(ctx, now / 1000);
+      game.drawUi(ctx, clock);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -300,16 +364,19 @@ const ThreeJoGame = () => {
       <h1 style={titleStyle}>🏹 쓰리조 챌린지</h1>
       <p style={{ color: '#666', margin: '0 0 12px', fontSize: 14 }}>탐관오리 토벌전 · 상하좌우로 피하세요, 공격은 자동!</p>
 
-      <div ref={stageRef} style={isFs ? fsShell : { scrollMarginTop: 72 }}>
+      <div ref={stageRef} style={pseudoFs ? pseudoFsShell : isFs ? fsShell : { scrollMarginTop: 72 }}>
       <div style={isFs ? fsStageWrap : stageWrap}>
       <div style={topBar}>
-        {canFs && (
-          <button onClick={toggleFullscreen} style={smallBtn} aria-pressed={isFs}>
-            {isFs ? '🗗 창 모드' : '⛶ 전체화면 모드'}
+        {gameState === 'playing' && (
+          <button onClick={togglePause} style={{ ...smallBtn, marginRight: 'auto' }} aria-pressed={paused}>
+            {paused ? '▶ 계속하기' : '⏸ 일시정지'}
           </button>
         )}
+        <button onClick={toggleFullscreen} style={smallBtn} aria-pressed={isFs}>
+          {isFs ? '🗗 창 모드' : '⛶ 전체화면'}
+        </button>
         <button onClick={() => setIsMuted((m) => !m)} style={smallBtn}>{isMuted ? '🔇 소리' : '🔊 소리'}</button>
-        {gameState === 'playing' && <button onClick={() => setGameState('menu')} style={smallBtn}>✖ 그만하기</button>}
+        {gameState === 'playing' && <button onClick={quitGame} style={smallBtn}>✖ 그만하기</button>}
       </div>
 
       <div style={{ position: 'relative', width: '100%', margin: '0 auto' }}>
@@ -324,7 +391,17 @@ const ThreeJoGame = () => {
           style={canvasStyle}
         />
 
-        {gameState === 'playing' && (
+        {gameState === 'playing' && paused && (
+          <div style={pauseOverlay}>
+            <div style={{ fontSize: 44, lineHeight: 1 }}>⏸</div>
+            <h2 style={{ margin: '8px 0 4px', fontSize: 22, color: '#FFD166' }}>일시정지</h2>
+            <p style={{ margin: '0 0 14px', fontSize: 12, color: '#f3e9d2' }}>PC: P 또는 Esc로 재개</p>
+            <button onClick={() => setPause(false)} style={{ ...btnStyle, marginTop: 0, width: 200 }}>▶ 계속하기</button>
+            <button onClick={quitGame} style={{ ...btnStyle, marginTop: 12, width: 200, background: '#3e2723', boxShadow: '4px 4px 0 #000' }}>✖ 그만하기</button>
+          </div>
+        )}
+
+        {gameState === 'playing' && !paused && (
           // 눈에 잘 안 띄는 숨은 '도움' 버튼 (연속 3번 → 개발자의 가호)
           <button
             onPointerDown={(e) => { e.preventDefault(); tapBless(); }}
@@ -351,7 +428,7 @@ const ThreeJoGame = () => {
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
               <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
               <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 자동 플레이 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
-              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움{canFs ? ', F 전체화면' : ''} · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
+              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움, P/Esc 일시정지, F 전체화면 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
             </ul>
             <div style={itemGrid}>
               {Object.values(POWERUPS).map((pu) => (
@@ -525,6 +602,30 @@ const fsShell = {
   overflow: 'auto',
   boxSizing: 'border-box',
   padding: 8,
+};
+
+// 가상 전체화면 (아이폰 등 Fullscreen API 미지원 브라우저): 화면 위에 고정된 전체 레이어
+const pseudoFsShell = {
+  ...fsShell,
+  position: 'fixed',
+  inset: 0,
+  zIndex: 10000,
+  height: '100dvh',
+  padding: 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))',
+  overscrollBehavior: 'contain',
+};
+
+const pauseOverlay = {
+  position: 'absolute',
+  inset: 6,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(26, 18, 32, 0.72)',
+  color: '#fff',
+  boxSizing: 'border-box',
+  padding: 16,
 };
 
 const fsStageWrap = {
