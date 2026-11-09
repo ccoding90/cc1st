@@ -431,7 +431,7 @@ const ThreeJoGame = () => {
               <li>⚡ 탄을 <b>아슬아슬하게</b> 피하면 경험치 + 연사 속도 폭발</li>
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
               <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
-              <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 자동 플레이 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
+              <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 동안 프로게이머 AI가 모든 탄을 피하며 공격 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
               <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움, P/Esc 일시정지, F 전체화면 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
             </ul>
             <div style={itemGrid}>

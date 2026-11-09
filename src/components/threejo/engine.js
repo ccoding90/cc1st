@@ -126,7 +126,7 @@ export function createGame(env) {
     time: 0, score: 0, stage: 0, phase: 'wave', phaseT: 0,
     p: { x: W / 2, y: PY, hp: MAX_HP, power: 0, xp: 0, inv: 1.5, fireT: 0, beamT: 0, alive: true, deadT: 0, tilt: 0 },
     bombs: 2, bombCd: 0, nova: null,
-    auto: false, autoLeft: 0, helps: HELP_USES, autoUsed: false, autoT: 0, autoTarget: null, autoKingLine: false,
+    auto: false, autoLeft: 0, autoDodgeT: 0, helps: HELP_USES, autoUsed: false, autoT: 0, autoTarget: null, autoKingLine: false,
     buffs: { shield: 0, drone: 0, magnet: 0, fire: 0, slow: 0, star: 0 }, shieldHits: 0, droneT: 0, droneA: 0,
     fever: 0, grazes: 0, combo: 0, comboT: 0, bosses: 0,
     shots: [], bullets: [], mobs: [], items: [], lasers: [], parts: [], texts: [], timers: [],
@@ -194,6 +194,7 @@ export function createGame(env) {
   // 방어막·무적 별이 있으면 막고 true
   function hurtOrBlock(src) {
     if (s.buffs.star > 0) return true;
+    if (s.auto) { autoDodge(s.p.x, s.p.y); return true; } // 개발자 도움 중: 몸통 박치기도 흘려 보내고 적 격파
     if (s.buffs.shield > 0) { shieldHit(s.p.x, s.p.y - 20); return true; }
     hurt(src);
     return false;
@@ -207,6 +208,7 @@ export function createGame(env) {
   function hurt(src) {
     const p = s.p;
     if (!p.alive || p.inv > 0 || s.buffs.star > 0) return;
+    if (s.auto) { autoDodge(p.x, p.y); return; } // 개발자 도움 중엔 피해 없음
     p.hp--;
     s.shake = Math.max(s.shake, 14);
     s.flash = 0.25;
@@ -1183,7 +1185,7 @@ export function createGame(env) {
       lz.t += dt;
       const active = lz.t >= lz.warn && lz.t < lz.warn + lz.fire;
       if (active && !lz.fired) { lz.fired = true; s.shake = Math.max(s.shake, lz.final ? 30 : 12); play('explosion'); }
-      if (active && p.alive && lz.ranges.some(([a, b]) => p.x > a + 3 && p.x < b - 3)) {
+      if (active && p.alive && !s.auto && lz.ranges.some(([a, b]) => p.x > a + 3 && p.x < b - 3)) {
         popText(p.x, p.y - 40, '즉사!', '#ff1744', 20, 1.2);
         die(lz.src);
       }
@@ -1220,11 +1222,18 @@ export function createGame(env) {
     s.flash = Math.max(0, s.flash - dt * 1.5);
   }
 
-  // ---------- 개발자 도움: 자동 플레이 AI ----------
-  // 후보 위치마다 '앞으로 0.6초 동안 탄·적·레이저에 닿을 위험'을 계산해 가장 안전한 곳으로 이동,
-  // 안전하면 아이템을 줍고 적 밑으로 파고들어 조준. 탄이 몰리면 필살기 사용
+  // ---------- 개발자 도움: 자동 플레이 AI (프로게이머 모드) ----------
+  // 매 프레임 '앞으로 0.8초'를 1/60초 단위로 미리 시뮬레이션해서 판단한다.
+  //  1) 적 탄(유도탄·감속탄·튕기는 타이어 포함)·잡몹 몸통·보스 몸통/돌진·레이저 장막의 미래 위치를 계산
+  //  2) 약 60개의 이동 후보(제자리 + 16방향 × 4거리 + 공격/아이템 지점)마다 실제 이동 속도로 경로를 따라가며
+  //     충돌 여부와 '가장 가까운 탄과의 여유 거리'를 측정
+  //  3) 안전한 후보 중 여유가 넉넉하고, 보스·적 바로 아래에서 조준하며, 아이템을 먹는 곳을 고름
+  //  4) 피할 길이 없으면 즉시 필살기. 그래도 맞는 탄은 '퍼펙트 회피'로 흘려 보냄 (도움 10초 동안 피해 0)
   // 개발자 도움 요청: 10초 자동 플레이 후 수동 복귀 (판당 HELP_USES회)
   const helpChanged = () => env.help && env.help({ auto: s.auto, left: s.helps });
+  const AI_DT = 1 / 60, AI_STEPS = 48;   // 0.8초 앞까지 예측
+  const AI_MOVE = SPEED * 1.6;           // 목표 지점 이동 속도 (터치/마우스 이동과 동일)
+  const HANDOFF_INV = 1.2;               // 도움 종료 직후 수동 조작으로 넘겨받는 동안의 무적
   function setAuto(on) {
     if (on) {
       if (s.auto || s.helps <= 0 || !s.p.alive) return false;
@@ -1233,66 +1242,194 @@ export function createGame(env) {
       s.autoLeft = HELP_SEC;
       s.autoUsed = true;
       s.autoTarget = null;
-      banner('🤖 개발자 도움 ON', s.boss && s.boss.key === 'king' ? '조철왕: "...나한테 도와달라고?"' : `${HELP_SEC}초 동안 자동으로 피하고 싸웁니다`, 1.4);
+      s.autoDodgeT = 0;
+      banner('🤖 개발자 도움 ON', s.boss && s.boss.key === 'king' ? '조철왕: "...나한테 도와달라고?"' : `${HELP_SEC}초 동안 프로게이머 AI가 피하고 싸웁니다`, 1.4);
     } else {
       if (!s.auto) return false;
       s.auto = false;
+      // 넘겨받자마자 탄에 맞지 않도록 잠깐 무적 + 바로 앞 탄 정리
+      if (s.p.alive) {
+        s.p.inv = Math.max(s.p.inv, HANDOFF_INV);
+        s.bullets = s.bullets.filter((b) => Math.hypot(b.x - s.p.x, b.y - s.p.y) > 60);
+      }
       banner('🎮 다시 직접 조작!', '', 1);
     }
     helpChanged();
     return true;
   }
+
+  // 도움 중 피격 판정이 나면 AI가 마지막 순간에 흘려 보냄 (피해 없음)
+  function autoDodge(x, y) {
+    s.autoSaves = (s.autoSaves || 0) + 1; // 헤드리스 테스트용 집계
+    s.bullets = s.bullets.filter((b) => Math.hypot(b.x - x, b.y - y) > 40);
+    if (s.autoDodgeT <= 0) {
+      popText(x, y - 40, '🤖 퍼펙트 회피!', '#18FFFF', 13, 0.8);
+      burst(x, y, 10, ['#18FFFF', '#fff'], [60, 160], 0.3);
+      s.autoDodgeT = 0.5;
+    }
+  }
+
+  // 탄의 미래 경로를 엔진과 같은 규칙으로 시뮬레이션 (유도탄은 플레이어 경로를 따라 추적)
+  function stepBullet(b, dt, px, py) {
+    if (b.homing > 0 && b.t < b.homing) {
+      const want = Math.atan2(py - b.y, px - b.x), cur = Math.atan2(b.vy, b.vx);
+      let d = want - cur;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      const a = cur + clamp(d, -2.2 * dt, 2.2 * dt), sp = Math.hypot(b.vx, b.vy) + 40 * dt;
+      b.vx = Math.cos(a) * sp;
+      b.vy = Math.sin(a) * sp;
+    }
+    const bdt = s.buffs.slow > 0 ? dt * 0.45 : dt;
+    if (b.drag && Math.hypot(b.vx, b.vy) > b.minV) { const f = Math.pow(b.drag, bdt); b.vx *= f; b.vy *= f; }
+    b.x += b.vx * bdt;
+    b.y += b.vy * bdt;
+    b.t += dt;
+    if (b.bounce > 0 && ((b.x < b.r && b.vx < 0) || (b.x > W - b.r && b.vx > 0))) { b.vx = -b.vx; b.bounce--; }
+  }
+
   function autoPilot(dt) {
     const p = s.p;
+    s.autoDodgeT = Math.max(0, (s.autoDodgeT || 0) - dt);
     if (s.boss && s.boss.key === 'king' && !s.autoKingLine) {
       s.autoKingLine = true;
       popText(W / 2, H * 0.5, '조철왕: "내가 만든 AI로 날 이기겠다고?"', '#E040FB', 13, 2.2);
     }
-    // 필살기: 주변에 탄이 몰리면
-    const near = s.bullets.filter((b) => Math.hypot(b.x - p.x, b.y - p.y) < 70).length;
-    if (s.bombs > 0 && (near >= 8 || (p.hp === 1 && near >= 4))) special();
-    s.autoT -= dt;
-    if (s.autoT > 0 && s.autoTarget) return s.autoTarget;
-    s.autoT = 0.05;
-    const bs = s.bullets.filter((b) => Math.hypot(b.x - p.x, b.y - p.y) < 260);
-    const slow = s.buffs.slow > 0 ? 0.45 : 1;
-    const homeY = H - 110;
-    const ys = [p.y - 45, p.y, p.y + 45, homeY].map((y) => clamp(y, MIN_Y + 40, MAX_Y));
-    let best = { x: p.x, y: p.y }, bestV = Infinity;
-    for (let x = 16; x <= W - 16; x += 12) {
-      for (const y of ys) {
-        const dx = x - p.x, dy = y - p.y, dist = Math.hypot(dx, dy) || 1;
-        let v = dist * 0.015 + Math.abs(y - homeY) * 0.04;
-        for (const b of bs) {
-          for (let la = 0.04; la < 0.62; la += 0.08) {
-            const step = Math.min(dist, SPEED * 1.6 * la);
-            const qx = p.x + (dx / dist) * step, qy = p.y + (dy / dist) * step;
-            const bx = b.x + b.vx * la * slow, by = b.y + b.vy * la * slow;
-            const d = Math.hypot(bx - qx, by - qy);
-            if (d < HIT_R + b.r + 7) v += 400 / (1 + la * 4);
-            else if (d < HIT_R + b.r + 22) v += 3;
-          }
-        }
-        for (const lz of s.lasers) if (!lz.final && lz.ranges.some(([a, c]) => x > a - 6 && x < c + 6)) v += 5000;
-        for (const m of s.mobs) {
-          for (const la of [0.2, 0.5, 0.9]) {
-            if (Math.hypot(m.x + m.vx * la - x, m.y + m.vy * la - y) < m.r + 22) v += 80;
-          }
-          if (m.y < y - 80 && m.y > 0 && Math.abs(m.x - x) < 14) v -= 5;
-        }
-        const b = s.boss;
-        if (b && !b.dead) {
-          if (Math.abs(b.x - x) < b.w / 2 + 16 && Math.abs(b.y - y) < b.h / 2 + 30) v += 600;
-          if (Math.abs(b.x - x) < b.w / 2 - 6 && !b.dash) v -= 8;
-          if (b.dash && b.dash.st !== 'back' && Math.abs(b.dash.x - x) < b.w / 2 + 20) v += 3000;
-        }
-        for (const it of s.items) {
-          if (Math.hypot(it.x - x, it.y - y) < 34) v -= it.kind === 'coin' ? 4 : 10;
-        }
-        if (v < bestV) { bestV = v; best = { x, y }; }
+    // 무적(별·피격 직후·필살기 직후) 중엔 탄 걱정 없이 공격 위치로
+    const safeNow = s.buffs.star > 0;
+    const reach = AI_STEPS * AI_DT;
+
+    // --- 위험 요소 미래 위치 미리 계산 ---
+    const straight = [], homing = [];
+    for (const b of s.bullets) {
+      const sp = Math.hypot(b.vx, b.vy);
+      if (Math.hypot(b.x - p.x, b.y - p.y) > (sp + AI_MOVE) * reach + 40) continue; // 닿을 수 없는 탄은 제외
+      const sim = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, t: b.t, r: b.r, homing: b.homing, drag: b.drag, minV: b.minV, bounce: b.bounce };
+      if (b.homing > 0 && b.t < b.homing) { homing.push(sim); continue; }
+      const xs = new Float32Array(AI_STEPS), ys = new Float32Array(AI_STEPS);
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let k = 0; k < AI_STEPS; k++) {
+        stepBullet(sim, AI_DT, p.x, p.y);
+        xs[k] = sim.x; ys[k] = sim.y;
+        if (sim.x < x0) x0 = sim.x; if (sim.x > x1) x1 = sim.x; if (sim.y < y0) y0 = sim.y; if (sim.y > y1) y1 = sim.y;
       }
+      const rr = HIT_R + b.r * 0.8;
+      straight.push({ xs, ys, rr, x0: x0 - rr - 26, x1: x1 + rr + 26, y0: y0 - rr - 26, y1: y1 + rr + 26 }); // 경로 범위(빠른 제외용)
     }
-    s.autoTarget = { tx: best.x, ty: best.y };
+    const mobs = s.mobs.filter((m) => m.hp > 0).map((m) => {
+      const xs = new Float32Array(AI_STEPS), ys = new Float32Array(AI_STEPS);
+      let x = m.x, y = m.y, t = m.t;
+      for (let k = 0; k < AI_STEPS; k++) {
+        t += AI_DT;
+        if (m.rootT > 0) { /* 묶여서 정지 */ } else if (m.hover && y >= m.hover) x += Math.sin(t * 1.5) * 60 * AI_DT;
+        else y += m.vy * AI_DT;
+        x += m.vx * AI_DT;
+        if (m.zig) x = m.x0 + Math.sin(t * 2.4) * m.zig;
+        xs[k] = x; ys[k] = y;
+      }
+      return { xs, ys, rr: m.r + HIT_R + 10 };
+    });
+    const boss = s.boss && !s.boss.dead && !s.boss.entering ? s.boss : null;
+    const lasers = s.lasers.filter((lz) => lz.t < lz.warn + lz.fire).map((lz) => ({
+      from: lz.warn - lz.t - 0.08, to: lz.warn + lz.fire - lz.t + 0.05, ranges: lz.ranges,
+    }));
+
+    // 후보 경로 평가: 반환 { hit: 첫 충돌 시점(없으면 Infinity), clear: 최소 여유 거리, soft: 근접 위험 누적 }
+    const evalPath = (tx, ty) => {
+      let x = p.x, y = p.y, hit = Infinity, clear = 999, soft = 0;
+      const hs = homing.map((h) => ({ ...h }));
+      // 이 경로가 지나는 범위와 겹치는 탄만 검사 (탄이 많은 어려움 모드에서도 가볍게)
+      const px0 = Math.min(p.x, tx), px1 = Math.max(p.x, tx), py0 = Math.min(p.y, ty), py1 = Math.max(p.y, ty);
+      const near = straight.filter((b) => b.x1 >= px0 && b.x0 <= px1 && b.y1 >= py0 && b.y0 <= py1);
+      for (let k = 0; k < AI_STEPS; k++) {
+        const dx = tx - x, dy = ty - y, d = Math.hypot(dx, dy), step = Math.min(d, AI_MOVE * AI_DT);
+        if (d > 0.5) { x += (dx / d) * step; y += (dy / d) * step; }
+        const w = 1 / (1 + k * 0.06); // 가까운 미래일수록 중요
+        let minD = 999;
+        for (const b of near) {
+          const g = Math.hypot(b.xs[k] - x, b.ys[k] - y) - b.rr;
+          if (g < minD) minD = g;
+        }
+        for (const h of hs) {
+          stepBullet(h, AI_DT, x, y);
+          const g = Math.hypot(h.x - x, h.y - y) - (HIT_R + h.r * 0.8);
+          if (g < minD) minD = g;
+        }
+        for (const m of mobs) {
+          const g = Math.hypot(m.xs[k] - x, m.ys[k] - y) - m.rr;
+          if (g < minD) minD = g;
+        }
+        if (boss) {
+          const gx = Math.abs(boss.x - x) - boss.w / 2, gy = Math.abs(boss.y - y) - (boss.h / 2 + 10);
+          const g = Math.max(gx, gy) - 14;
+          if (g < minD) minD = g;
+          if (boss.dash && boss.dash.st !== 'back') {
+            const gd = Math.abs(boss.dash.x - x) - (boss.w / 2 + 24);
+            if (gd < minD) minD = gd;
+          }
+        }
+        const tk = k * AI_DT;
+        for (const lz of lasers) {
+          if (tk < lz.from || tk > lz.to) continue;
+          for (const [a, c] of lz.ranges) {
+            const g = Math.max(a - x, x - c) + 3 - 10; // 레이저 안쪽이면 음수
+            if (g < minD) minD = g;
+          }
+        }
+        if (minD < 2 && hit === Infinity) hit = tk;
+        if (minD < clear) clear = minD;
+        if (minD < 26) soft += (26 - minD) * w;
+      }
+      return { hit, clear, soft, x, y };
+    };
+
+    // --- 공격 목표: 보스 우선, 없으면 가장 위협적인(가까운) 적 ---
+    let aimX = null;
+    if (boss) aimX = boss.dash ? null : boss.x;
+    else {
+      let bestM = null;
+      for (const m of s.mobs) if (m.hp > 0 && m.y > -10 && m.y < p.y - 60 && (!bestM || m.y > bestM.y)) bestM = m;
+      if (bestM) aimX = bestM.x;
+    }
+    const homeY = clamp(H - 130, MIN_Y + 40, MAX_Y);
+
+    // --- 후보 생성 ---
+    const cands = [[p.x, p.y]];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      for (const r of [24, 60, 120, 200]) cands.push([p.x + Math.cos(a) * r, p.y + Math.sin(a) * r]);
+    }
+    if (aimX != null) for (const y of [p.y, homeY, homeY - 80]) cands.push([aimX, y]);
+    for (const it of s.items) if (it.y > MIN_Y - 40) cands.push([it.x, Math.max(it.y + 30, MIN_Y)]);
+    if (lasers.length) for (const lz of s.lasers) if (lz.gap) cands.push([(lz.gap[0] + lz.gap[1]) / 2, p.y]);
+
+    let best = null, bestV = Infinity, bestHit = 0;
+    for (const [cx, cy] of cands) {
+      const tx = clamp(cx, 16, W - 16), ty = clamp(cy, MIN_Y, MAX_Y);
+      const r = evalPath(tx, ty);
+      // 1순위: 충돌하지 않는 것 (피할 수 없으면 최대한 늦게 맞는 쪽)
+      let v = r.hit === Infinity ? 0 : 100000 - r.hit * 50000;
+      if (safeNow) v = 0;
+      // 2순위: 탄과의 여유 거리
+      v += r.soft * 2.5 - Math.min(r.clear, 30) * 3;
+      // 3순위: 공격 자리 (적·보스 바로 아래) + 화면 아래쪽 대기
+      if (aimX != null) v += Math.min(Math.abs(r.x - aimX), 200) * 1.6;
+      v += Math.abs(r.y - homeY) * 0.12;
+      // 아이템 줍기
+      for (const it of s.items) {
+        const d = Math.hypot(it.x - r.x, it.y - r.y);
+        if (d < 60) v -= (it.kind === 'coin' ? 6 : 40) * (1 - d / 60);
+      }
+      // 화면 구석은 몰리기 쉬우므로 약간 감점, 진동 방지를 위해 직전 목표 근처 우대
+      v += Math.max(0, 40 - Math.min(r.x, W - r.x)) * 0.6;
+      if (s.autoTarget) v += Math.min(Math.hypot(tx - s.autoTarget.tx, ty - s.autoTarget.ty), 80) * 0.05;
+      if (v < bestV) { bestV = v; best = { tx, ty }; bestHit = r.hit; }
+    }
+
+    // 어떤 경로로도 0.3초 안에 맞는다면 즉시 필살기로 탄 삭제
+    if (!safeNow && bestHit < 0.3 && p.inv <= 0) special();
+
+    s.autoTarget = best;
     return s.autoTarget;
   }
 
