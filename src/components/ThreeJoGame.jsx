@@ -265,11 +265,12 @@ const ThreeJoGame = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     // 반응형: 화면에 표시되는 실제 크기 × DPR로 캔버스 해상도를 맞춤 (전체화면·창 크기 변경 시 선명하게)
+    let dirty = true; // 일시정지 중에도 캔버스 크기가 바뀌면(전체화면 전환 등) 한 번 다시 그림
     const fit = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.max(1, Math.round((canvas.clientWidth || W) * dpr));
       const h = Math.max(1, Math.round((canvas.clientHeight || H) * dpr));
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; dirty = true; }
     };
     fit();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
@@ -302,10 +303,13 @@ const ThreeJoGame = () => {
     const frame = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      if (pausedRef.current && !dirty) { raf = requestAnimationFrame(frame); return; }
+      dirty = false;
       if (!pausedRef.current) {
         clock += dt;
         game.update(dt, inputRef.current);
       }
+      // 일시정지 중에는 마지막 화면을 그대로 유지 (흔들림·번개 등 무작위 연출도 멈춤)
       lctx.setTransform(LW / W, 0, 0, LH / H, 0, 0);
       game.draw(lctx, clock);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
