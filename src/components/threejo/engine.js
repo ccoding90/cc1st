@@ -100,9 +100,9 @@ export function hardK(loop) {
   const n = loop - 1;
   return {
     hp: 1.8 * Math.pow(1.45, n),
-    spd: Math.min(2.4, 1.5 + 0.2 * n),
-    atk: Math.min(3, 1.6 + 0.3 * n),
-    dens: Math.min(3, 1.5 + 0.35 * n),
+    spd: Math.min(2.2, 1.3 + 0.18 * n),
+    atk: Math.min(2.6, 1.35 + 0.25 * n),
+    dens: Math.min(2.6, 1.25 + 0.3 * n),
     move: Math.min(2, 1.3 + 0.15 * n),
   };
 }
@@ -129,15 +129,15 @@ export const HERO_COUNT = HEROES.length;
 const JAMO = 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ';
 
 // ⚖️ 초각성 난이도 스케일링: 각성 1단계당 적 등장 간격 ×0.85, 체력 ×1.2, 이동·탄속 ×1.2
-// 속도만은 사람이 피할 수 있는 한계(각성 ×2, 어려움 모드 합산 ×3.2)에서 멈춤. 보스 체력은 ×1.1씩 (화력 인플레 보정)
+// 탄속은 단계당 ×1.1(최대 ×1.6, 어려움 모드 합산 ×2.8)로 완화 · 이동 속도는 ×1.2(최대 ×2). 보스 체력은 ×1.1씩 (화력 인플레 보정)
 export function awakenK(lv) {
-  return { hp: Math.pow(1.2, lv), spd: Math.min(2, Math.pow(1.2, lv)), move: Math.min(2, Math.pow(1.2, lv)), spawn: Math.pow(0.85, lv), boss: Math.pow(1.1, lv) };
+  return { hp: Math.pow(1.2, lv), spd: Math.min(1.6, Math.pow(1.1, lv)), move: Math.min(2, Math.pow(1.2, lv)), spawn: Math.pow(0.85, lv), boss: Math.pow(1.1, lv) };
 }
 // 어려움 모드(무한 루프) 배수 × 초각성 배수 = 곱연산
 export function makeK(loop, lv) {
   const h = hardK(loop), a = awakenK(lv);
   return {
-    hp: h.hp * a.hp, bossHp: h.hp * a.boss, spd: Math.min(3.2, h.spd * a.spd), move: Math.min(2.8, h.move * a.move),
+    hp: h.hp * a.hp, bossHp: h.hp * a.boss, spd: Math.min(2.8, h.spd * a.spd), move: Math.min(2.8, h.move * a.move),
     atk: h.atk, dens: h.dens, spawn: a.spawn, aw: a,
   };
 }
@@ -174,7 +174,7 @@ export function createGame(env) {
     boss: null, banner: null, shake: 0, flash: 0, scroll: 0,
     spawnT: 1.6, heavyT: 7, killer: '', ended: false, beams: [], bolts: [], waves: [], clicks: [], nukes: [], vineFx: [], blessed: false,
     loop: 0, K: makeK(0, 0), cine: null,
-    heroLv: 0, heroCd: 0, heroReady: false, awake: null, ultFx: [],
+    heroLv: 0, heroCd: 0, heroReady: false, awake: null, ultFx: [], legendT: 7,
   };
   const sfx = env.sfx || {};
   const play = (k) => sfx[k] && sfx[k]();
@@ -192,9 +192,10 @@ export function createGame(env) {
   // 적 탄환
   // 1~3탄은 스테이지별 bulletK로 탄속을 늦춤
   // 어려움 모드: 탄속 ×K.spd, 탄막 밀도 ×K.dens (양옆으로 살짝 벌어진 복제탄 추가)
+  const fireRaw = (x, y, ang, speed, o = {}, extra = true) => fire(x, y, ang, speed, o, extra);
   const fire = (x, y, ang, speed, o = {}, extra = true) => {
     const v = speed * STAGES[s.stage].bulletK * s.K.spd;
-    if (extra && s.K.dens > 1) {
+    if (extra && s.K.dens > 1 && !o.mob) { // 잡몹 탄은 복제하지 않음 (보스 탄막만 촘촘하게)
       const d = s.K.dens - 1;
       const n = Math.floor(d) + (Math.random() < d % 1 ? 1 : 0);
       for (let i = 0; i < n; i++) fire(x, y, ang + (i % 2 ? 1 : -1) * (0.09 + Math.floor(i / 2) * 0.07), speed * rand(0.9, 1.05), o, false);
@@ -834,12 +835,12 @@ export function createGame(env) {
     if (s.mobs.length >= MOB_CAP) return;
     const base = heavy ? st.heavy : st.mob;
     // 👹 엘리트 몹 (1단계 각성 이후): 붉은 오라 · 크기 1.5배 · 체력 10배 · 플레이어 유도탄 · 잠시 머물며 사격
-    const elite = !heavy && s.heroLv > 0 && Math.random() < Math.min(0.2, 0.06 + 0.012 * s.heroLv);
-    const hp = mobHp(base.hp, heavy) * (elite ? 10 : 1);
+    const elite = !heavy && s.heroLv > 0 && Math.random() < Math.min(0.12, 0.04 + 0.008 * s.heroLv) && s.mobs.filter((m) => m.elite).length < 3;
+    const hp = mobHp(base.hp, heavy) * (elite ? (s.loop ? 3 : 10) : 1);
     s.mobs.push({
       x, y, x0: x, kind, name: elite ? `엘리트 ${base.name}` : base.name, hp, max: hp, r: heavy ? 22 : elite ? 21 : 14,
       vy: (o.vy ?? (heavy ? 45 : st.mob.speed)) * s.K.move * (elite ? 0.8 : 1), vx: (o.vx || 0) * s.K.move, zig: o.zig || 0, t: rand(0, 3),
-      fireT: elite ? rand(0.8, 1.5) : rand(1.2, 2.6), hover: o.hover || (elite ? rand(90, 200) : 0), stage: s.stage, look: lookOf(s.stage), flashT: 0, elite,
+      fireT: elite ? rand(1.2, 2) : rand(1.2, 2.6), hover: o.hover || (elite ? rand(90, 200) : 0), stage: s.stage, look: lookOf(s.stage), flashT: 0, elite,
     });
   }
   // ⚖️ 어려움 모드 밸런스: 1~3탄을 다시 돌아도 잡몹 체력은 판교급 이상 + 무기 단계가 높을수록 더 단단하게
@@ -853,7 +854,7 @@ export function createGame(env) {
   function spawnFormation() {
     spawnFormationOnce();
     // 어려움 모드: 편대가 겹쳐서 몰려옴 (회차가 오를수록 확률 ↑)
-    if (s.loop && Math.random() < Math.min(0.85, 0.4 + 0.15 * s.loop)) later(rand(0.3, 0.8), spawnFormationOnce);
+    if (s.loop && Math.random() < Math.min(0.7, 0.25 + 0.12 * s.loop)) later(rand(0.3, 0.8), spawnFormationOnce);
   }
   function spawnFormationOnce() {
     const st = lookOf(s.stage), more = s.loop ? Math.min(3, s.loop + 1) : 0;
@@ -880,10 +881,10 @@ export function createGame(env) {
   }
   function mobShoot(m) {
     const src = m.name;
+    const fire = (x, y, a, v, o) => fireRaw(x, y, a, v, { ...o, mob: true });
     if (m.elite) {
-      // 엘리트: 플레이어를 쫓아오는 유도탄 2발 + 조준탄
-      for (const side of [-1, 1]) fire(m.x + side * 14, m.y + 10, aim(m.x, m.y) + side * 0.55, 135, { src, kind: 'missile', color: E_RED, r: 5, homing: 1.3 });
-      later(0.25, () => { if (m.hp > 0) fire(m.x, m.y, aim(m.x, m.y), 190, { src, kind: 'orb', color: E_HOT, r: 6 }); });
+      // 엘리트: 플레이어를 쫓아오는 유도 미사일 1발 (짧게 추적)
+      fire(m.x, m.y + 10, aim(m.x, m.y) + rand(-0.5, 0.5), 120, { src, kind: 'missile', color: E_RED, r: 5, homing: 0.9, mob: true });
       return;
     }
     if (m.look === 0) fire(m.x, m.y, aim(m.x, m.y) + rand(-0.15, 0.15), 140, { src, kind: 'orb', color: E_RED, r: 5 });
@@ -1355,6 +1356,7 @@ export function createGame(env) {
     s.cine = null;
     s.loop++;
     s.K = makeK(s.loop, s.heroLv);
+    s.legendT = 7;
     s.stage = 0;
     s.phase = 'wave';
     s.phaseT = 0;
@@ -1434,6 +1436,7 @@ export function createGame(env) {
       }
     }
     s.fever = Math.max(0, s.fever - dt);
+    s.legendT = Math.max(0, s.legendT - dt);
     s.bombCd = Math.max(0, s.bombCd - dt);
     if (s.heroLv > 0) {
       s.heroCd = Math.max(0, s.heroCd - dt);
@@ -1491,7 +1494,7 @@ export function createGame(env) {
         m.fireT = Math.max(m.fireT, 0.3);
       } else if (m.hover && m.y >= m.hover) {
         m.x += Math.sin(m.t * 1.5) * 60 * dt;
-        if (m.t > 7) m.hover = 0; // 머물다 퇴장
+        if (m.t > (m.elite ? 6 : 7)) m.hover = 0; // 머물다 퇴장
       } else {
         m.y += m.vy * dt;
       }
@@ -1499,9 +1502,9 @@ export function createGame(env) {
       if (m.zig) m.x = m.x0 + Math.sin(m.t * 2.4) * m.zig;
       m.fireT -= dt;
       if (m.fireT <= 0 && m.y > 20 && m.y < p.y - 100 && p.alive) {
-        m.fireT = m.kind === 'heavy' ? 99 : m.elite ? rand(1.5, 2.2) / Math.sqrt(s.K.atk) : rand(1.8, 3.2) * STAGES[m.stage].fireK / s.K.atk;
+        m.fireT = m.kind === 'heavy' ? 99 : m.elite ? rand(2.6, 3.4) : rand(1.8, 3.2) * STAGES[m.stage].fireK / Math.sqrt(s.K.atk);
         if (m.elite) mobShoot(m);
-        else if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.95 : m.look === 0 ? 0.5 : m.look < 3 ? 0.7 : 0.8)) mobShoot(m);
+        else if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.6 : m.look === 0 ? 0.5 : m.look < 3 ? 0.7 : 0.8)) mobShoot(m);
       }
       if (p.alive && m.hp > 0 && Math.hypot(m.x - p.x, m.y - p.y) < m.r + HIT_R + 4) {
         // 무적 별·방어막으로 부딪히면 적만 격파
@@ -1990,6 +1993,9 @@ export function createGame(env) {
     for (const nk of s.nukes) drawNuke(ctx, nk);
     for (const fx of s.ultFx) drawUltFx(ctx, fx, t, s);
     drawPlayer(ctx, s, t);
+    // ⚠️ 적 탄 = 빨간 후광 + 흰 테두리 (먹는 아이템 = 초록 링) → 한눈에 구분
+    ctx.fillStyle = `rgba(255,23,68,${0.3 + Math.sin(t * 14) * 0.08})`;
+    for (const bl of s.bullets) circle(ctx, bl.x, bl.y, bl.r + 7);
     for (const bl of s.bullets) drawBullet(ctx, bl, t);
     if (s.nova) {
       const k = s.nova.t / 0.8;
@@ -2043,6 +2049,7 @@ export function createGame(env) {
     }
     ctx.globalAlpha = 1;
     drawHud(ctx, s, t);
+    if (s.legendT > 0 && !s.awake) drawLegend(ctx, s.legendT);
     if (s.cine) drawCine(ctx, s.cine, t);
     if (s.awake) drawAwake(ctx, s, t);
   }
@@ -2848,11 +2855,12 @@ function drawBullet(ctx, bl, t) {
     ctx.fillRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8);
     ctx.fillStyle = E_RED;
     ctx.fillRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4);
-    ctx.fillStyle = gold ? '#FFC400' : '#2E7D32';
+    // 금괴 = 주황빛 '불량 금괴', 돈다발 = 붉은 '위조지폐' (아이템의 금·초록과 겹치지 않게)
+    ctx.fillStyle = gold ? '#FF6D00' : '#B71C1C';
     ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.fillStyle = gold ? '#FFF59D' : '#A5D6A7';
+    ctx.fillStyle = gold ? '#FFAB40' : '#FF8A80';
     ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, gold ? 2.5 : h - 4);
-    if (!gold) { ctx.fillStyle = '#1B5E20'; circle(ctx, 0, 0, 2.2); }
+    if (!gold) { ctx.fillStyle = '#7F0000'; circle(ctx, 0, 0, 2.2); }
     ctx.restore();
     return;
   }
@@ -2861,9 +2869,9 @@ function drawBullet(ctx, bl, t) {
     circle(ctx, bl.x, bl.y, bl.r + OUTLINE_W + 1.5);
     ctx.fillStyle = E_RED;
     circle(ctx, bl.x, bl.y, bl.r + 1.5);
-    ctx.fillStyle = '#FFC400';
+    ctx.fillStyle = '#FF3D00';
     circle(ctx, bl.x, bl.y, bl.r);
-    ctx.fillStyle = '#B26A00';
+    ctx.fillStyle = '#FFE0B2';
     ctx.fillRect(bl.x - bl.r * 0.35, bl.y - bl.r * 0.35, bl.r * 0.7, bl.r * 0.7);
     if (bl.split) {
       // 곧 터질 폰지 금화: 남은 시간만큼 깜빡임
@@ -2881,7 +2889,7 @@ function drawBullet(ctx, bl, t) {
     circle(ctx, bl.x, bl.y + 2, bl.r + OUTLINE_W + 1.5);
     ctx.fillStyle = E_RED;
     circle(ctx, bl.x, bl.y + 2, bl.r + 1.5);
-    ctx.fillStyle = '#C49000';
+    ctx.fillStyle = '#8E0000';
     circle(ctx, bl.x, bl.y + 2, bl.r);
     ctx.fillRect(bl.x - 4, bl.y - bl.r - 2, 8, 5);
     ctx.fillStyle = '#fff';
@@ -2980,6 +2988,24 @@ function drawBullet(ctx, bl, t) {
 
 function drawItem(ctx, it, t) {
   const bob = Math.sin(it.t * 6) * 2;
+  // ✅ 먹는 아이템 공통 표시: 초록 링 (엽전은 얇게, 나머지는 회전 점선 링)
+  ctx.strokeStyle = '#00E676';
+  if (it.kind === 'coin') {
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(it.x, it.y + bob, 10, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    const r = it.kind === 'restore' ? 25 : 20;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -t * 30;
+    ctx.beginPath();
+    ctx.arc(it.x, it.y + bob, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+  }
   if (it.kind === 'coin') {
     // 엽전: 금색 + 반짝임 (적 탄은 빨간색이라 구분)
     const y = it.y + bob;
@@ -3924,4 +3950,39 @@ function drawAwake(ctx, s, t) {
   ctx.textBaseline = 'alphabetic';
   // 시작 순간 하얀 섬광
   if (k < 0.2) { ctx.fillStyle = `rgba(255,255,255,${1 - k / 0.2})`; ctx.fillRect(0, 0, W, H); }
+}
+
+// 처음·루프 시작 때 잠깐 보여 주는 범례: 먹을 것 vs 피할 것
+function drawLegend(ctx, left) {
+  const a = Math.min(1, left / 0.6);
+  const y = H - 66, w = 300, x = W / 2 - w / 2;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  rr(ctx, x, y, w, 30, 8);
+  ctx.fill();
+  // 아이템 예시: 초록 점선 링
+  ctx.strokeStyle = '#00E676';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.arc(x + 20, y + 15, 9, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#FFD600';
+  circle(ctx, x + 20, y + 15, 5);
+  // 적 탄 예시: 빨간 후광 + 흰 테두리
+  ctx.fillStyle = 'rgba(255,23,68,0.45)';
+  circle(ctx, x + 162, y + 15, 11);
+  ctx.fillStyle = '#fff';
+  circle(ctx, x + 162, y + 15, 7);
+  ctx.fillStyle = E_RED;
+  circle(ctx, x + 162, y + 15, 4.5);
+  ctx.font = `700 11px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#69F0AE';
+  ctx.fillText('초록 링 = 먹기!', x + 34, y + 19);
+  ctx.fillStyle = '#FF8A80';
+  ctx.fillText('빨간 빛 = 피하기!', x + 178, y + 19);
+  ctx.restore();
 }
