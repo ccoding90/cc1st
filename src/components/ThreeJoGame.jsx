@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
-import { W, H, FONT, createGame, weaponLabel, POWERUPS, HELP_SEC, HELP_USES, STAGE_COUNT } from './threejo/engine';
+import { W, H, FONT, createGame, weaponLabel, POWERUPS, HELP_SEC, HELP_USES, STAGE_COUNT, HEROES, HERO_COUNT, HERO_CD } from './threejo/engine';
 import { sfx, unlockAudio, setMuted } from './coffee/sound';
 
 const MUTED_KEY = 'threejoMuted';
@@ -48,6 +48,7 @@ const ThreeJoGame = () => {
   const gameRef = useRef(null);
   const dragRef = useRef(null);
   const [bombs, setBombs] = useState(2);
+  const [heroUi, setHeroUi] = useState(null); // 🦸 초각성 영웅 { name, icon, ult, ready }
   const [gameState, setGameState] = useState('menu'); // menu | playing | over
   const [round, setRound] = useState(0);
   const [result, setResult] = useState(null);
@@ -171,6 +172,7 @@ const ThreeJoGame = () => {
     inputRef.current = { dx: 0, dy: 0, tx: null, ty: null };
     keysRef.current = {};
     setBombs(2);
+    setHeroUi(null);
     setHelp({ auto: false, left: HELP_USES });
     setResult(null);
     setSubmitted(false);
@@ -181,17 +183,22 @@ const ThreeJoGame = () => {
     requestAnimationFrame(() => stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
-  const fireSpecial = () => { if (!pausedRef.current) gameRef.current?.special(); };
+  const fireSpecial = () => { if (!pausedRef.current) gameRef.current?.special(); }; // 영웅 필살기(준비되면) → 아니면 천지개벽
+  const fireBomb = () => { if (!pausedRef.current) gameRef.current?.bomb(); };
   const askHelp = () => { if (helpUnlocked && !pausedRef.current) gameRef.current?.setAuto(true); };
 
-  // 키보드: 방향키 / WASD 이동, Space / X 필살기, P / Esc 일시정지
+  // 키보드: 방향키 / WASD 이동, Space 필살기(초각성 시 영웅 필살기), X 천지개벽, P / Esc 일시정지
   useEffect(() => {
     if (gameState !== 'playing') return;
     const KEYS = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'u', w: 'u', ArrowDown: 'd', s: 'd' };
     const set = (e, down) => {
-      if (down && (e.key === ' ' || e.key === 'x' || e.key === 'X')) {
+      if (down && e.key === ' ') {
         e.preventDefault();
         if (!e.repeat) fireSpecial();
+        return;
+      }
+      if (down && (e.key === 'x' || e.key === 'X')) {
+        if (!e.repeat) fireBomb();
         return;
       }
       if (down && (e.key === 'h' || e.key === 'H')) {
@@ -286,6 +293,7 @@ const ThreeJoGame = () => {
       sfx,
       bombs: setBombs,
       help: setHelp,
+      hero: setHeroUi,
       over: (r) => {
         setResult(r);
         setGameState('over');
@@ -432,7 +440,8 @@ const ThreeJoGame = () => {
               <li>💥 피격 시 체력 −1, 무기 한 단계 <b>강등</b>!</li>
               <li>🔥 탄이 쏟아지면 <b>필살기</b>로 화면의 탄을 싹 지우기 (보스 격파·📜 부적으로 충전)</li>
               <li>🤖 <b>개발자에게 도움 요청</b>: {HELP_SEC}초 동안 프로게이머 AI가 모든 탄을 피하며 공격 (판당 {HELP_USES}회) · {helpUnlocked ? '해금 완료!' : `${HELP_UNLOCK}판 플레이 후 해금 (현재 ${plays}판)`}</li>
-              <li>🎮 PC: 방향키/WASD 이동, Space/X 필살기, H 도움, P/Esc 일시정지, F 전체화면 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
+              <li>🦸 <b>10만 점마다 초각성!</b> 이순신 → 강감찬 → 세종대왕 → … → 100만 점 <b>진양철 회장</b>까지 10단계 영웅 변신 · 전용 무기 + 영웅 필살기(쿨타임 {HERO_CD}초) · 대신 적도 함께 강해지고 👹엘리트가 난입</li>
+              <li>🎮 PC: 방향키/WASD 이동, Space 필살기(초각성 시 영웅 필살기), X 천지개벽, H 도움, P/Esc 일시정지, F 전체화면 · 모바일: 게임판을 누른 채 드래그, 아래 버튼</li>
             </ul>
             <div style={itemGrid}>
               {Object.values(POWERUPS).map((pu) => (
@@ -475,6 +484,7 @@ const ThreeJoGame = () => {
               <span>⚡ 아슬아슬 {result.grazes}회</span>
               <span>⏱ {Math.floor(result.time)}초</span>
               <span style={{ gridColumn: '1 / -1' }}>🔫 최종 무기 Lv.{result.power + 1} {weaponLabel(result.power)}</span>
+              {result.heroLv > 0 && <span style={{ gridColumn: '1 / -1' }}>🦸 영웅 초월 {result.heroLv}/{HERO_COUNT}단계 · {HEROES[result.heroLv - 1].icon} {HEROES[result.heroLv - 1].name}</span>}
               {result.autoUsed && <span style={{ gridColumn: '1 / -1' }}>🤖 개발자 도움 사용 (랭킹에 🤖 표시)</span>}
               {!helpUnlocked && <span style={{ gridColumn: '1 / -1' }}>🔒 개발자 도움 해금까지 {HELP_UNLOCK - plays}판</span>}
             </div>
@@ -520,12 +530,12 @@ const ThreeJoGame = () => {
           </button>
           <button
             onPointerDown={(e) => { e.preventDefault(); fireSpecial(); }}
-            disabled={bombs <= 0}
-            style={{ ...ctrlBtn, background: '#c62828', opacity: bombs > 0 ? 1 : 0.5 }}
-            aria-label={`필살기 사용, 남은 횟수 ${bombs}`}
+            disabled={bombs <= 0 && !heroUi?.ready}
+            style={{ ...ctrlBtn, background: heroUi?.ready ? '#6A1B9A' : '#c62828', opacity: bombs > 0 || heroUi?.ready ? 1 : 0.5 }}
+            aria-label={heroUi?.ready ? `영웅 필살기 ${heroUi.ult} 사용` : `필살기 사용, 남은 횟수 ${bombs}`}
           >
-            <span style={{ fontSize: 22 }}>💥</span>
-            <span style={ctrlLabel}>필살기 ×{bombs}</span>
+            <span style={{ fontSize: 22 }}>{heroUi?.ready ? heroUi.icon : '💥'}</span>
+            <span style={ctrlLabel}>{heroUi?.ready ? heroUi.ult : `필살기 ×${bombs}`}</span>
           </button>
         </div>
       )}

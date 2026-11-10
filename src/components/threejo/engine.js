@@ -102,6 +102,40 @@ export function hardK(loop) {
     move: Math.min(2, 1.3 + 0.15 * n),
   };
 }
+// 🦸 영웅 초월(초각성): 점수 10만 점마다 한국의 위인 → 현대의 영웅으로 변신 (최대 10단계 = 100만 점)
+// 각성하면 기본 사격이 영웅 전용 무기로 바뀌고(원소 보조 무기는 유지), Space로 영웅 필살기(쿨타임 HERO_CD초)
+export const HERO_STEP = 100000;
+export const HERO_CD = 10;
+const AWAKEN_SEC = 1.9; // 변신 순간 시간 정지 연출
+export const HEROES = [
+  { key: 'yi', name: '이순신', title: '조선의 성웅', icon: '🐢', color: '#FF5252', weapon: '신기전 불화살', ult: '거북선 출격', line: '신에게는 아직 열두 척의 배가 남아 있사옵니다' },
+  { key: 'kang', name: '강감찬', title: '귀주대첩의 명장', icon: '⭐', color: '#FFD740', weapon: '문곡성 별똥별', ult: '귀주대첩 수공', line: '물을 막았다가 한꺼번에 터뜨려라!' },
+  { key: 'sejong', name: '세종대왕', title: '훈민정음을 만든 성군', icon: '📜', color: '#FFAB40', weapon: '훈민정음 유도 탄막', ult: '훈민정음 반포', line: '나랏말싸미 듕귁에 달아…' },
+  { key: 'jang', name: '장영실', title: '조선의 천재 과학자', icon: '⚙️', color: '#FFCA28', weapon: '톱니바퀴 관통탄', ult: '자격루 시간 정지', line: '시간마저 측정하겠사옵니다' },
+  { key: 'heo', name: '허준', title: '동의보감의 명의', icon: '💉', color: '#9CCC65', weapon: '침술 속사', ult: '동의보감', line: '탐관오리 병, 침 한 방이면 낫소' },
+  { key: 'gungye', name: '궁예', title: '후고구려의 미륵', icon: '👁️', color: '#FFD600', weapon: '관심법 눈빛', ult: '관심법 레이저', line: '누구인가? 지금 누가 기침 소리를 내었어?' },
+  { key: 'hong', name: '홍길동', title: '활빈당 의적', icon: '🥷', color: '#7986CB', weapon: '분신 표창', ult: '동에 번쩍 서에 번쩍', line: '탐관오리의 재물은 백성에게!' },
+  { key: 'kim', name: '김두한', title: '야인', icon: '👊', color: '#FF7043', weapon: '주먹 · 오렌지 주스 연사', ult: '종로 대난투', line: '사딸라!' },
+  { key: 'ahn', name: '안창남', title: '한국 최초의 비행사', icon: '✈️', color: '#4FC3F7', weapon: '프로펠러 기관총', ult: '금강호 공중 폭격', line: '떴다 보아라 안창남 비행기!' },
+  { key: 'jin', name: '진양철', title: '순양 회장', icon: '💵', color: '#69F0AE', weapon: '자본주의 탄막 (돈다발 · 반도체)', ult: '초밥 밥알 320개', line: '초밥 밥알이 몇 개고?!' },
+];
+export const HERO_COUNT = HEROES.length;
+const JAMO = 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ';
+
+// ⚖️ 초각성 난이도 스케일링: 각성 1단계당 적 등장 간격 ×0.85, 체력 ×1.2, 이동·탄속 ×1.2
+// 속도만은 사람이 피할 수 있는 한계(각성 ×2, 어려움 모드 합산 ×3.2)에서 멈춤. 보스 체력은 ×1.1씩 (화력 인플레 보정)
+export function awakenK(lv) {
+  return { hp: Math.pow(1.2, lv), spd: Math.min(2, Math.pow(1.2, lv)), move: Math.min(2, Math.pow(1.2, lv)), spawn: Math.pow(0.85, lv), boss: Math.pow(1.1, lv) };
+}
+// 어려움 모드(무한 루프) 배수 × 초각성 배수 = 곱연산
+export function makeK(loop, lv) {
+  const h = hardK(loop), a = awakenK(lv);
+  return {
+    hp: h.hp * a.hp, bossHp: h.hp * a.boss, spd: Math.min(3.2, h.spd * a.spd), move: Math.min(2.8, h.move * a.move),
+    atk: h.atk, dens: h.dens, spawn: a.spawn, aw: a,
+  };
+}
+const MOB_CAP = 90; // 극한 탄막에서도 프레임 유지용 적 수 상한
 const RAGE_LINES = ['감히 개발자를 무시하지 마라!', '네가 감히 나를 이길 수 있을 것 같으냐?!'];
 const RAGE_SEC = 3.8;
 
@@ -115,7 +149,7 @@ const BOSSES = {
 // 적 탄 색: 어떤 배경(특히 청록색 판교)에서도 튀는 형광 주황·빨강 + 흰 테두리 (drawBullet)
 const E_ORANGE = '#FF6D00', E_RED = '#FF1744', E_HOT = '#FF3D00';
 
-import { U, drawSprite, heroSprite, heroFace, mobSprite, castleSprite, zeroSprite, killerSprite, kingSprite } from './sprites.js';
+import { U, drawSprite, heroSprite, heroFace, mobSprite, castleSprite, zeroSprite, killerSprite, kingSprite, awakenSprite, drawAwakenFace } from './sprites.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -132,7 +166,8 @@ export function createGame(env) {
     shots: [], bullets: [], mobs: [], items: [], lasers: [], parts: [], texts: [], timers: [],
     boss: null, banner: null, shake: 0, flash: 0, scroll: 0,
     spawnT: 1.6, heavyT: 7, killer: '', ended: false, beams: [], bolts: [], waves: [], clicks: [], nukes: [], vineFx: [], blessed: false,
-    loop: 0, K: hardK(0), cine: null,
+    loop: 0, K: makeK(0, 0), cine: null,
+    heroLv: 0, heroCd: 0, heroReady: false, awake: null, ultFx: [],
   };
   const sfx = env.sfx || {};
   const play = (k) => sfx[k] && sfx[k]();
@@ -247,7 +282,8 @@ export function createGame(env) {
     const p = s.p;
     const tier = tierOf(p.power), w = WEAPONS[tier], n = shotsOf(p.power);
     p.fireT -= dt * (s.fever > 0 ? 1.6 : 1);
-    if (p.fireT <= 0) {
+    if (s.heroLv > 0) heroFire(dt); // 초각성: 기본 사격이 영웅 전용 무기로 교체
+    else if (p.fireT <= 0) {
       p.fireT += w.interval;
       if (p.fireT < 0) p.fireT = 0;
       const spread = tier === 3 ? 0.035 : 0.07;
@@ -335,6 +371,7 @@ export function createGame(env) {
           .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, cnt);
         for (const m of targets) {
           m.rootT = 1.8;
+          m.frozen = false;
           m.rootDps = (w.ultra ? 6 : 4) * hot;
           burst(m.x, m.y + m.r, 8, ['#2E7D32', '#76FF03', '#C6FF00'], [40, 140], 0.4);
         }
@@ -516,7 +553,7 @@ export function createGame(env) {
       sh.t += dt;
       if (sh.t > sh.life) { sh.dead = true; continue; }
       if (sh.ult) { if (sh.y < 130) detonate(sh); continue; }
-      if (sh.kind === 'leaf') sh.spin += dt * 16;
+      if (sh.kind === 'leaf' || sh.kind === 'gear' || sh.kind === 'shuri') sh.spin += dt * 16;
       if (sh.kind === 'flame') {
         sh.vx *= 1 - dt * 1.2; sh.vy *= 1 - dt * 1.2;
         sh.r = 6 + sh.t * (sh.ultra ? 34 : 26);
@@ -544,15 +581,255 @@ export function createGame(env) {
     }
   }
 
+
+  // ---------- 🦸 영웅 초월(초각성) ----------
+  const heroChanged = () => {
+    const h = HEROES[s.heroLv - 1];
+    s.heroReady = !!h && s.heroCd <= 0;
+    env.hero && env.hero(h ? { lv: s.heroLv, name: h.name, icon: h.icon, ult: h.ult, ready: s.heroReady } : null);
+  };
+  // 영웅 무기 화력: 현재 무기 단계의 기본 사격 DPS를 기준으로 (각성해도 약해지지 않게) + 각성 단계 보너스
+  function heroPower() {
+    const p = s.p, w = WEAPONS[tierOf(p.power)];
+    return Math.max(16, (shotsOf(p.power) * w.dmg) / w.interval) * (1.25 + 0.12 * s.heroLv) * (s.buffs.fire > 0 ? 1.8 : 1);
+  }
+  const vel = (a, v) => ({ vx: Math.cos(a) * v, vy: Math.sin(a) * v });
+  const heroShot = (o) => s.shots.push({ splash: 0, r: 4, ...o });
+  const homingShot = (o) => heroShot({ homing: true, life: 2.4, t: 0, trailT: 99, ...o });
+  function heroFire(dt) {
+    const p = s.p, h = HEROES[s.heroLv - 1], dps = heroPower();
+    const up = -Math.PI / 2, x = p.x, y = p.y - 26;
+    // 진양철: 사방으로 쏟아지는 돈다발·반도체 칩 (전방위 유도)
+    if (h.key === 'jin') {
+      p.ringT = (p.ringT ?? 0.3) - dt;
+      if (p.ringT <= 0) {
+        p.ringT = 0.45;
+        const n = 14, d = (dps * 0.45 * 0.7) / n, off = rand(0, 1);
+        for (let i = 0; i < n; i++) homingShot({ x, y: y + 10, ...vel(((i + off) / n) * Math.PI * 2, 230), dmg: d, r: 6, kind: i % 2 ? 'chip' : 'money', life: 2.6 });
+      }
+    }
+    if (p.heroT > 0) { p.heroT -= dt * (s.fever > 0 ? 1.6 : 1); return; }
+    const go = (iv) => { p.heroT = iv; return dps * iv; }; // 이번 발사에 나눠 줄 총 피해
+    switch (h.key) {
+      case 'yi': { // 신기전: 7갈래 부채꼴 불화살
+        const d = (go(0.14) * 1.4) / 7;
+        for (let i = 0; i < 7; i++) heroShot({ x: x + (i - 3) * 3, y, ...vel(up + (i - 3) * 0.17, 620), dmg: d, kind: 'singi', r: 4, splash: i % 3 === 0 ? 20 : 0 });
+        break;
+      }
+      case 'kang': { // 별똥별: 유도 별 2 + 직진 별 2
+        const d = (go(0.16) * 1.2) / 4;
+        for (const k of [-1, 1]) homingShot({ x: x + k * 10, y, ...vel(up + k * 0.6, 340), dmg: d, r: 6, kind: 'hstar', spin: 0 });
+        for (const k of [-1, 1]) heroShot({ x: x + k * 5, y, ...vel(up + k * 0.05, 700), dmg: d, r: 5, kind: 'hstar' });
+        break;
+      }
+      case 'sejong': { // 훈민정음 자모가 유도탄처럼
+        const d = (go(0.15) * 1.25) / 4;
+        for (let i = 0; i < 4; i++) homingShot({ x, y, ...vel(up + (i - 1.5) * 0.5, 300), dmg: d, r: 7, kind: 'glyph', label: pick(JAMO), life: 2.6 });
+        break;
+      }
+      case 'jang': { // 회전하며 4마리까지 관통하는 톱니바퀴
+        const d = (go(0.24) * 0.9) / 3;
+        for (let i = 0; i < 3; i++) heroShot({ x, y, ...vel(up + (i - 1) * 0.22, 520), dmg: d, r: 9, kind: 'gear', pierce: true, maxHits: 4, hits: new Set(), life: 1.5, t: 0, spin: rand(0, 6) });
+        break;
+      }
+      case 'heo': { // 침술 속사: 아주 빠른 3연침
+        const d = go(0.05) / 3;
+        for (let i = 0; i < 3; i++) heroShot({ x: x + (i - 1) * 5, y, ...vel(up + (i - 1) * 0.035, 1050), dmg: d, r: 3, kind: 'needle' });
+        break;
+      }
+      case 'gungye': { // 관심법 눈빛: 금빛 관통 광선
+        const d = (go(0.12) * 0.8) / 2;
+        for (const k of [-1, 1]) heroShot({ x: x + k * 9, y, ...vel(up, 950), dmg: d, r: 6, kind: 'eye', pierce: true, maxHits: 5, hits: new Set(), life: 1.2, t: 0 });
+        break;
+      }
+      case 'hong': { // 분신술: 본체 + 좌우 분신이 함께 유도 표창
+        const d = (go(0.14) * 1.1) / 3;
+        for (const ox of [0, -40, 40]) homingShot({ x: x + ox, y: y + (ox ? 14 : 0), ...vel(up + ox * 0.006, 420), dmg: d, r: 6, kind: 'shuri', spin: rand(0, 6), life: 2.2 });
+        break;
+      }
+      case 'kim': { // 주먹(가끔 오렌지 주스) 초고속 연사
+        const d = go(0.055) / 2;
+        for (const k of [-1, 1]) heroShot({ x: x + k * 7, y, ...vel(up + rand(-0.07, 0.07), 780), dmg: d, r: 7, kind: 'fist', label: Math.random() < 0.22 ? '🧃' : '👊' });
+        break;
+      }
+      case 'ahn': { // 프로펠러 기관총: 5갈래 예광탄
+        const d = go(0.08) / 5;
+        for (let i = 0; i < 5; i++) heroShot({ x: x + (i - 2) * 5, y, ...vel(up + (i - 2) * 0.1, 900), dmg: d, r: 3, kind: 'prop' });
+        break;
+      }
+      default: { // 진양철: 정면 돈다발
+        const d = (go(0.1) * 0.55) / 2;
+        for (const k of [-1, 1]) heroShot({ x: x + k * 8, y, ...vel(up + k * 0.04, 700), dmg: d, r: 7, kind: 'money' });
+      }
+    }
+    if (Math.random() < 0.2) play('tick');
+  }
+
+  // 필살기 공통 타격: 엘리트도 거의 한 방에 (적 최대 체력 70% + 영웅 화력 비례)
+  const ultHitMob = (m, pow) => { if (m.hp <= 0) return; m.hp -= pow * 4 + m.max * 0.7; m.flashT = 0.12; };
+  const ultHitHeroBoss = (b, pow, x, y, k = 1) => { if (b && !b.entering && !b.dead) damageBoss(b, (b.max * 0.05 + pow * 3) * k, x, y); };
+  function clearBullets(pred = () => true) {
+    let n = 0;
+    for (const bl of s.bullets) if (!bl.dead && pred(bl)) { bl.dead = true; n++; if (n % 2) burst(bl.x, bl.y, 1, ['#FFD166', '#fff'], [30, 90], 0.3); }
+    s.bullets = s.bullets.filter((bl) => !bl.dead);
+    if (n) addScore(n * 5);
+    return n;
+  }
+  function ultStrike(fx) {
+    clearBullets();
+    for (const m of s.mobs) if (m.y > -20) ultHitMob(m, fx.pow);
+    if (s.boss) ultHitHeroBoss(s.boss, fx.pow, s.boss.x, s.boss.y);
+  }
+  function heroUlt() {
+    const p = s.p, h = HEROES[s.heroLv - 1];
+    s.heroCd = HERO_CD;
+    p.inv = Math.max(p.inv, 1.5);
+    s.lasers = s.lasers.filter((lz) => lz.final);
+    s.shake = Math.max(s.shake, 16);
+    s.flash = Math.max(s.flash, 0.3);
+    play('explosion');
+    later(0.15, () => play('fanfare'));
+    const fx = { key: h.key, t: 0, dur: 1.6, hits: new Set(), pow: heroPower(), x: p.x, y: p.y, n: 0 };
+    s.banner = null; // 필살기 대사가 화면 중앙에 크게 뜨므로 배너는 치움
+    switch (h.key) {
+      case 'yi': fx.y = H + 90; fx.dur = 1.55; break; // 거북선: 화면 아래에서 위로 돌진
+      case 'kang': fx.y = H + 40; fx.dur = 1.45; break; // 수공: 둑을 터뜨린 물벽이 위로
+      case 'ahn': fx.x = -110; fx.dur = 1.4; break; // 비행기: 왼쪽 → 오른쪽 폭격
+      case 'sejong':
+        ultStrike(fx);
+        for (let i = 0; i < 40; i++) homingShot({ x: p.x, y: p.y - 20, ...vel((i / 40) * Math.PI * 2, 260), dmg: fx.pow * 0.08, r: 8, kind: 'glyph', label: pick(JAMO), life: 2.8, big: true });
+        break;
+      case 'jang': // 자격루: 적 3초 정지 + 보스 공격 지연
+        fx.dur = 3;
+        ultStrike(fx);
+        for (const m of s.mobs) { m.rootT = 3; m.rootDps = fx.pow * 0.25; m.frozen = true; }
+        if (s.boss) s.boss.atkT += 2.5;
+        break;
+      case 'heo':
+        ultStrike(fx);
+        if (p.hp < MAX_HP) { p.hp++; popText(p.x, p.y - 60, '동의보감! 체력 +1', '#69F0AE', 15, 1.2); }
+        else popText(p.x, p.y - 60, '무병장수!', '#69F0AE', 15, 1);
+        burst(p.x, p.y, 40, ['#69F0AE', '#C5E1A5', '#fff'], [80, 260], 0.9);
+        break;
+      case 'gungye': fx.dur = 1.7; fx.caption = '누구인가?'; break; // 0.45초 뒤 금빛 레이저
+      case 'hong': fx.dur = 1.1; fx.slashes = []; ultStrike(fx); break;
+      case 'kim': fx.dur = 1.3; fx.caption = '사딸라!'; later(0.15, () => ultStrike(fx)); break;
+      case 'jin': fx.dur = 2.2; fx.caption = '초밥 밥알이 몇 개고?!'; break; // 0.45초 뒤 밥알 320개 대폭발
+      default: ultStrike(fx);
+    }
+    s.ultFx.push(fx);
+    heroChanged();
+    return true;
+  }
+  // 휩쓸고 지나가는 필살기(거북선·물벽·비행기): 닿는 순간 적·탄 처리
+  function sweepHit(fx, inBand) {
+    for (const m of s.mobs) if (m.hp > 0 && !fx.hits.has(m) && inBand(m.x, m.y, m.r)) { fx.hits.add(m); ultHitMob(m, fx.pow); }
+    const b = s.boss;
+    if (b && !fx.hits.has(b) && !b.entering && !b.dead && inBand(b.x, b.y, Math.max(b.w, b.h) / 2)) { fx.hits.add(b); ultHitHeroBoss(b, fx.pow, b.x, b.y, 1.2); }
+  }
+  function updateUltFx(dt) {
+    for (const fx of s.ultFx) {
+      const t0 = fx.t;
+      fx.t += dt;
+      const at = (k) => t0 < k && fx.t >= k;
+      if (fx.key === 'yi' || fx.key === 'kang') {
+        fx.y -= (fx.key === 'yi' ? 720 : 640) * dt;
+        const band = fx.key === 'yi' ? 70 : 60;
+        sweepHit(fx, (x, y, r) => Math.abs(y - fx.y) < band + r);
+        clearBullets((bl) => bl.y > fx.y - band);
+        if (fx.key === 'yi' && (fx.n += dt) > 0.07) { // 거북선 옆구리 포격
+          fx.n = 0;
+          for (const sx of [-1, 1]) burst(W / 2 + sx * 70, fx.y + rand(-20, 30), 4, ['#FF6D00', '#FFD166', '#fff'], [60, 200], 0.4);
+          if (Math.random() < 0.4) play('explosion');
+        }
+      } else if (fx.key === 'ahn') {
+        fx.x += 430 * dt;
+        sweepHit(fx, (x, y, r) => Math.abs(x - fx.x) < 46 + r);
+        clearBullets((bl) => bl.x < fx.x + 40);
+        if ((fx.n += dt) > 0.05) { fx.n = 0; burst(fx.x + rand(-20, 20), rand(130, H * 0.7), 10, ['#FF6D00', '#FFD166', '#fff', '#555'], [60, 220], 0.5); }
+      } else if (fx.key === 'gungye') {
+        if (at(0.45)) { ultStrike(fx); s.flash = 0.6; s.shake = 24; play('explosion'); }
+        if (fx.t > 0.45 && fx.t < 1.5) {
+          clearBullets();
+          for (const m of s.mobs) if (m.hp > 0 && m.y > -20) { m.hp -= fx.pow * 2 * dt; m.flashT = 0.05; }
+          if (s.boss) ultHitHeroBoss(s.boss, fx.pow, s.boss.x, s.boss.y + s.boss.h / 2, dt * 0.6);
+        }
+      } else if (fx.key === 'hong') {
+        if ((fx.n += dt) > 0.09 && fx.t < 0.8) {
+          fx.n = 0;
+          const y0 = rand(40, H * 0.75), y1 = y0 + rand(-160, 160);
+          fx.slashes.push({ y0, y1, t: 0 });
+          for (const m of s.mobs) if (m.hp > 0) { const ly = y0 + ((y1 - y0) * m.x) / W; if (Math.abs(m.y - ly) < 24 + m.r) { m.hp -= fx.pow * 0.8; m.flashT = 0.08; } }
+          const b = s.boss;
+          if (b) { const ly = y0 + ((y1 - y0) * b.x) / W; if (Math.abs(b.y - ly) < b.h / 2 + 20) ultHitHeroBoss(b, fx.pow, b.x, ly, 0.12); }
+          play('whoosh');
+        }
+        for (const sl of fx.slashes) sl.t += dt;
+      } else if (fx.key === 'kim') {
+        if ((fx.n += dt) > 0.03 && fx.t < 0.7) {
+          fx.n = 0;
+          for (let i = 0; i < 2; i++) heroShot({ x: rand(16, W - 16), y: H + 10, ...vel(-Math.PI / 2 + rand(-0.12, 0.12), rand(560, 760)), dmg: fx.pow * 0.08, r: 9, kind: 'fist', label: Math.random() < 0.3 ? '🧃' : '👊', big: true });
+        }
+      } else if (fx.key === 'jin') {
+        if (at(0.45)) {
+          // 🍣 초밥 밥알 320개 대폭발
+          const cx = W / 2, cy = H * 0.42;
+          for (let i = 0; i < 320; i++) {
+            const a = (i / 320) * Math.PI * 2 + rand(-0.02, 0.02);
+            heroShot({ x: cx, y: cy, ...vel(a, rand(200, 520)), dmg: fx.pow * 0.05, r: 4, kind: 'grain', pierce: true, maxHits: 3, hits: new Set(), life: 1.8, t: 0 });
+          }
+          ultStrike(fx);
+          burst(cx, cy, 80, ['#fff', '#FFF8E1', '#FF7043', '#FFD166'], [100, 420], 1, [2, 5]);
+          s.flash = 0.7;
+          s.shake = 30;
+          popText(cx, cy + 60, '밥알 320개! 전원 해고!', '#fff', 16, 1.2);
+          play('explosion');
+        }
+      }
+    }
+    s.ultFx = s.ultFx.filter((fx) => fx.t < fx.dur);
+  }
+
+  // 점수가 10만 점 단위를 넘는 순간 초각성: 시간 정지 → 화면 번쩍 → 영웅 등장
+  function checkAwaken() {
+    if (s.awake || s.cine || !s.p.alive || s.ended || s.heroLv >= HERO_COUNT) return;
+    if (s.score < (s.heroLv + 1) * HERO_STEP) return;
+    s.heroLv++;
+    s.heroCd = 0;
+    s.K = makeK(s.loop, s.heroLv); // 적도 실시간으로 강해짐 (어려움 모드 배수와 곱연산)
+    s.awake = { t: 0, dur: AWAKEN_SEC, lv: s.heroLv, boom: false };
+    s.flash = 1;
+    play('doom');
+  }
+  function updateAwake(dt) {
+    const a = s.awake;
+    a.t += dt;
+    if (!a.boom && a.t > 0.35) { a.boom = true; play('fanfare'); }
+    s.flash = Math.max(0, s.flash - dt * 2);
+    if (a.t < a.dur) return;
+    s.awake = null;
+    const h = HEROES[s.heroLv - 1], p = s.p;
+    p.inv = Math.max(p.inv, 1.5);
+    s.bullets = s.bullets.filter((b) => Math.hypot(b.x - p.x, b.y - p.y) > 110);
+    burst(p.x, p.y, 70, [h.color, '#fff', '#FFD166'], [80, 320], 1, [2, 5]);
+    s.shake = Math.max(s.shake, 14);
+    banner(`${h.icon} ${h.name} 초각성!`, `Space: ${h.ult} · 적 체력 ×${s.K.aw.hp.toFixed(1)}`, 2);
+    heroChanged();
+  }
+
   // ---------- 적 ----------
   function spawnMob(x, y, kind, o = {}) {
     const st = STAGES[s.stage];
     const heavy = kind === 'heavy';
+    if (s.mobs.length >= MOB_CAP) return;
     const base = heavy ? st.heavy : st.mob;
+    // 👹 엘리트 몹 (1단계 각성 이후): 붉은 오라 · 크기 1.5배 · 체력 10배 · 플레이어 유도탄 · 잠시 머물며 사격
+    const elite = !heavy && s.heroLv > 0 && Math.random() < Math.min(0.2, 0.06 + 0.012 * s.heroLv);
+    const hp = base.hp * s.K.hp * (elite ? 10 : 1);
     s.mobs.push({
-      x, y, x0: x, kind, name: base.name, hp: base.hp * s.K.hp, max: base.hp * s.K.hp, r: heavy ? 22 : 14,
-      vy: (o.vy ?? (heavy ? 45 : st.mob.speed)) * s.K.move, vx: (o.vx || 0) * s.K.move, zig: o.zig || 0, t: rand(0, 3),
-      fireT: rand(1.2, 2.6), hover: o.hover || 0, stage: s.stage, flashT: 0,
+      x, y, x0: x, kind, name: elite ? `엘리트 ${base.name}` : base.name, hp, max: hp, r: heavy ? 22 : elite ? 21 : 14,
+      vy: (o.vy ?? (heavy ? 45 : st.mob.speed)) * s.K.move * (elite ? 0.8 : 1), vx: (o.vx || 0) * s.K.move, zig: o.zig || 0, t: rand(0, 3),
+      fireT: elite ? rand(0.8, 1.5) : rand(1.2, 2.6), hover: o.hover || (elite ? rand(90, 200) : 0), stage: s.stage, flashT: 0, elite,
     });
   }
   function spawnFormation() {
@@ -580,6 +857,12 @@ export function createGame(env) {
   }
   function mobShoot(m) {
     const src = m.name;
+    if (m.elite) {
+      // 엘리트: 플레이어를 쫓아오는 유도탄 2발 + 조준탄
+      for (const side of [-1, 1]) fire(m.x + side * 14, m.y + 10, aim(m.x, m.y) + side * 0.55, 135, { src, kind: 'missile', color: E_RED, r: 5, homing: 1.3 });
+      later(0.25, () => { if (m.hp > 0) fire(m.x, m.y, aim(m.x, m.y), 190, { src, kind: 'orb', color: E_HOT, r: 6 }); });
+      return;
+    }
     if (m.stage === 0) fire(m.x, m.y, aim(m.x, m.y) + rand(-0.15, 0.15), 140, { src, kind: 'orb', color: E_RED, r: 5 });
     else if (m.stage === 1) {
       const a = aim(m.x, m.y);
@@ -593,8 +876,9 @@ export function createGame(env) {
     }
   }
   function killMob(m) {
-    const heavy = m.kind === 'heavy';
-    addScore((heavy ? 60 : 15) * (m.stage + 1));
+    const heavy = m.kind === 'heavy' || m.elite;
+    addScore((m.elite ? 150 : heavy ? 60 : 15) * (m.stage + 1));
+    if (m.elite) { popText(m.x, m.y - 26, '엘리트 격파!', '#FF5252', 13, 0.9); burst(m.x, m.y, 30, ['#FF1744', '#FF8A80', '#fff'], [80, 260], 0.7); }
     burst(m.x, m.y, heavy ? 36 : 14, m.stage === 3 ? ['#00E5FF', '#fff', '#90A4AE'] : ['#FFD166', '#ff7043', '#fff'], [60, 220], 0.6);
     play(heavy ? 'crack' : 'whoosh');
     if (heavy) {
@@ -617,13 +901,15 @@ export function createGame(env) {
   function spawnBoss(key) {
     const d = BOSSES[key];
     s.boss = {
-      key, ...d, hp: d.hp * s.K.hp, max: d.hp * s.K.hp, x: W / 2, y: -100, ty: key === 'king' ? 135 : 128, t: 0, entering: true,
+      key, ...d, hp: d.hp * s.K.bossHp, max: d.hp * s.K.bossHp, x: W / 2, y: -100, ty: key === 'king' ? 135 : 128, t: 0, entering: true,
       atkT: 2, moveT: 0, tx: W / 2, rage: false, mode: 'normal', modeT: 0, shield: 0, floorT: 0, flashT: 0,
       deathT: 0, dead: false, lastAtk: '', dash: null, smokeT: 0, loopRage: s.loop > 0,
+      reso: s.heroLv, resoT: 2.5, // 🔥 각성 공명: 초각성한 플레이어를 만나면 보스도 강해짐
     };
     s.shake = 22;
     play('doom');
-    banner(`⚠️ ${d.name} 등장!`, s.loop ? `🔥 어려움 모드 ${s.loop}회차 · 체력 ×${s.K.hp.toFixed(1)}` : d.title, 2.4);
+    const sub = s.loop ? `🔥 어려움 모드 ${s.loop}회차 · 체력 ×${s.K.bossHp.toFixed(1)}` : d.title;
+    banner(`⚠️ ${d.name} 등장!`, s.heroLv ? `🔥 각성 공명! 무작위 탄막 추가${s.loop ? ` · ${s.loop}회차` : ''}` : sub, 2.4);
   }
 
   function bossAttack(b) {
@@ -919,6 +1205,16 @@ export function createGame(env) {
       addScore(dt * 10); // 조철왕 앞에서 버틴 시간 점수
       kingPhases(b, dt);
     }
+    // 🔥 각성 공명 서브 패턴: 기존 공격과 별개로 사방에 무작위 탄막 (각성 단계·어려움 모드 밀도에 비례)
+    if (s.heroLv > b.reso) b.reso = s.heroLv;
+    if (b.reso && s.p.alive && b.mode !== 'rage' && !(b.dash && b.dash.st === 'go')) {
+      b.resoT -= dt;
+      if (b.resoT <= 0) {
+        b.resoT = Math.max(0.32, 1.15 - 0.07 * b.reso) / Math.sqrt(s.K.atk);
+        const n = 4 + Math.ceil(b.reso / 2);
+        for (let i = 0; i < n; i++) fire(b.x + rand(-b.w / 3, b.w / 3), b.y + rand(0, b.h / 3), rand(0, Math.PI * 2), rand(95, 150), { src: b.name, kind: Math.random() < 0.5 ? 'orb' : 'rice', color: Math.random() < 0.5 ? E_HOT : E_ORANGE, r: 5 });
+      }
+    }
     b.atkT -= dt;
     if (b.atkT <= 0 && s.p.alive && b.mode !== 'rage' && !b.dash) b.atkT = bossAttack(b) * (b.key === 'zero' && b.rage ? 0.8 : 1) * STAGES[s.stage].bossK / s.K.atk;
     // 보스 몸통 충돌
@@ -967,7 +1263,7 @@ export function createGame(env) {
   function startLoop() {
     s.cine = null;
     s.loop++;
-    s.K = hardK(s.loop);
+    s.K = makeK(s.loop, s.heroLv);
     s.stage = 0;
     s.phase = 'wave';
     s.phaseT = 0;
@@ -1003,6 +1299,7 @@ export function createGame(env) {
   // ---------- 메인 업데이트 ----------
   function update(dt, input = {}) {
     if (s.cine) { s.time += dt; updateCine(dt); return; } // 분노 연출 중엔 게임 정지
+    if (s.awake) { s.time += dt; updateAwake(dt); return; } // 초각성 순간 시간 정지
     s.time += dt;
     s.scroll += dt * [60, 90, 140, 120][s.stage];
     const p = s.p;
@@ -1042,11 +1339,15 @@ export function createGame(env) {
       p.deadT += dt;
       if (p.deadT > 1.8 && !s.ended) {
         s.ended = true;
-        env.over && env.over({ score: Math.floor(s.score), killer: s.killer, stage: s.stage, time: s.time, grazes: s.grazes, bosses: s.bosses, power: p.power, autoUsed: s.autoUsed, loop: s.loop });
+        env.over && env.over({ score: Math.floor(s.score), killer: s.killer, stage: s.stage, time: s.time, grazes: s.grazes, bosses: s.bosses, power: p.power, autoUsed: s.autoUsed, loop: s.loop, heroLv: s.heroLv });
       }
     }
     s.fever = Math.max(0, s.fever - dt);
     s.bombCd = Math.max(0, s.bombCd - dt);
+    if (s.heroLv > 0) {
+      s.heroCd = Math.max(0, s.heroCd - dt);
+      if (!s.heroReady && s.heroCd <= 0) { heroChanged(); popText(p.x, p.y - 56, `${HEROES[s.heroLv - 1].icon} 필살기 준비 완료!`, '#FFD166', 12, 0.9); }
+    }
     for (const k in s.buffs) s.buffs[k] = Math.max(0, s.buffs[k] - dt);
     if (s.nova) { s.nova.t += dt; if (s.nova.t > 0.8) s.nova = null; }
     if (s.buffs.drone > 0 && p.alive) updateDrones(dt);
@@ -1058,9 +1359,9 @@ export function createGame(env) {
     const st = STAGES[s.stage];
     if (s.phase === 'wave') {
       s.spawnT -= dt;
-      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = rand(1.5, 2.3) * st.spawnK / Math.sqrt(s.K.atk); }
+      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = Math.max(0.22, rand(1.5, 2.3) * st.spawnK / Math.sqrt(s.K.atk) * s.K.spawn); }
       s.heavyT -= dt;
-      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = st.heavyT / Math.sqrt(s.K.atk); }
+      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = Math.max(1.2, st.heavyT / Math.sqrt(s.K.atk) * s.K.spawn); }
       if (s.phaseT > st.wave) { s.phase = 'warn'; s.phaseT = 0; banner('⚠️ WARNING', `${BOSSES[st.boss].name} 접근 중`, 2); play('alarm'); }
     } else if (s.phase === 'warn') {
       if (s.phaseT > 2.4) { s.phase = 'boss'; s.phaseT = 0; spawnBoss(st.boss); }
@@ -1076,6 +1377,7 @@ export function createGame(env) {
     updateClicks(dt);
     s.nukes = s.nukes.filter((nk) => (nk.t += dt) < 1.4);
     s.vineFx = s.vineFx.filter((v) => (v.life -= dt) > 0);
+    updateUltFx(dt);
 
     // 잡몹
     for (const m of s.mobs) {
@@ -1096,8 +1398,9 @@ export function createGame(env) {
       if (m.zig) m.x = m.x0 + Math.sin(m.t * 2.4) * m.zig;
       m.fireT -= dt;
       if (m.fireT <= 0 && m.y > 20 && m.y < p.y - 100 && p.alive) {
-        m.fireT = m.kind === 'heavy' ? 99 : rand(1.8, 3.2) * STAGES[m.stage].fireK / s.K.atk;
-        if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.95 : m.stage === 0 ? 0.5 : m.stage < 3 ? 0.7 : 0.8)) mobShoot(m);
+        m.fireT = m.kind === 'heavy' ? 99 : m.elite ? rand(1.5, 2.2) / Math.sqrt(s.K.atk) : rand(1.8, 3.2) * STAGES[m.stage].fireK / s.K.atk;
+        if (m.elite) mobShoot(m);
+        else if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.95 : m.stage === 0 ? 0.5 : m.stage < 3 ? 0.7 : 0.8)) mobShoot(m);
       }
       if (p.alive && m.hp > 0 && Math.hypot(m.x - p.x, m.y - p.y) < m.r + HIT_R + 4) {
         // 무적 별·방어막으로 부딪히면 적만 격파
@@ -1220,6 +1523,7 @@ export function createGame(env) {
     if (s.banner && (s.banner.t += dt) > s.banner.dur) s.banner = null;
     s.shake *= Math.pow(0.02, dt);
     s.flash = Math.max(0, s.flash - dt * 1.5);
+    checkAwaken();
   }
 
   // ---------- 개발자 도움: 자동 플레이 AI (프로게이머 모드) ----------
@@ -1428,6 +1732,8 @@ export function createGame(env) {
 
     // 어떤 경로로도 0.3초 안에 맞는다면 즉시 필살기로 탄 삭제
     if (!safeNow && bestHit < 0.3 && p.inv <= 0) special();
+    // 영웅 필살기는 쿨타임이 돌아오면 보스·적 무리·탄막에 바로 사용
+    else if (s.heroLv > 0 && s.heroCd <= 0 && (boss || s.mobs.length > 6 || s.bullets.length > 30 || s.mobs.some((m) => m.elite))) special();
 
     s.autoTarget = best;
     return s.autoTarget;
@@ -1495,10 +1801,15 @@ export function createGame(env) {
     return false;
   }
 
-  // 필살기: 화면의 모든 적 탄·예고 레이저 소거 + 전체 공격 + 잠깐 무적
+  // Space: 초각성 중이고 쿨타임이 끝났으면 영웅 필살기, 아니면 기존 필살기(천지개벽)
   function special() {
+    if (s.heroLv > 0 && s.heroCd <= 0 && s.p.alive && !s.ended && !s.awake && !s.cine) return heroUlt();
+    return bomb();
+  }
+  // 필살기: 화면의 모든 적 탄·예고 레이저 소거 + 전체 공격 + 잠깐 무적
+  function bomb() {
     const p = s.p;
-    if (!p.alive || s.bombs <= 0 || s.bombCd > 0 || s.ended) return false;
+    if (!p.alive || s.bombs <= 0 || s.bombCd > 0 || s.ended || s.awake) return false;
     setBombs(s.bombs - 1);
     s.bombCd = 1;
     p.inv = Math.max(p.inv, 2);
@@ -1550,7 +1861,7 @@ export function createGame(env) {
     if (s.boss && s.boss.dash && s.boss.dash.st === 'warn') drawDashWarn(ctx, s.boss, t);
     if (s.boss) drawBoss(ctx, s.boss, t);
     for (const lz of s.lasers) drawLaser(ctx, lz, t, s.p.y);
-    for (const m of s.mobs) if (m.rootT > 0) drawVine(ctx, m.x, m.y + m.r * 0.4, m.r * 2.2, Math.min(1, m.rootT * 2), t);
+    for (const m of s.mobs) if (m.rootT > 0) (m.frozen ? drawFrozen : drawVine)(ctx, m.x, m.y + m.r * 0.4, m.r * 2.2, Math.min(1, m.rootT * 2), t);
     for (const v of s.vineFx) drawVine(ctx, v.x, v.y, v.w, v.life / v.max, t);
     for (const bm of s.beams) drawBeam(ctx, bm, s.p.power >= 13, s.p.y);
     for (const sh of s.shots) drawShot(ctx, sh, t);
@@ -1558,6 +1869,7 @@ export function createGame(env) {
     for (const wv of s.waves) drawWave(ctx, wv, t);
     for (const c of s.clicks) drawClick(ctx, c);
     for (const nk of s.nukes) drawNuke(ctx, nk);
+    for (const fx of s.ultFx) drawUltFx(ctx, fx, t, s);
     drawPlayer(ctx, s, t);
     for (const bl of s.bullets) drawBullet(ctx, bl, t);
     if (s.nova) {
@@ -1588,6 +1900,8 @@ export function createGame(env) {
   // UI 레이어: 도트로 뭉개지면 안 되는 글자·아이콘은 원해상도로 그림
   function drawUi(ctx, t) {
     for (const it of s.items) drawItemIcon(ctx, it);
+    for (const sh of s.shots) if (sh.label) drawShotLabel(ctx, sh);
+    for (const fx of s.ultFx) drawUltUi(ctx, fx, t);
     for (const lz of s.lasers) drawLaserLabel(ctx, lz, s.p.y);
     if (s.boss && s.boss.dash && s.boss.dash.st === 'warn') {
       ctx.font = `700 15px ${FONT}`;
@@ -1611,6 +1925,7 @@ export function createGame(env) {
     ctx.globalAlpha = 1;
     drawHud(ctx, s, t);
     if (s.cine) drawCine(ctx, s.cine, t);
+    if (s.awake) drawAwake(ctx, s, t);
   }
 
   return {
@@ -1618,11 +1933,12 @@ export function createGame(env) {
     draw,
     drawUi,
     special,
+    bomb,
     setAuto,
     blessing,
     isAuto: () => s.auto,
     player: () => ({ x: s.p.x, y: s.p.y }),
-    snapshot: () => ({ score: Math.floor(s.score), stage: s.stage, hp: s.p.hp, power: s.p.power, alive: s.p.alive, boss: s.boss && { key: s.boss.key, hp: s.boss.hp, max: s.boss.max, mode: s.boss.mode }, time: s.time, loop: s.loop, cine: !!s.cine }),
+    snapshot: () => ({ score: Math.floor(s.score), stage: s.stage, hp: s.p.hp, power: s.p.power, alive: s.p.alive, boss: s.boss && { key: s.boss.key, hp: s.boss.hp, max: s.boss.max, mode: s.boss.mode }, time: s.time, loop: s.loop, cine: !!s.cine, heroLv: s.heroLv, heroCd: s.heroCd, awake: !!s.awake }),
     // 헤드리스 밸런스 테스트용
     _state: s,
   };
@@ -1879,7 +2195,23 @@ function drawPlayer(ctx, s, t) {
     const side = k % 2 ? 1 : -1, row = Math.floor(k / 2) + 1;
     drawSprite(ctx, sp, p.x + side * (30 + (row - 1) * 26), PY + 10 + row * 8 - (k % 2 ? step : U - step), false, 0.92);
   }
-  drawSprite(ctx, sp, p.x, PY - step);
+  const hero = s.heroLv > 0 ? HEROES[s.heroLv - 1] : null;
+  if (hero) {
+    // 🦸 초각성 오라 + 영웅 도트 스프라이트 (홍길동은 좌우 분신)
+    ctx.fillStyle = hero.color;
+    ctx.globalAlpha = 0.22 + Math.sin(t * 6) * 0.08;
+    circle(ctx, p.x, PY - 6, 30);
+    ctx.globalAlpha = 1;
+    const hs = awakenSprite(hero.key);
+    if (hero.key === 'hong') for (const ox of [-40, 40]) drawSprite(ctx, hs, p.x + ox, PY + 14 - step, false, 0.45);
+    if (hero.key === 'ahn') {
+      // 등 뒤 프로펠러
+      const a = t * 40;
+      ctx.fillStyle = 'rgba(236,239,241,0.6)';
+      ctx.fillRect(p.x - 18 * Math.abs(Math.cos(a)), PY + 22, 36 * Math.abs(Math.cos(a)), 3);
+    }
+    drawSprite(ctx, hs || sp, p.x, PY - step);
+  } else drawSprite(ctx, sp, p.x, PY - step);
   // 피격 판정 점 (탄막 게임식)
   ctx.fillStyle = '#fff';
   circle(ctx, p.x, PY, HIT_R - 2);
@@ -1901,7 +2233,160 @@ function drawPlayer(ctx, s, t) {
   }
 }
 
+// 🦸 영웅 무기 탄 (글자·이모지는 drawShotLabel이 UI 레이어에 선명하게)
+function drawHeroShot(ctx, sh, t) {
+  const k = sh.kind;
+  if (k === 'singi') {
+    // 신기전 불화살: 화살대 + 불꼬리
+    const a = Math.atan2(sh.vy, sh.vx);
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(a);
+    ctx.fillStyle = 'rgba(255,109,0,0.75)';
+    ctx.fillRect(-16, -2.5, 9, 5);
+    ctx.fillStyle = '#FFEA00';
+    ctx.fillRect(-12, -1.2, 6, 2.4);
+    ctx.fillStyle = '#5D4037';
+    ctx.fillRect(-8, -1, 14, 2);
+    ctx.fillStyle = '#ECEFF1';
+    ctx.beginPath();
+    ctx.moveTo(10, 0);
+    ctx.lineTo(5, -3.5);
+    ctx.lineTo(5, 3.5);
+    ctx.fill();
+    ctx.restore();
+  } else if (k === 'hstar') {
+    ctx.fillStyle = 'rgba(255,234,0,0.35)';
+    circle(ctx, sh.x, sh.y + 6, 7);
+    starPath(ctx, sh.x, sh.y, sh.r + 2, (sh.r + 2) * 0.45, t * 8);
+    ctx.fillStyle = '#FFEA00';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    circle(ctx, sh.x, sh.y, 2);
+  } else if (k === 'glyph') {
+    ctx.fillStyle = 'rgba(255,171,64,0.4)';
+    circle(ctx, sh.x, sh.y, sh.big ? 12 : 9);
+  } else if (k === 'gear') {
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(sh.spin);
+    ctx.fillStyle = '#C49000';
+    for (let i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.fillRect(-2, -sh.r - 2, 4, 5); }
+    ctx.fillStyle = '#FFCA28';
+    circle(ctx, 0, 0, sh.r - 1);
+    ctx.fillStyle = '#6D4C41';
+    circle(ctx, 0, 0, 3);
+    ctx.restore();
+  } else if (k === 'needle') {
+    ctx.fillStyle = 'rgba(156,204,101,0.5)';
+    ctx.fillRect(sh.x - 2, sh.y - 6, 4, 16);
+    ctx.fillStyle = '#F5F5F5';
+    ctx.fillRect(sh.x - 0.8, sh.y - 10, 1.6, 16);
+    ctx.fillStyle = '#FFC107';
+    ctx.fillRect(sh.x - 1.5, sh.y + 4, 3, 3);
+  } else if (k === 'eye') {
+    const g = ctx.createLinearGradient(sh.x - 6, 0, sh.x + 6, 0);
+    g.addColorStop(0, 'rgba(255,214,0,0)');
+    g.addColorStop(0.5, 'rgba(255,214,0,0.95)');
+    g.addColorStop(1, 'rgba(255,214,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(sh.x - 6, sh.y - 22, 12, 34);
+    ctx.fillStyle = '#FFFDE7';
+    ctx.fillRect(sh.x - 1.5, sh.y - 20, 3, 30);
+  } else if (k === 'shuri') {
+    starPath(ctx, sh.x, sh.y, 8, 2.5, sh.spin, 4);
+    ctx.fillStyle = '#CFD8DC';
+    ctx.fill();
+    ctx.fillStyle = '#37474F';
+    circle(ctx, sh.x, sh.y, 1.8);
+  } else if (k === 'fist') {
+    ctx.fillStyle = sh.label === '🧃' ? 'rgba(255,145,0,0.45)' : 'rgba(255,112,67,0.4)';
+    circle(ctx, sh.x, sh.y + 8, sh.big ? 9 : 7);
+  } else if (k === 'prop') {
+    ctx.fillStyle = 'rgba(79,195,247,0.5)';
+    ctx.fillRect(sh.x - 2.5, sh.y - 9, 5, 16);
+    ctx.fillStyle = '#FFF59D';
+    ctx.fillRect(sh.x - 1, sh.y - 10, 2, 12);
+  } else if (k === 'money') {
+    // 돈다발(수표): 초록 지폐 + 띠지
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(Math.atan2(sh.vy, sh.vx) + Math.PI / 2);
+    ctx.fillStyle = '#2E7D32';
+    ctx.fillRect(-7, -4.5, 14, 9);
+    ctx.fillStyle = '#A5D6A7';
+    ctx.fillRect(-6, -3.5, 12, 7);
+    ctx.fillStyle = '#1B5E20';
+    circle(ctx, 0, 0, 2.2);
+    ctx.fillStyle = '#FFD600';
+    ctx.fillRect(-1.5, -4.5, 3, 9);
+    ctx.restore();
+  } else if (k === 'chip') {
+    // 반도체 칩: 검은 패키지 + 은색 다리 + 금빛 코어
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(t * 3 + sh.x);
+    ctx.fillStyle = '#B0BEC5';
+    for (let i = -1; i <= 1; i++) { ctx.fillRect(-8, i * 3 - 0.8, 16, 1.6); ctx.fillRect(i * 3 - 0.8, -8, 1.6, 16); }
+    ctx.fillStyle = '#212121';
+    ctx.fillRect(-5.5, -5.5, 11, 11);
+    ctx.fillStyle = '#FFD600';
+    ctx.fillRect(-2, -2, 4, 4);
+    ctx.restore();
+  } else if (k === 'grain') {
+    // 초밥 밥알
+    const a = Math.atan2(sh.vy, sh.vx);
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(a);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4.5, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ECEFF1';
+    ctx.fillRect(-1.5, -0.8, 3, 1.6);
+    ctx.restore();
+  } else return false;
+  return true;
+}
+function starPath(ctx, x, y, r1, r2, rot = 0, n = 5) {
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) {
+    const r = i % 2 ? r2 : r1, a = rot + (i * Math.PI) / n - Math.PI / 2;
+    ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+function drawShotLabel(ctx, sh) {
+  const big = sh.big ? 1.35 : 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (sh.kind === 'glyph') {
+    ctx.font = `700 ${Math.round(15 * big)}px ${FONT}`;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3E2723';
+    ctx.strokeText(sh.label, sh.x, sh.y);
+    ctx.fillStyle = '#FFF3E0';
+    ctx.fillText(sh.label, sh.x, sh.y);
+  } else {
+    ctx.font = `${Math.round(14 * big)}px sans-serif`;
+    ctx.fillText(sh.label, sh.x, sh.y);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+// 자격루 시간 정지: 얼어붙은 적
+function drawFrozen(ctx, x, y, w, a) {
+  ctx.save();
+  ctx.globalAlpha = a * 0.75;
+  ctx.fillStyle = '#B3E5FC';
+  ctx.fillRect(x - w / 2, y - w * 0.9, w, w);
+  ctx.fillStyle = '#E1F5FE';
+  ctx.fillRect(x - w / 2 + 3, y - w * 0.9 + 3, w * 0.3, w * 0.2);
+  ctx.restore();
+}
+
 function drawShot(ctx, sh, t) {
+  if (drawHeroShot(ctx, sh, t)) return;
   if (sh.kind === 'flame') {
     const k = sh.t / sh.life;
     const hue = sh.ultra ? (t * 300 + sh.x) % 360 : 40 - k * 40;
@@ -2368,6 +2853,27 @@ function drawItemIcon(ctx, it) {
 }
 
 function drawMob(ctx, m, t) {
+  if (m.elite) {
+    // 👹 엘리트: 붉은 오라 + 1.5배 크기
+    const pulse = Math.sin(t * 8 + m.x) * 3;
+    ctx.fillStyle = 'rgba(255,23,68,0.28)';
+    circle(ctx, m.x, m.y, m.r + 10 + pulse);
+    ctx.fillStyle = 'rgba(255,82,82,0.35)';
+    circle(ctx, m.x, m.y, m.r + 3);
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.scale(1.5, 1.5);
+    ctx.translate(-m.x, -m.y);
+    drawSprite(ctx, mobSprite(m.stage), m.x, m.y + (Math.floor(m.t * 6) % 2 ? U : 0), m.flashT > 0);
+    ctx.restore();
+    if (m.hp < m.max) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(m.x - 20, m.y - m.r - 14, 40, 4);
+      ctx.fillStyle = '#FF1744';
+      ctx.fillRect(m.x - 20, m.y - m.r - 14, 40 * Math.max(0, m.hp / m.max), 4);
+    }
+    return;
+  }
   if (m.kind !== 'heavy') {
     const bob = Math.floor(m.t * 6) % 2 ? U : 0;
     drawSprite(ctx, mobSprite(m.stage), m.x, m.y + bob, m.flashT > 0);
@@ -2637,8 +3143,12 @@ function drawHud(ctx, s, t) {
   ctx.fillRect(8, 8, 36, 36);
   ctx.fillStyle = '#8D6E63';
   ctx.fillRect(10, 10, 32, 32);
-  const face = heroFace(tierOf(p.power));
-  if (face) { ctx.imageSmoothingEnabled = false; ctx.drawImage(face.img, 11, 11, 30, 30); }
+  const hero = s.heroLv > 0 ? HEROES[s.heroLv - 1] : null;
+  if (hero) { ctx.fillStyle = hero.color; ctx.fillRect(10, 10, 32, 32); drawAwakenFace(ctx, hero.key, 11, 11, 30); }
+  else {
+    const face = heroFace(tierOf(p.power));
+    if (face) { ctx.imageSmoothingEnabled = false; ctx.drawImage(face.img, 11, 11, 30, 30); }
+  }
   ctx.strokeText(sc, 52, 28);
   ctx.fillStyle = '#FFD166';
   ctx.fillText(sc, 52, 28);
@@ -2657,6 +3167,37 @@ function drawHud(ctx, s, t) {
     ctx.fill();
     ctx.fillStyle = '#FFEB3B';
     ctx.fillText(txt, 14, yy + 12.5);
+  }
+  if (hero) {
+    // 🦸 영웅 도감: 현재 영웅 이름 + 필살기 쿨타임 게이지
+    const yy = (s.boss ? 70 : 50) + (s.loop ? 20 : 0), bw = 150;
+    const ready = s.heroCd <= 0, k = ready ? 1 : 1 - s.heroCd / HERO_CD;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    rr(ctx, 8, yy, bw + 12, 31, 5);
+    ctx.fill();
+    ctx.strokeStyle = hero.color;
+    ctx.lineWidth = 1.5;
+    rr(ctx, 8, yy, bw + 12, 31, 5);
+    ctx.stroke();
+    ctx.font = `700 11px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = hero.color;
+    ctx.fillText(`${hero.icon} ${hero.name}`, 14, yy + 12.5);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#B0BEC5';
+    ctx.font = `700 9px ${FONT}`;
+    ctx.fillText(`영웅 ${s.heroLv}/${HERO_COUNT}`, bw + 14, yy + 12);
+    ctx.fillStyle = '#263238';
+    rr(ctx, 14, yy + 17, bw, 10, 4);
+    ctx.fill();
+    ctx.fillStyle = ready ? (Math.floor(t * 6) % 2 ? '#FFD166' : hero.color) : '#78909C';
+    rr(ctx, 14, yy + 17, Math.max(4, bw * k), 10, 4);
+    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.font = `700 8px ${FONT}`;
+    ctx.fillStyle = ready ? '#1A1220' : '#fff';
+    ctx.fillText(ready ? `${hero.ult} READY · Space` : `${hero.ult} ${s.heroCd.toFixed(1)}s`, 14 + bw / 2, yy + 25);
+    ctx.textAlign = 'left';
   }
   // 체력
   ctx.textAlign = 'right';
@@ -2692,6 +3233,22 @@ function drawHud(ctx, s, t) {
     rr(ctx, 10, y, W - 20, 14, 7);
     ctx.fill();
     const k = b.dead ? 0 : b.hp / b.max;
+    if (b.reso && !b.dead) {
+      // 🔥 각성 공명: 불타는 체력 바 테두리
+      for (let x = 12; x < W - 12; x += 7) {
+        const fh = 3 + Math.abs(Math.sin(t * 13 + x * 0.7)) * 5;
+        ctx.fillStyle = (x / 7) % 2 < 1 ? '#FF6D00' : '#FFD600';
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y + 1);
+        ctx.lineTo(x, y - fh);
+        ctx.lineTo(x + 4, y + 1);
+        ctx.fill();
+      }
+      ctx.strokeStyle = Math.floor(t * 10) % 2 ? '#FF3D00' : '#FFAB00';
+      ctx.lineWidth = 2.5;
+      rr(ctx, 9, y - 1, W - 18, 16, 8);
+      ctx.stroke();
+    }
     ctx.fillStyle = b.key === 'king' ? (b.mode === 'rage' || b.loopRage ? '#FF1744' : '#E040FB') : b.rage ? '#FF5252' : '#FFA726';
     rr(ctx, 12, y + 2, Math.max(0, (W - 24) * k), 10, 5);
     ctx.fill();
@@ -2704,7 +3261,7 @@ function drawHud(ctx, s, t) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     const hpTxt = b.key === 'king' && b.mode === 'rage' ? '??? 분노 각성 ???' : `${Math.ceil(Math.max(0, b.hp))} / ${Math.ceil(b.max)}`;
-    ctx.fillText(`${b.name} · ${hpTxt}`, W / 2, y + 10.5);
+    ctx.fillText(`${b.reso ? '🔥공명 ' : ''}${b.name} · ${hpTxt}`, W / 2, y + 10.5);
   }
   // 무기 · 경험치
   const by = H - 22;
@@ -2718,7 +3275,7 @@ function drawHud(ctx, s, t) {
   ctx.font = `700 10px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fff';
-  ctx.fillText(`Lv.${p.power + 1} ${weaponLabel(p.power)}${p.power >= MAX_POWER ? ' · MAX' : ''}`, W / 2, by + 10.5);
+  ctx.fillText(`${hero ? `${hero.icon}${hero.weapon} + ` : ''}Lv.${p.power + 1} ${weaponLabel(p.power)}${p.power >= MAX_POWER ? ' · MAX' : ''}`, W / 2, by + 10.5, W - 30);
   if (s.fever > 0) {
     ctx.fillStyle = '#FFE082';
     ctx.textAlign = 'left';
@@ -2755,4 +3312,359 @@ function drawHud(ctx, s, t) {
     }
     ctx.restore();
   }
+}
+
+// =====================================================================
+// 🦸 영웅 필살기 · 초각성 연출
+// =====================================================================
+// 월드 레이어(도트): 거북선 · 물벽 · 비행기 · 레이저 등 큰 그림
+function drawUltFx(ctx, fx, t, s) {
+  const k = fx.t / fx.dur, fade = Math.min(1, (fx.dur - fx.t) / 0.3);
+  ctx.save();
+  if (fx.key === 'yi') drawTurtleShip(ctx, W / 2, fx.y, t);
+  else if (fx.key === 'kang') {
+    // 귀주대첩 수공: 둑을 터뜨린 거대한 물벽
+    const g = ctx.createLinearGradient(0, fx.y, 0, fx.y + 160);
+    g.addColorStop(0, 'rgba(1,87,155,0.85)');
+    g.addColorStop(1, 'rgba(1,87,155,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, fx.y, W, 160);
+    ctx.fillStyle = 'rgba(64,196,255,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(0, fx.y + 20);
+    for (let x = 0; x <= W; x += 10) ctx.lineTo(x, fx.y - 14 + Math.sin(x / 18 + t * 14) * 10);
+    ctx.lineTo(W, fx.y + 20);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    for (let x = 4; x < W; x += 16) circle(ctx, x, fx.y - 18 + Math.sin(x / 18 + t * 14) * 10, 3);
+  } else if (fx.key === 'ahn') drawBiplane(ctx, fx.x, 112, t);
+  else if (fx.key === 'sejong') {
+    ctx.globalAlpha = fade;
+    const w = Math.min(1, fx.t * 4) * (W - 60), x = W / 2 - w / 2, y = H * 0.2;
+    ctx.fillStyle = '#FFF8E1';
+    ctx.fillRect(x, y, w, 110);
+    ctx.fillStyle = '#D7CCC8';
+    ctx.fillRect(x, y + 104, w, 6);
+    ctx.fillStyle = '#6D4C41';
+    ctx.fillRect(x - 8, y - 6, 10, 122);
+    ctx.fillRect(x + w - 2, y - 6, 10, 122);
+  } else if (fx.key === 'jang') {
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = 'rgba(64,196,255,0.16)';
+    ctx.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H * 0.36, r = 64;
+    ctx.fillStyle = 'rgba(255,248,225,0.8)';
+    circle(ctx, cx, cy, r);
+    ctx.strokeStyle = '#C49000';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#5D4037';
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; ctx.fillRect(cx + Math.cos(a) * (r - 10) - 2, cy + Math.sin(a) * (r - 10) - 2, 4, 4); }
+    ctx.strokeStyle = '#3E2723';
+    for (const [len, sp, lw] of [[r * 0.55, -1.2, 5], [r * 0.8, -9, 3]]) {
+      const a = -Math.PI / 2 + fx.t * sp;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+      ctx.stroke();
+    }
+  } else if (fx.key === 'heo') {
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = 'rgba(105,240,174,0.8)';
+    ctx.lineWidth = 10 * (1 - k) + 2;
+    ctx.beginPath();
+    ctx.arc(fx.x, fx.y, 30 + k * 520, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(105,240,174,0.15)';
+    ctx.fillRect(0, 0, W, H);
+  } else if (fx.key === 'gungye') {
+    if (fx.t < 0.45) {
+      // 하늘에서 열리는 거대한 눈
+      const open = Math.min(1, fx.t / 0.35);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFF8E1';
+      ctx.beginPath();
+      ctx.ellipse(W / 2, 110, 120, 44 * open + 1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#FFD600';
+      circle(ctx, W / 2, 110, 30 * open);
+      ctx.fillStyle = '#000';
+      circle(ctx, W / 2, 110, 13 * open);
+    } else {
+      // 화면 전체를 관통하는 금빛 관심법 레이저
+      const a = Math.min(1, (1.5 - fx.t) / 0.25, (fx.t - 0.45) / 0.08);
+      const g = ctx.createLinearGradient(0, 0, W, 0);
+      g.addColorStop(0, `rgba(255,214,0,${0.35 * a})`);
+      g.addColorStop(0.5, `rgba(255,253,231,${0.9 * a})`);
+      g.addColorStop(1, `rgba(255,214,0,${0.35 * a})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = `rgba(255,255,255,${0.7 * a})`;
+      ctx.fillRect(W / 2 - 40 + Math.sin(t * 50) * 6, 0, 80, H);
+    }
+  } else if (fx.key === 'hong') {
+    for (const sl of fx.slashes) {
+      const a = Math.max(0, 1 - sl.t / 0.3);
+      if (a <= 0) continue;
+      ctx.strokeStyle = `rgba(197,202,233,${a * 0.6})`;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(0, sl.y0);
+      ctx.lineTo(W, sl.y1);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${a})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  } else if (fx.key === 'kim') {
+    ctx.fillStyle = `rgba(255,112,67,${0.12 * fade})`;
+    ctx.fillRect(0, 0, W, H);
+  } else if (fx.key === 'jin') {
+    const cx = W / 2, cy = H * 0.42;
+    if (fx.t < 0.45) {
+      ctx.fillStyle = `rgba(0,0,0,${0.3 + fx.t})`;
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      const q = (fx.t - 0.45) / 1.2;
+      if (q < 1) {
+        ctx.strokeStyle = `rgba(255,255,255,${1 - q})`;
+        ctx.lineWidth = 16 * (1 - q) + 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 20 + q * 520, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// 🐢 거북선: 용머리 · 철갑 등판의 쇠못 · 양옆 노 · 포구 화염 (위로 돌진)
+function drawTurtleShip(ctx, x, y, t) {
+  // 물보라 항적
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  for (let i = 0; i < 8; i++) circle(ctx, x + Math.sin(t * 20 + i) * 30, y + 70 + i * 18, 14 - i);
+  // 노
+  ctx.strokeStyle = '#5D4037';
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 5; i++) {
+    const oy = y - 10 + i * 14, sw = Math.sin(t * 16 + i * 0.6) * 10;
+    for (const sx of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + sx * 54, oy);
+      ctx.lineTo(x + sx * 82, oy + sw);
+      ctx.stroke();
+    }
+  }
+  // 선체
+  ctx.fillStyle = '#4E342E';
+  rr(ctx, x - 58, y - 34, 116, 96, 26);
+  ctx.fill();
+  ctx.fillStyle = '#795548';
+  rr(ctx, x - 54, y - 30, 108, 88, 22);
+  ctx.fill();
+  // 철갑 등판 (육각 무늬 + 쇠못)
+  ctx.fillStyle = '#33691E';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 12, 46, 42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#558B2F';
+  for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++) {
+    if (Math.abs(r) + Math.abs(c) > 3) continue;
+    rr(ctx, x + c * 16 - 6 + (r % 2 ? 8 : 0), y + 12 + r * 15 - 6, 12, 11, 3);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#ECEFF1';
+  for (let r = -2; r <= 2; r++) for (let c = -3; c <= 3; c++) {
+    const sx = x + c * 13 + (r % 2 ? 6 : 0), sy = y + 12 + r * 15;
+    if (((sx - x) / 44) ** 2 + ((sy - y - 12) / 40) ** 2 > 1) continue;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - 5);
+    ctx.lineTo(sx - 2.5, sy + 1);
+    ctx.lineTo(sx + 2.5, sy + 1);
+    ctx.fill();
+  }
+  // 포구 + 화염
+  for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const py = y - 6 + i * 22;
+    ctx.fillStyle = '#212121';
+    ctx.fillRect(x + sx * 56 - 4, py, 8, 7);
+    if (Math.floor(t * 12 + i) % 3 === 0) { ctx.fillStyle = '#FF6D00'; circle(ctx, x + sx * 66, py + 3, 7); ctx.fillStyle = '#FFEA00'; circle(ctx, x + sx * 64, py + 3, 3.5); }
+  }
+  // 용머리 (뱃머리)
+  ctx.fillStyle = '#F9A825';
+  rr(ctx, x - 16, y - 66, 32, 36, 10);
+  ctx.fill();
+  ctx.fillStyle = '#C62828';
+  ctx.fillRect(x - 12, y - 46, 24, 8);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x - 10, y - 46, 4, 4);
+  ctx.fillRect(x + 6, y - 46, 4, 4);
+  ctx.fillStyle = '#212121';
+  circle(ctx, x - 7, y - 58, 3);
+  circle(ctx, x + 7, y - 58, 3);
+  ctx.fillStyle = '#E65100';
+  ctx.fillRect(x - 20, y - 70, 6, 10);
+  ctx.fillRect(x + 14, y - 70, 6, 10);
+  // 용 입에서 뿜는 연기
+  ctx.fillStyle = 'rgba(158,158,158,0.7)';
+  for (let i = 0; i < 4; i++) circle(ctx, x + Math.sin(t * 9 + i) * 8, y - 74 - i * 12, 9 + i * 2);
+}
+
+// ✈️ 안창남의 금강호 복엽기 (오른쪽으로 비행하며 폭탄 투하)
+function drawBiplane(ctx, x, y, t) {
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 70, 50, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#8D6E63';
+  ctx.fillRect(x - 46, y - 3, 74, 14); // 동체
+  ctx.fillStyle = '#5D4037';
+  ctx.fillRect(x - 52, y - 12, 12, 14); // 꼬리
+  ctx.fillStyle = '#ECEFF1';
+  ctx.fillRect(x - 18, y - 18, 34, 6); // 윗날개
+  ctx.fillRect(x - 18, y + 14, 34, 6); // 아랫날개
+  ctx.fillStyle = '#9E9E9E';
+  ctx.fillRect(x - 12, y - 12, 2, 26);
+  ctx.fillRect(x + 10, y - 12, 2, 26);
+  ctx.fillStyle = '#212121';
+  ctx.fillRect(x + 28, y - 1, 6, 10);
+  const pa = Math.abs(Math.sin(t * 60));
+  ctx.fillStyle = 'rgba(236,239,241,0.8)';
+  ctx.fillRect(x + 34, y + 4 - 16 * pa, 3, 32 * pa);
+  ctx.fillStyle = '#C62828';
+  circle(ctx, x - 20, y + 4, 4);
+  // 떨어지는 폭탄
+  ctx.fillStyle = '#263238';
+  for (let i = 1; i <= 4; i++) circle(ctx, x - i * 26, y + 24 + i * i * 9, 4);
+}
+
+// UI 레이어: 필살기 대사·글자
+function drawUltUi(ctx, fx, t) {
+  const shout = (text, y, size, color, jit = 4) => {
+    ctx.save();
+    ctx.translate(W / 2 + (Math.random() - 0.5) * jit, y + (Math.random() - 0.5) * jit);
+    const pop = Math.min(1, fx.t * 6);
+    ctx.scale(0.5 + pop * 0.5, 0.5 + pop * 0.5);
+    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#000';
+    ctx.strokeText(text, 0, 0);
+    ctx.fillStyle = color;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  };
+  const a = Math.min(1, (fx.dur - fx.t) / 0.3);
+  ctx.globalAlpha = Math.max(0, a);
+  if (fx.key === 'sejong') {
+    ctx.font = `700 26px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#3E2723';
+    ctx.fillText('훈 민 정 음', W / 2, H * 0.2 + 48);
+    ctx.font = `700 13px ${FONT}`;
+    ctx.fillText('나랏말싸미 듕귁에 달아 문쭝와로 서르 사맛디 아니할쎄', W / 2, H * 0.2 + 82, W - 90);
+  } else if (fx.key === 'jang') shout('⏱️ 자격루: 시간 정지!', H * 0.36 + 92, 18, '#B3E5FC', 0);
+  else if (fx.key === 'heo') shout('📗 東醫寶鑑', H * 0.36, 26, '#69F0AE', 2);
+  else if (fx.key === 'yi') shout('🐢 거북선 출격!', H * 0.22, 24, '#FF5252', 2);
+  else if (fx.key === 'kang') shout('🌊 귀주대첩!', H * 0.22, 24, '#40C4FF', 2);
+  else if (fx.key === 'ahn') shout('✈️ 떴다 보아라 안창남 비행기!', H * 0.34, 16, '#4FC3F7', 2);
+  else if (fx.key === 'hong') shout('동에 번쩍! 서에 번쩍!', H * 0.3, 20, '#C5CAE9', 6);
+  else if (fx.key === 'gungye') {
+    shout('누구인가?', H * 0.34, 40, '#FFD600', 8);
+    if (fx.t > 0.3) shout('지금 누가 기침 소리를 내었어?', H * 0.34 + 44, 15, '#fff', 3);
+  } else if (fx.key === 'kim') shout('사딸라!', H * 0.34, 44, '#FF7043', 10);
+  else if (fx.key === 'jin') {
+    if (fx.t < 0.45) {
+      ctx.font = `${Math.round(50 + fx.t * 80)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🍣', W / 2, H * 0.42);
+      ctx.textBaseline = 'alphabetic';
+    }
+    shout('초밥 밥알이 몇 개고?!', H * 0.22, 24, '#fff', 8);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 초각성 컷신: 시간 정지 + 화면 번쩍 + 위인 실루엣 → 정체 공개
+function drawAwake(ctx, s, t) {
+  const a = s.awake, h = HEROES[a.lv - 1], k = a.t / a.dur;
+  const out = Math.min(1, (a.dur - a.t) / 0.25);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, out);
+  ctx.fillStyle = 'rgba(8,4,16,0.78)';
+  ctx.fillRect(0, 0, W, H);
+  // 회전하는 집중선
+  const cx = W / 2, cy = H * 0.4;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(a.t * 0.8);
+  for (let i = 0; i < 24; i++) {
+    ctx.rotate(Math.PI / 12);
+    ctx.fillStyle = i % 2 ? `${h.color}55` : 'rgba(255,214,0,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-18, -520);
+    ctx.lineTo(18, -520);
+    ctx.fill();
+  }
+  ctx.restore();
+  // 실루엣 → 0.45초 후 컬러 공개
+  const sp = awakenSprite(h.key);
+  if (sp) {
+    const sc = 5 * (0.8 + Math.min(1, a.t * 3) * 0.2), w = sp.w * sc, hh = sp.h * sc;
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = Math.max(0, out) * 0.9;
+    for (const [ox, oy] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.drawImage(sp.flash, cx - w / 2 + ox, cy - hh / 2 + oy, w, hh);
+    ctx.globalAlpha = Math.max(0, out);
+    ctx.drawImage(a.t < 0.45 ? sp.flash : sp.img, cx - w / 2, cy - hh / 2, w, hh);
+  }
+  // "초각성!" 텍스트
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 13px ${FONT}`;
+  ctx.fillStyle = '#FFE082';
+  ctx.fillText(`⚡ ${(a.lv * HERO_STEP).toLocaleString('ko-KR')}점 돌파 · 영웅 초월 ${a.lv}/${HERO_COUNT}단계`, cx, H * 0.1);
+  const pop = Math.min(1, a.t * 5);
+  ctx.save();
+  ctx.translate(cx + (a.t < 0.6 ? (Math.random() - 0.5) * 8 : 0), H * 0.17);
+  ctx.scale(0.4 + pop * 0.6, 0.4 + pop * 0.6);
+  ctx.font = `700 46px ${FONT}`;
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = '#000';
+  ctx.strokeText('초각성!', 0, 0);
+  const g = ctx.createLinearGradient(-110, 0, 110, 0);
+  g.addColorStop(0, `hsl(${(t * 300) % 360},100%,65%)`);
+  g.addColorStop(0.5, '#FFF59D');
+  g.addColorStop(1, `hsl(${(t * 300 + 180) % 360},100%,65%)`);
+  ctx.fillStyle = g;
+  ctx.fillText('초각성!', 0, 0);
+  ctx.restore();
+  if (a.t > 0.45) {
+    ctx.font = `700 30px ${FONT}`;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#000';
+    ctx.strokeText(`${h.icon} ${h.name}`, cx, H * 0.63);
+    ctx.fillStyle = h.color;
+    ctx.fillText(`${h.icon} ${h.name}`, cx, H * 0.63);
+    ctx.font = `700 13px ${FONT}`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${h.title} · 「${h.line}」`, cx, H * 0.68, W - 24);
+    ctx.fillStyle = '#FFE082';
+    ctx.fillText(`🔫 ${h.weapon}`, cx, H * 0.73, W - 24);
+    ctx.fillText(`Space ▶ ${h.ult} (쿨타임 ${HERO_CD}초)`, cx, H * 0.77, W - 24);
+    ctx.fillStyle = '#FF8A80';
+    ctx.font = `700 11px ${FONT}`;
+    ctx.fillText(`⚠ 적도 각성! 체력 ×${s.K.aw.hp.toFixed(2)} · 속도 ×${s.K.aw.spd.toFixed(2)} · 물량 ×${(1 / s.K.aw.spawn).toFixed(2)} · 👹엘리트 출현`, cx, H * 0.82, W - 16);
+  }
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+  // 시작 순간 하얀 섬광
+  if (k < 0.2) { ctx.fillStyle = `rgba(255,255,255,${1 - k / 0.2})`; ctx.fillRect(0, 0, W, H); }
 }
