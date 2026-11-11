@@ -97,73 +97,83 @@ class PixBuf {
   }
 }
 
+// 큼직하고 반짝이는 치비 눈 (모든 스톤몬 공통)
+function eye(P, x, y) {
+  P.rect(x - 1, y - 1, 3, 4, '#1c1424');
+  P.set(x - 1, y - 1, '#ffffff'); P.set(x, y - 1, '#ffffff'); P.set(x - 1, y, '#ffffff');
+  P.set(x + 1, y + 2, '#6a5a8a');
+}
+
 // ── 스톤몬 체형 18종 (오른쪽을 바라봄, 56x56 좌표) ──
 const BONE = '#f0e8d0';
 const ARCH = {
+  // 스타팅·튜토리얼 4종(티랑이·트톱이·브라키·프테리)은 치비 비율: 큰 머리 · 큰 눈 · 둥근 몸 · 짧은 다리
   rex: {
-    a: { back: [[18, 24], [24, 21], [30, 20]], head: [40, 11], tail: [2, 39], mouth: [50, 20], body: [26, 30, 10, 8] },
+    a: { back: [[17, 29], [24, 27], [29, 25]], head: [33, 11], tail: [3, 41], mouth: [50, 26], body: [24, 37, 9, 9] },
     body(P, c) {
-      P.tri(18, 23, 18, 35, 1, 40, c.b); P.line(18, 29, 3, 38, c.b, 2.5);
-      P.ell(21, 40, 4, 5, c.d); P.rect(19, 42, 4, 8, c.d); P.rect(19, 49, 7, 2, c.d);
-      P.ell(26, 30, 11, 9, c.b); P.ell(28, 33, 8, 5, c.u);
-      P.ell(27, 39, 5, 6, c.b); P.rect(25, 43, 4, 7, c.b); P.rect(25, 49, 8, 2, c.b);
-      P.ell(34, 24, 5, 6, c.b);
-      P.ell(40, 16, 8, 6, c.b); P.ell(46, 17, 5, 4, c.b); P.rect(38, 20, 12, 3, c.u);
-      P.line(35, 30, 38, 33, c.b, 1);
+      P.tri(16, 30, 17, 42, 2, 42, c.b); P.ell(5, 41, 3, 2, c.b);
+      P.ell(19, 44, 4, 5, c.d); P.ell(20, 49, 4.5, 2.2, c.d);
+      P.ell(24, 37, 10, 10, c.b); P.ell(27, 40, 6, 7, c.u);
+      P.ell(28, 45, 4.5, 5, c.b); P.ell(30, 49, 5, 2.4, c.b);
+      P.ell(35, 21, 11, 10, c.b); P.ell(43, 24, 8, 6.5, c.b); P.ell(41, 28.5, 8, 3, c.u);
+      P.ell(35, 36, 2.5, 1.5, c.b);
     },
     detail(P, c) {
-      P.set(43, 13, '#fff'); P.set(43, 14, '#111'); P.set(44, 14, '#111'); P.set(49, 15, c.d);
-      P.line(38, 19, 50, 19, OUTLINE);
-      for (let x = 40; x <= 50; x += 2) P.set(x, 20, '#fff');
-      for (let x = 21; x <= 31; x += 4) P.set(x, 23, c.a);
+      eye(P, 39, 17);
+      P.line(35, 27, 50, 26, OUTLINE);
+      for (const x of [41, 44, 47]) P.tri(x - 1, 27.4, x + 1, 27.2, x, 29.2, '#ffffff');
+      P.set(49, 21, c.d); P.rect(35, 23, 2, 1, '#ff8a8a');
+      for (const [x, y] of [[20, 28], [25, 26], [29, 24]]) P.set(x, y, c.a);
     },
   },
   trike: {
-    a: { back: [[14, 24], [22, 23], [30, 24]], head: [42, 22], tail: [1, 40], mouth: [53, 34], body: [24, 32, 13, 8] },
+    a: { back: [[14, 30], [22, 29], [29, 30]], head: [40, 22], tail: [1, 42], mouth: [53, 36], body: [23, 38, 12, 8] },
     body(P, c) {
-      P.tri(14, 29, 14, 38, 0, 40, c.b);
-      P.rect(13, 38, 5, 12, c.d); P.rect(31, 38, 5, 12, c.d);
-      P.ell(24, 32, 14, 9, c.b); P.ell(24, 37, 11, 4, c.u);
-      P.rect(17, 38, 5, 13, c.b); P.rect(35, 38, 5, 13, c.b);
-      P.ell(38, 24, 7, 11, c.a); P.ell(38, 25, 5, 8, mix(c.a, c.b, 0.4));
-      P.ell(44, 31, 7, 6, c.b); P.tri(48, 29, 54, 34, 48, 37, '#d8c8a0');
-      P.tri(39, 25, 42, 27, 49, 15, light(BONE, 0)); P.tri(42, 25, 45, 27, 53, 17, BONE);
-      P.tri(49, 29, 51, 30, 52, 24, BONE);
+      P.tri(13, 34, 13, 43, 1, 42, c.b);
+      P.ell(15, 47, 3.5, 4, c.d); P.ell(31, 47, 3.5, 4, c.d);
+      P.ell(23, 38, 13, 9.5, c.b); P.ell(24, 43, 9, 3.5, c.u);
+      P.ell(19, 48, 4, 4, c.b); P.ell(35, 48, 4, 4, c.b);
+      P.ell(37, 25, 11, 12, c.a); P.ell(37, 26, 8.5, 9.5, mix(c.a, '#ffffff', 0.3));
+      P.ell(42, 32, 9, 8, c.b); P.tri(48, 31, 55, 35, 49, 39, '#e8d8b0');
+      P.tri(37, 25, 40, 26, 42, 14, BONE); P.tri(42, 25, 45, 26, 48, 15, BONE);
+      P.tri(49, 29, 51, 30, 52, 25, BONE);
     },
     detail(P, c) {
-      P.set(45, 29, '#111'); P.set(46, 29, '#111'); P.set(45, 28, '#fff');
-      for (let i = 0; i < 5; i++) P.set(33 + (i % 2) * 2, 16 + i * 4, light(c.a, 0.4));
-      P.line(49, 35, 53, 34, OUTLINE);
+      eye(P, 45, 30);
+      P.line(47, 37, 51, 37, OUTLINE); P.rect(42, 34, 2, 1, '#ff8a8a');
+      for (const [x, y] of [[29, 19], [32, 15], [38, 14], [28, 27]]) P.ell(x, y, 1, 1, dark(c.a, 0.3));
     },
   },
   sauro: {
-    a: { back: [[14, 28], [22, 27], [30, 29]], head: [43, 4], tail: [1, 46], mouth: [50, 10], body: [22, 36, 12, 8] },
-    body(P, c) {
-      P.line(12, 36, 1, 46, c.b, 3); P.line(1, 46, -1, 48, c.b, 1);
-      P.rect(11, 40, 5, 11, c.d); P.rect(29, 40, 5, 11, c.d);
-      P.ell(22, 36, 13, 9, c.b); P.ell(22, 40, 10, 4, c.u);
-      P.rect(15, 41, 5, 11, c.b); P.rect(33, 41, 5, 11, c.b);
-      P.line(31, 32, 41, 11, c.b, 3.5);
-      P.ell(44, 9, 6, 4, c.b);
+    a: { back: [[14, 34], [21, 33], [28, 34]], head: [40, 6], tail: [2, 47], mouth: [50, 17], body: [21, 41, 11, 7] },
+    body(P, c, sp) {
+      P.line(12, 42, 2, 47, c.b, 3); P.ell(2, 47, 2, 1.5, c.b);
+      P.ell(13, 48, 3.5, 4, c.d); P.ell(28, 48, 3.5, 4, c.d);
+      P.ell(21, 41, 12, 8.5, c.b); P.ell(22, 45, 9, 3, c.u);
+      P.ell(17, 49, 4, 4, c.b); P.ell(32, 49, 4, 4, c.b);
+      P.line(28, 38, 37, 17, c.b, 4.2);
+      P.ell(40, 13, 7.5, 6.5, c.b); P.ell(46, 15, 4.5, 4, c.b);
+      if (sp.id === 3) { P.line(49, 17, 52, 18, '#2a7a30'); P.ell(53, 18.5, 3.5, 1.7, '#3fa04a'); }
     },
     detail(P, c) {
-      P.set(46, 7, '#111'); P.set(45, 7, '#fff'); P.line(46, 11, 50, 11, OUTLINE);
-      for (let i = 0; i < 4; i++) P.set(15 + i * 5, 31 + (i % 2), c.a);
-      P.set(35, 24, c.a); P.set(38, 18, c.a);
+      eye(P, 42, 11);
+      P.line(45, 18, 49, 17, OUTLINE); P.rect(41, 15, 2, 1, '#ff8a8a');
+      for (const [x, y] of [[15, 35], [21, 34], [27, 36], [33, 26]]) P.ell(x, y, 1.5, 1, c.a);
     },
   },
   ptero: {
-    a: { back: [[24, 25], [28, 24], [32, 25]], head: [36, 18], tail: [20, 36], mouth: [52, 24], body: [28, 30, 6, 6] },
+    a: { back: [[24, 28], [28, 27], [32, 28]], head: [37, 15], tail: [20, 40], mouth: [54, 25], body: [27, 34, 6, 6] },
     body(P, c) {
-      P.tri(25, 27, 2, 8, 21, 33, c.d); P.line(25, 27, 2, 8, dark(c.d, 0.2), 1);
-      P.line(26, 35, 24, 43, c.d, 1); P.line(30, 35, 31, 43, c.d, 1);
-      P.ell(28, 30, 6, 6, c.b); P.ell(29, 32, 4, 4, c.u);
-      P.tri(29, 27, 16, 1, 37, 31, c.b); P.tri(29, 28, 19, 6, 34, 31, light(c.b, 0.25));
-      P.ell(37, 22, 4, 3, c.b); P.tri(34, 21, 22, 13, 36, 19, c.a); P.tri(39, 20, 54, 24, 39, 24, c.a);
+      P.tri(24, 30, 3, 12, 20, 37, c.d); P.line(24, 30, 3, 12, dark(c.d, 0.25), 1);
+      P.line(25, 40, 23, 46, c.d, 1); P.line(30, 40, 31, 46, c.d, 1);
+      P.ell(27, 34, 7, 7, c.b); P.ell(28, 36, 4.5, 4.5, c.u);
+      P.tri(28, 30, 18, 4, 40, 34, c.b); P.tri(29, 31, 21, 9, 37, 33, light(c.b, 0.25));
+      P.ell(38, 22, 7, 6.5, c.b); P.tri(33, 19, 22, 12, 36, 16, c.a); P.tri(42, 21, 55, 26, 42, 27, c.a);
     },
     detail(P, c) {
-      P.set(38, 21, '#111'); P.set(38, 20, '#fff'); P.line(40, 23, 52, 24, dark(c.a, 0.4));
-      P.line(29, 27, 16, 1, dark(c.b, 0.35));
+      eye(P, 40, 20);
+      P.line(43, 24, 54, 26, dark(c.a, 0.4)); P.rect(38, 25, 2, 1, '#ff8a8a');
+      P.line(28, 30, 18, 4, dark(c.b, 0.35));
     },
   },
   raptor: {
@@ -179,7 +189,7 @@ const ARCH = {
       P.line(32, 28, 35, 32, c.b, 1);
     },
     detail(P, c) {
-      P.set(40, 16, '#111'); P.set(40, 15, '#fff'); P.line(41, 19, 46, 19, OUTLINE);
+      eye(P, 40, 16); P.line(41, 19, 46, 19, OUTLINE);
       P.set(31, 47, BONE); P.set(32, 46, BONE);
       for (let i = 0; i < 4; i++) P.set(19 + i * 3, 25 - (i > 1 ? 1 : 0), c.a);
     },
@@ -196,7 +206,7 @@ const ARCH = {
       P.line(33, 31, 36, 33, c.b, 1);
     },
     detail(P, c) {
-      P.set(41, 22, '#111'); P.set(41, 21, '#fff'); P.line(43, 26, 47, 25, OUTLINE);
+      eye(P, 41, 22); P.line(43, 26, 47, 25, OUTLINE);
       for (const [x, y] of [[32, 19], [33, 16], [36, 14], [40, 14], [43, 16], [44, 19]]) P.set(x, y, BONE);
     },
   },
@@ -215,7 +225,7 @@ const ARCH = {
       P.ell(39, 36, 4, 4, c.b); P.ell(44, 38, 5, 3.5, c.b);
     },
     detail(P, c) {
-      P.set(45, 37, '#111'); P.set(45, 36, '#fff'); P.line(46, 40, 49, 39, OUTLINE);
+      eye(P, 45, 37); P.line(46, 40, 49, 39, OUTLINE);
       for (let i = 0; i < 5; i++) P.set(14 + i * 6, 23 - [3, 6, 8, 6, 3][i] + 4, light(c.a, 0.4));
     },
   },
@@ -230,7 +240,7 @@ const ARCH = {
       P.ell(44, 39, 5, 4, c.b); P.tri(41, 35, 43, 35, 40, 31, BONE);
     },
     detail(P, c) {
-      P.set(46, 38, '#111'); P.set(46, 37, '#fff'); P.line(46, 41, 49, 40, OUTLINE);
+      eye(P, 46, 38); P.line(46, 41, 49, 40, OUTLINE);
       for (let y = 31; y <= 39; y += 4) for (let x = 14; x <= 38; x += 5) if (P.has(x, y)) P.set(x + ((y / 4) % 2) * 2, y, light(c.a, 0.25));
     },
   },
@@ -246,7 +256,7 @@ const ARCH = {
     },
     detail(P, c) {
       for (let x = 16; x <= 32; x += 4) P.line(x, 35, 24 + (x - 24) * 1.3, 21 + Math.abs(x - 24) * 0.35, dark(c.a, 0.35));
-      P.set(42, 37, '#111'); P.set(42, 36, '#fff'); P.line(42, 41, 48, 41, OUTLINE);
+      eye(P, 42, 37); P.line(42, 41, 48, 41, OUTLINE);
       for (let x = 43; x <= 47; x += 2) P.set(x, 42, '#fff');
     },
   },
@@ -264,7 +274,7 @@ const ARCH = {
     },
     detail(P, c) {
       for (let x = 16; x <= 32; x += 4) P.line(x, 30, 24 + (x - 24) * 1.2, 12, dark(c.a, 0.3));
-      P.set(39, 17, '#111'); P.set(39, 16, '#fff'); P.line(41, 19, 52, 19, OUTLINE);
+      eye(P, 39, 17); P.line(41, 19, 52, 19, OUTLINE);
       for (let x = 42; x <= 52; x += 2) P.set(x, 20, '#fff');
     },
   },
@@ -279,7 +289,7 @@ const ARCH = {
       P.line(41, 34, 49, 38, c.a, 1.5); P.line(49, 38, 53, 31, c.a, 1.2);
     },
     detail(P, c) {
-      P.set(41, 23, '#111'); P.set(41, 22, '#fff');
+      eye(P, 41, 23); 
       const r = seeded(29);
       for (let i = 0; i < 24; i++) { const x = 12 + r() * 26, y = 20 + r() * 24; if (P.has(x, y)) P.line(x, y, x - 1, y + 2, dark(c.b, 0.25)); }
     },
@@ -294,7 +304,7 @@ const ARCH = {
       P.tri(37, 22, 39, 16, 42, 21, c.b); P.ell(42, 26, 7, 6, c.b); P.ell(47, 28, 3.5, 3, c.u);
     },
     detail(P, c) {
-      P.set(45, 24, '#111'); P.set(44, 24, '#ffe04a'); P.set(49, 27, '#111');
+      eye(P, 45, 24); P.set(49, 27, '#111');
       P.line(45, 31, 45, 38, '#fff8e8'); P.line(46, 31, 46, 37, '#fff8e8'); P.line(48, 31, 48, 36, '#fff8e8');
       for (let x = 18; x <= 32; x += 4) P.line(x, 26, x + 1, 30, dark(c.b, 0.3));
     },
@@ -310,7 +320,7 @@ const ARCH = {
       P.tri(18, 40, 26, 40, 16, 51, c.b); P.tri(32, 40, 38, 40, 39, 51, c.b);
     },
     detail(P, c) {
-      P.set(46, 11, '#111'); P.set(46, 10, '#fff'); P.line(46, 15, 50, 14, OUTLINE); P.set(48, 16, '#fff');
+      eye(P, 46, 11); P.line(46, 15, 50, 14, OUTLINE); P.set(48, 16, '#fff');
       for (let i = 0; i < 4; i++) P.set(16 + i * 5, 32, c.a);
     },
   },
@@ -323,7 +333,7 @@ const ARCH = {
       P.tri(30, 34, 39, 35, 28, 45, c.d);
     },
     detail(P, c) {
-      P.set(45, 28, '#111'); P.set(45, 27, '#fff');
+      eye(P, 45, 28); 
       P.line(40, 34, 53, 32, OUTLINE);
       for (let x = 41; x <= 52; x += 2) { P.set(x, 33, '#fff'); P.set(x + 1, 35 - (x > 46 ? 1 : 0), '#fff'); }
       for (let x = 36; x <= 40; x += 2) P.line(x, 27, x - 1, 31, dark(c.b, 0.3));
@@ -339,7 +349,7 @@ const ARCH = {
     },
     detail(P, c) {
       for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; P.line(24 + Math.cos(a) * 11, 30 + Math.sin(a) * 11, 24 + Math.cos(a) * 14, 30 + Math.sin(a) * 14, c.a); }
-      P.set(39, 34, '#111'); P.set(40, 34, '#111'); P.set(39, 33, '#fff');
+      eye(P, 39, 34); 
     },
   },
   trilo: {
@@ -351,7 +361,7 @@ const ARCH = {
     },
     detail(P, c) {
       for (let x = 14; x <= 36; x += 4) P.line(x, 30, x, 46, dark(c.b, 0.3));
-      P.set(45, 33, '#111'); P.set(46, 33, '#111'); P.set(45, 32, '#ffe04a');
+      eye(P, 45, 33); 
     },
   },
   golem: {
@@ -396,7 +406,7 @@ const ARCH = {
       P.ell(19, 21, 4, 4, c.a); P.ell(19, 21, 2, 2, '#111'); P.set(18, 20, '#fff');
       P.ell(20, 39, 3, 3, c.a); P.ell(20, 39, 1, 1, '#111');
       for (let y = 26; y <= 36; y += 3) P.line(31, y, 39, y, dark(c.u, 0.25));
-      P.set(41, 20, '#111');
+      eye(P, 41, 20); 
     },
   },
   scorp: {
@@ -410,7 +420,7 @@ const ARCH = {
     },
     detail(P, c) {
       for (let x = 20; x <= 36; x += 4) P.line(x, 33, x, 43, dark(c.b, 0.3));
-      P.set(40, 35, '#111'); P.set(41, 35, '#111'); P.line(50, 32, 52, 31, OUTLINE);
+      eye(P, 40, 35); P.line(50, 32, 52, 31, OUTLINE);
     },
   },
 };
@@ -433,7 +443,7 @@ function backParts(P, a, parts, c) {
         P.line(bx + 4, by + 1, tipX, tipY, dark(mc, 0.45), 1);
         P.line(bx - 3, by + 3, tipX, tipY, dark(mc, 0.2));
       };
-      const mem = mix(c.b, col, 0.55);
+      const mem = mix(mix(c.a, col, 0.5), '#ffffff', 0.15);
       if (lv >= 2) wing(b1[0] - 4, b1[1] + 1, lv, dark(mem, 0.25));
       wing(b1[0] + 1, b1[1], lv, mem);
       if (lv >= 3) wing(b0[0], b0[1] + 2, 1, light(mem, 0.2));
@@ -532,7 +542,7 @@ export function monSprite(m, { silhouette = false, white = false } = {}) {
   const sp = SPECIES[m.sid];
   const parts = m.genes ? partsOf(m) : {};
   const dom = m.genes ? dominantGene(m) : null;
-  const tint = dom && dom !== sp.el ? Math.min(0.4, (m.genes[dom] || 0) / 45) : 0;
+  const tint = dom && dom !== sp.el ? Math.min(0.22, (m.genes[dom] || 0) / 80) : 0;
   const key = `${m.sid}|${JSON.stringify(parts)}|${dom}|${tint.toFixed(2)}|${silhouette}|${white}`;
   if (cache.has(key)) return cache.get(key);
   const P = new PixBuf(64, 64, 4, 6);

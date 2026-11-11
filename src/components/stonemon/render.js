@@ -67,7 +67,7 @@ function drawMap(ctx, g) {
   const v = g.v, T = tiles();
   let px = v.x * 16, py = v.y * 16, walking = false;
   if (v.mv) {
-    const p = Math.min(1, v.mv.t / 150);
+    const p = Math.min(1, v.mv.t / v.mv.dur);
     px += (v.mv.tx - v.x) * 16 * p; py += (v.mv.ty - v.y) * 16 * p; walking = true;
   }
   const camX = clamp(Math.round(px - (SW / 2 - 8)), 0, MAP_W * 16 - SW);
@@ -96,7 +96,7 @@ function drawMap(ctx, g) {
     if (n.trainer && g.S.flags.trainers?.[n.trainer] === 'gone') continue;
     ents.push({ y: n.y * 16, x: n.x * 16, img: charSprite(LOOKS[n.look], g.npcDir[n.id] || n.dir, 0), ex: n.trainer && !g.S.flags.trainers?.[n.trainer] });
   }
-  const frame = walking ? ((v.mv.t < 75 ? 1 : 0) ^ v.walk) : 0;
+  const frame = walking ? ((v.mv.t < v.mv.dur / 2 ? 1 : 0) ^ v.walk) : 0;
   ents.push({ y: py, x: px, img: charSprite(LOOKS.hero, v.dir, frame), hero: true, bob: walking && frame ? -1 : 0 });
   ents.sort((a, b) => a.y - b.y);
   for (const e of ents) {

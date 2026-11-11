@@ -1,6 +1,6 @@
 // ⚔️ 스톤몬 턴제 배틀 계산 (순수 로직). 연출은 StoneMonsterGame.jsx 가 이벤트를 받아 재생한다.
 import { SKILLS, SPECIES, STRONG, WEAK, ELEMENTS } from './data';
-import { eff, tl, maxHp, elementsOf, josa, formName } from './monster';
+import { eff, tl, maxHp, elementsOf, josa, formName, usableSkills } from './monster';
 
 export const STATUS = {
   burn: { name: '화상', color: '#ff6a3d' },
@@ -208,7 +208,7 @@ export function endTurn(f) {
 // 적 AI: smart면 기대 피해가 가장 큰 기술 위주, 아니면 가중 무작위
 export function chooseSkill(me, foe, smart) {
   const mh = maxHp(me.m);
-  const scored = me.m.skills.map((s) => {
+  const scored = usableSkills(me.m).map((s) => {
     const sk = SKILLS[s];
     let v;
     if (sk.pow) {
@@ -216,7 +216,7 @@ export function chooseSkill(me, foe, smart) {
       v = Math.min(dmg, foe.m.hp + 5) * (sk.acc / 100);
       if (dmg >= foe.m.hp) v *= 1.6;
       if (sk.recoil && me.m.hp < mh * 0.3) v *= 0.5;
-    } else if (sk.heal) v = me.m.hp < mh * 0.45 ? mh * 0.5 : 1;
+    } else if (sk.heal) v = me.m.hp < mh * 0.4 ? mh * 0.35 : 0.5;
     else if (sk.buff) v = me.m.hp > mh * 0.6 && Object.keys(sk.buff).every((k) => me.st[k] < 2) ? mh * 0.2 : 1;
     else if (sk.st) v = foe.status ? 0.5 : foe.m.hp > maxHp(foe.m) * 0.5 ? mh * 0.2 : 2;
     else v = foe.m.hp > maxHp(foe.m) * 0.5 ? mh * 0.12 : 1;

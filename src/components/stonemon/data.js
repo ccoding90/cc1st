@@ -134,10 +134,10 @@ export const STAGES = {
 // 스톤몬 50종
 // [번호, 이름, 체형, 속성, 등급(1~4), 체력, 공격, 방어, 스피드, 기술, 특성, 서식지, 색상[몸, 배, 포인트], 크기, 도감 설명]
 const RAW = [
-  [1, '티랑이', 'rex', 'primal', 1, 46, 14, 9, 10, ['bite', 'scratch', 'roar'], 'jaw', 1, ['#d9774a', '#f3d29b', '#8a3b22'], 1, '박사의 돌알에서 깨어난 꼬마 폭군. 이빨 하나로 바위를 깨문다. 먹을수록 턱이 커진다.'],
-  [2, '트톱이', 'trike', 'earth', 1, 50, 11, 14, 8, ['tackle', 'headbutt', 'rockArmor'], 'hide', 1, ['#5f9e5a', '#d8e6a3', '#c9643a'], 1, '세 개의 뿔과 돌처럼 단단한 프릴. 어지간한 이빨은 박히지도 않는다.'],
-  [3, '브라키', 'sauro', 'water', 1, 62, 10, 10, 7, ['tailWhip', 'waterGun', 'aquaRing'], 'giant', 1, ['#5aa0c8', '#cfe8f0', '#2f6b8f'], 1, '태초의 호수에서 자란 목이 긴 거인. 꼬리 한 번에 나무가 쓰러진다.'],
-  [4, '프테리', 'ptero', 'wind', 1, 32, 10, 7, 15, ['wingBeat', 'dive', 'tailwind'], 'flight', 1, ['#b48ad6', '#efe0ff', '#ff9f43'], 0.9, '마을의 돌알을 훔쳐 가는 말썽꾸러기 익룡. 하늘에서 내리꽂는 급강하가 특기.'],
+  [1, '티랑이', 'rex', 'primal', 1, 46, 14, 9, 10, ['bite', 'scratch', 'roar'], 'jaw', 1, ['#e8563a', '#ffd29a', '#b8321e'], 1, '박사의 돌알에서 깨어난 꼬마 폭군. 이빨 하나로 바위를 깨문다. 먹을수록 턱이 커진다.'],
+  [2, '트톱이', 'trike', 'earth', 1, 50, 11, 14, 8, ['tackle', 'headbutt', 'rockArmor'], 'hide', 1, ['#3aaa9a', '#cfeec0', '#6fd0c0'], 1, '세 개의 뿔과 돌처럼 단단한 프릴. 어지간한 이빨은 박히지도 않는다.'],
+  [3, '브라키', 'sauro', 'water', 1, 62, 10, 10, 7, ['tailWhip', 'waterGun', 'aquaRing'], 'giant', 1, ['#9ad84a', '#f2ea86', '#5f9e34'], 1, '태초의 호수에서 자란 목이 긴 거인. 꼬리 한 번에 나무가 쓰러진다.'],
+  [4, '프테리', 'ptero', 'wind', 1, 32, 10, 7, 15, ['wingBeat', 'dive', 'tailwind'], 'flight', 1, ['#9a7ad8', '#ece0ff', '#ff9f43'], 0.9, '마을의 돌알을 훔쳐 가는 말썽꾸러기 익룡. 하늘에서 내리꽂는 급강하가 특기.'],
   [5, '랩티', 'raptor', 'primal', 1, 36, 12, 7, 14, ['scratch', 'bite', 'roar'], 'crit', 1, ['#c2b280', '#f2e8c9', '#6b5a2a'], 0.9, '무리 지어 사냥하는 날쌘 사냥꾼. 낫 같은 발톱은 급소만 노린다.'],
   [6, '콤피', 'raptor', 'poison', 1, 28, 9, 6, 13, ['sting', 'scratch', 'toxic'], 'poisonPoint', 1, ['#7dbd5a', '#e1f2b8', '#7a3fb0'], 0.7, '손바닥만 한 독도마뱀. 작다고 얕보면 독에 쓰러진다.'],
   [7, '딜로', 'raptor', 'poison', 2, 42, 13, 9, 12, ['venomFang', 'acid', 'sludge'], 'poisonPoint', 1, ['#4f8f6e', '#d9f0c2', '#e85fa8'], 1, '목 주름을 활짝 펴고 독액을 뱉는다. 태초마을 풀숲 깊은 곳의 포식자.'],
@@ -194,3 +194,21 @@ for (const r of RAW) {
 export const SPECIES_COUNT = RAW.length;
 export const STARTERS = [1, 2, 3];
 export const TIER_NAME = { 1: '일반', 2: '희귀', 3: '영웅', 4: '전설' };
+
+// ── 기술 사용 횟수(PP) ──
+// 기본 기술(위력 55 이하 공격기)은 무제한. 나머지는 횟수 제한 → 회복기 무한 반복 같은 버티기 방지
+// 집/엄마에게 회복하면 전부 충전, 통구이·포식으로 일부 충전
+export const FALLBACK_SKILL = 'tackle'; // 모든 기술을 다 쓰면 몸통박치기로 싸운다
+export function isBasic(id) {
+  const sk = SKILLS[id];
+  return !!sk && sk.pow > 0 && sk.pow <= 55;
+}
+export function maxPP(id) {
+  const sk = SKILLS[id];
+  if (!sk || isBasic(id)) return Infinity;
+  if (sk.heal) return 3;
+  if (!sk.pow) return 6;
+  if (sk.pow <= 70) return 15;
+  if (sk.pow <= 95) return 10;
+  return 5;
+}

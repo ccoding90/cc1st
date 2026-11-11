@@ -2,7 +2,7 @@
 // 등록한 스톤몬의 '그림자'(능력치 스냅샷)를 다른 플레이어가 AI 대전으로 상대한다.
 // 그림자가 먹히면 제단에서 사라지고, 그림자가 이기면 주인에게 방어 보상이 돌아간다.
 import { db } from '../../firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, limit, where, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { pack, unpack, createMonster, randomMutate, power, pick, rand } from './monster';
 import { SPECIES } from './data';
 import { scaleTo } from './world';
@@ -72,4 +72,15 @@ function makeWanderer(myPower, i) {
   scaleTo(m, target);
   m.devours = Math.floor(rand(2, 12));
   return { id: 'npc-' + Math.random().toString(36).slice(2), nick: pick(WANDERERS), mon: m, power: power(m), real: false };
+}
+
+// 💾 모험 코드(클라우드 저장): 코드 = 문서 ID. 코드를 아는 사람만 불러올 수 있다
+const SAVES = 'stonemon_saves';
+export async function uploadCloudSave(code, save) {
+  await setDoc(doc(db, SAVES, code), { data: JSON.stringify(save), name: String(save.name || '').slice(0, 12), updatedAt: serverTimestamp() });
+}
+export async function downloadCloudSave(code) {
+  const snap = await getDoc(doc(db, SAVES, code));
+  if (!snap.exists()) return null;
+  return JSON.parse(snap.data().data);
 }

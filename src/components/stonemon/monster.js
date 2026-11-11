@@ -1,5 +1,5 @@
 // 🦖 스톤몬 개체 로직: 생성 · 능력치 · 포식(흡수) · 무한 변이 진화
-import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS } from './data';
+import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS, maxPP, FALLBACK_SKILL } from './data';
 
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -39,6 +39,27 @@ export function createMonster(sid, { scale = 1, genes = null, extraTraits = null
 }
 
 export const tl = (m, t) => m.traits?.[t] || 0;
+
+// 남은 사용 횟수 (무제한이면 Infinity)
+export function ppLeft(m, id) {
+  const max = maxPP(id);
+  return max === Infinity ? Infinity : Math.max(0, max - (m.ppUsed?.[id] || 0));
+}
+export function usePP(m, id) {
+  if (maxPP(id) === Infinity) return;
+  m.ppUsed = m.ppUsed || {};
+  m.ppUsed[id] = (m.ppUsed[id] || 0) + 1;
+}
+export function restorePP(m, n = Infinity) {
+  if (!m.ppUsed) return;
+  if (n === Infinity) { m.ppUsed = {}; return; }
+  for (const k of Object.keys(m.ppUsed)) m.ppUsed[k] = Math.max(0, m.ppUsed[k] - n);
+}
+// 지금 쓸 수 있는 기술. 전부 바닥나면 몸통박치기
+export function usableSkills(m) {
+  const list = m.skills.filter((s) => ppLeft(m, s) > 0);
+  return list.length ? list : [FALLBACK_SKILL];
+}
 export const geneTotal = (m) => Object.values(m.genes || {}).reduce((a, b) => a + b, 0);
 // 변이 단계 n에 필요한 유전자 총량: n(n+2) → 3, 8, 15, 24, 35, 48 … (끝없음)
 export const stageThreshold = (n) => n * (n + 2);
@@ -219,7 +240,8 @@ export function absorb(pred, prey, mode = 'wild') {
       for (const k of ['hp', 'atk', 'def', 'spd']) pred.stats[k] = Math.round(pred.stats[k] * 1.05) + 1;
     pred.stage = newStage;
   }
-  // 먹으면 회복 (최대 체력 30%)
+  // 먹으면 회복 (최대 체력 30% + 제한 기술 1회씩 충전)
+  restorePP(pred, 1);
   pred.hp = Math.min(maxHp(pred), pred.hp + Math.round(maxHp(pred) * 0.3) + gains.hp);
   const learnable = (prey.skills || []).filter((s) => SKILLS[s] && !pred.skills.includes(s));
   const afterParts = partsOf(pred);

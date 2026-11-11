@@ -3,12 +3,14 @@
 import { SPECIES, SKILLS, TRAITS, ELEMENTS, STARTERS, SPECIES_COUNT, TIER_NAME } from './data';
 import {
   createMonster, maxHp, power, formName, absorb, elementsOf, josa, pick, rand, eff, geneTotal, stageThreshold,
+  ppLeft, usePP, restorePP,
 } from './monster';
+import { FALLBACK_SKILL } from './data';
 import { fighter, act, order, endTurn, chooseSkill, intimidate, spdVal, STATUS } from './battle';
 import {
   GRID, MAP_W, MAP_H, NPCS, TRAINERS, SIGNS, blocked, doorAt, isTall, rollWild, trainerParty,
 } from './world';
-import { registerShadow, reportResult, fetchOpponents, fetchMyResults } from './net';
+import { registerShadow, reportResult, fetchOpponents, fetchMyResults, uploadCloudSave, downloadCloudSave } from './net';
 import { sfx } from '../coffee/sound';
 
 const SAVE_KEY = 'stonemon_save_v1';
@@ -16,7 +18,7 @@ const PARTY_MAX = 4;
 const MOVE_MS = 150;
 export const ITEMS = {
   meat: { name: '생고기', desc: '체력 50% 회복', price: 30, icon: '🍖' },
-  bigMeat: { name: '통구이', desc: '체력 100% 회복 · 상태이상 치료', price: 90, icon: '🍗' },
+  bigMeat: { name: '통구이', desc: '체력 100% · 기술 횟수 전부 회복 · 상태이상 치료', price: 90, icon: '🍗' },
   stone: { name: '봉인석', desc: '쓰러뜨린 야생 스톤몬을 동료로 봉인', price: 50, icon: '🪨' },
 };
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -40,13 +42,42 @@ function freshRun(meta = {}) {
   };
 }
 
-function loadSave() {
-  try {
-    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s && s.v === 1) return s;
-  } catch (e) { /* ignore */ }
-  return null;
+// 저장 데이터 정리: 빠진 필드는 기본값으로 채움 (구버전·백업 문자열·클라우드 불러오기 공용)
+export function normalizeSave(raw) {
+  if (!raw || raw.v !== 1 || typeof raw !== 'object') return null;
+  const base = freshRun({ name: raw.name, ownerId: raw.ownerId, runs: Math.max(0, (raw.runs || 1) - 1) });
+  const s = { ...base, ...raw };
+  s.flags = { ...base.flags, ...(raw.flags || {}), trainers: { ...(raw.flags?.trainers || {}) } };
+  s.items = { ...base.items, ...(raw.items || {}) };
+  s.codex = { seen: {}, eaten: {}, owned: {}, ...(raw.codex || {}) };
+  s.stats = { ...base.stats, ...(raw.stats || {}) };
+  s.pos = raw.pos && Number.isFinite(raw.pos.x) ? raw.pos : base.pos;
+  s.party = Array.isArray(raw.party) ? raw.party.filter((m) => m && SPECIES[m.sid] && m.stats).slice(0, PARTY_MAX) : [];
+  for (const m of s.party) {
+    m.skills = (m.skills || []).filter((k) => SKILLS[k]).slice(0, 4);
+    if (!m.skills.length) m.skills = SPECIES[m.sid].skills.slice(0, 4);
+    m.traits = m.traits || {}; m.genes = m.genes || {}; m.prey = m.prey || {};
+    m.hp = Math.max(1, Math.min(maxHp(m), Number(m.hp) || maxHp(m)));
+  }
+  s.grave = Array.isArray(raw.grave) ? raw.grave.slice(0, 40) : [];
+  return s;
 }
+
+function loadSave() {
+  try { return normalizeSave(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) { return null; }
+}
+
+// 백업 문자열: 'SM1:' + base64(JSON)
+export function encodeBackup(S) {
+  return 'SM1:' + btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+}
+function decodeBackup(str) {
+  const t = String(str).trim();
+  if (!t.startsWith('SM1:')) return null;
+  try { return normalizeSave(JSON.parse(decodeURIComponent(escape(atob(t.slice(4)))))); } catch (e) { return null; }
+}
+const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const makeCode = () => Array.from({ length: 10 }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join('');
 
 export class Game {
   constructor(refresh) {
@@ -61,8 +92,36 @@ export class Game {
 
   // ───────── UI 브릿지 ─────────
   setUi(p) { Object.assign(this.ui, p); this.refresh(); }
-  hasSave() { return !!(this.S && this.S.flags?.starter && this.S.party?.length); }
-  save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.S)); } catch (e) { /* ignore */ } }
+  // 이어하기: 오프닝을 본 뒤라면 어디서든 이어서 (스톤몬을 받기 전이어도 OK)
+  hasSave() { return !!(this.S && this.S.name && this.S.flags?.intro && (this.S.party?.length || !this.S.flags.starter)); }
+  save() {
+    if (!this.S) return;
+    this.S.savedAt = Date.now();
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.S)); } catch (e) { /* ignore */ }
+  }
+  // 모험 코드(클라우드 저장): 코드가 있으면 조용히 갱신
+  async cloudSync(force = false) {
+    if (!this.S || (!this.S.cloudCode && !force)) return false;
+    if (!this.S.cloudCode) this.S.cloudCode = makeCode();
+    this.save();
+    try { await uploadCloudSave(this.S.cloudCode, this.S); this.S.cloudAt = Date.now(); this.save(); return true; } catch (e) { console.warn('cloud save failed', e); return false; }
+  }
+  // 타이틀의 '코드로 이어하기': 모험 코드 또는 백업 문자열
+  async loadFromCode(input) {
+    const t = String(input || '').trim();
+    let data = null;
+    if (t.startsWith('SM1:')) data = decodeBackup(t);
+    else {
+      const code = t.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (code.length !== 10) return { ok: false, msg: '모험 코드는 10자리입니다.' };
+      try { const raw = await downloadCloudSave(code); data = raw && normalizeSave(raw); if (data) data.cloudCode = code; }
+      catch (e) { return { ok: false, msg: '서버에 연결하지 못했습니다. 백업 문자열로 시도해 보세요.' }; }
+    }
+    if (!data) return { ok: false, msg: '저장 데이터를 찾지 못했습니다. 코드를 다시 확인해 주세요.' };
+    this.S = data;
+    this.save();
+    return { ok: true, msg: `${data.name}의 모험을 불러왔습니다!` };
+  }
   wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   toast(text) {
     this.setUi({ toast: text });
@@ -181,11 +240,22 @@ export class Game {
     const c = this.ui.cmd;
     if (!c) return;
     sfx.tick();
+    const m = this.v.battle.player.m;
     if (c.level === 'main') {
-      if (i === 0) { c.level = 'skill'; c.idx = 0; this.refresh(); return; }
+      if (i === 0) {
+        if (!m.skills.some((s) => ppLeft(m, s) > 0)) {
+          c.pick({ type: 'skill', id: FALLBACK_SKILL, exhausted: true });
+          return;
+        }
+        c.level = 'skill'; c.idx = 0; this.refresh(); return;
+      }
       c.pick({ type: ['fight', 'party', 'bag', 'run'][i] });
     } else if (i < 0) { c.level = 'main'; c.idx = 0; this.refresh(); }
-    else c.pick({ type: 'skill', id: this.v.battle.player.m.skills[i] });
+    else {
+      const id = m.skills[i];
+      if (ppLeft(m, id) <= 0) { sfx.bump(); this.toast(`${SKILLS[id].name}: 남은 횟수가 없다!`); return; }
+      c.pick({ type: 'skill', id });
+    }
   }
 
   async run(fn) {
@@ -206,10 +276,25 @@ export class Game {
     this.run(() => this.opening());
   }
   continueGame() {
+    if (!this.hasSave()) { this.newGame(); return; }
     this.setUi({ title: false });
-    this.placePlayer(this.S.pos.x, this.S.pos.y, this.S.pos.dir);
+    const { x, y, dir } = this.S.pos;
+    // 막힌 칸에 저장됐으면(구버전 등) 집 앞으로
+    if (blocked(x, y)) this.placePlayer(4, 18, 'down'); else this.placePlayer(x, y, dir);
     this.v.mode = 'map';
+    this.v.flash = 1;
     this.refresh();
+    const lead = this.S.party[0];
+    this.run(async () => {
+      await this.say(lead ? `${this.S.name}의 모험을 이어서 시작합니다. (${this.S.runs}번째 생 · 대장 ${formName(lead)} ★${power(lead)})` : `${this.S.name}의 모험을 이어서 시작합니다. 연구소로 가 보자!`, { auto: 1400 });
+    });
+  }
+  // 타이틀로 (진행은 자동 저장됨)
+  toTitle() {
+    if (this.busy) return;
+    this.save();
+    this.v.mode = 'title'; this.v.battle = null; this.v.fx = {};
+    this.setUi({ title: true, hud: null, panel: null });
   }
   placePlayer(x, y, dir) { Object.assign(this.v, { x, y, dir: dir || this.v.dir, mv: null }); }
 
@@ -223,7 +308,7 @@ export class Game {
     if (v.mode !== 'map') return;
     if (v.mv) {
       v.mv.t += dt;
-      if (v.mv.t >= MOVE_MS) {
+      if (v.mv.t >= v.mv.dur) {
         v.x = v.mv.tx; v.y = v.mv.ty; v.mv = null; v.walk ^= 1;
         this.S.pos = { x: v.x, y: v.y, dir: v.dir };
         this.onStep();
@@ -247,7 +332,7 @@ export class Game {
       if (!v.bumpT || v.t - v.bumpT > 300) { sfx.bump(); v.bumpT = v.t; }
       return;
     }
-    v.mv = { tx: nx, ty: ny, t: 0 };
+    v.mv = { tx: nx, ty: ny, t: 0, dur: this.running ? 80 : MOVE_MS };
   }
   onStep() {
     const { x, y } = this.v;
@@ -303,7 +388,7 @@ export class Game {
       '박사님 연구소는 마을 동쪽의 큰 돌집이야. 지붕에 공룡 두개골이 걸려 있어.',
       '…그리고 명심하렴. 이 마을에서 스톤몬을 잃는다는 건, 모든 걸 잃는다는 뜻이야.',
     ]);
-    await this.say('▶ 방향키(또는 화면 패드)로 이동 · A(Z/Space) 조사·대화 · B(X) 취소 · 메뉴(Enter)');
+    await this.say('▶ 방향키(또는 화면 패드)로 이동 · B를 누른 채 이동하면 달리기 · A(Z/Space) 조사·대화 · 메뉴(Enter) · 진행은 자동 저장');
     this.S.flags.intro = true;
   }
 
@@ -437,9 +522,9 @@ export class Game {
     await this.say('엄마: 밥은 먹고 다니니? …아, 너 말고 스톤몬 말이야. 푹 쉬고 가렴.', { speaker: '엄마' });
     this.healAll();
     sfx.ding();
-    await this.say('♪ 스톤몬들이 모두 회복되었다! (자동 저장)');
+    await this.say('♪ 스톤몬들의 체력과 기술 횟수가 모두 회복되었다! (자동 저장)');
   }
-  healAll() { for (const m of this.S.party) { m.hp = maxHp(m); } }
+  healAll() { for (const m of this.S.party) { m.hp = maxHp(m); restorePP(m); } this.save(); this.cloudSync(); }
 
   async shop() {
     await this.say('원시 상점: 어서 와! 뼈조각만 있으면 뭐든 팔지!', { speaker: '상인' });
@@ -465,7 +550,7 @@ export class Game {
     if (npc.id === 'mom') {
       if (!S.party.length) return this.talk('엄마', ['연구소는 동쪽이야! 지붕에 공룡 두개골이 걸린 집!']);
       this.healAll(); sfx.ding();
-      return this.talk('엄마', ['어머, 다쳤잖니! 이리 와 봐.', '♪ 스톤몬들이 모두 회복되었다!', '엄마는 늘 여기 있을게. 꼭 살아서 돌아오렴.']);
+      return this.talk('엄마', ['어머, 다쳤잖니! 이리 와 봐.', '♪ 체력과 기술 횟수가 모두 회복되었다!', '엄마는 늘 여기 있을게. 꼭 살아서 돌아오렴.']);
     }
     if (npc.id === 'kid') return this.talk('꼬마', pick([
       ['스톤몬은 레벨업 같은 거 안 해! 먹어야 커!', '찌릿랩을 먹으면 등에 번개 가시가 돋는대! 멋지지?'],
@@ -670,8 +755,10 @@ export class Game {
       turn++;
       const cmd = await this.command();
       let mySkill = null;
-      if (cmd.type === 'skill') mySkill = cmd.id;
-      else if (cmd.type === 'fight') continue;
+      if (cmd.type === 'skill') {
+        mySkill = cmd.id;
+        if (cmd.exhausted) await this.say(`${josa(formName(B.player.m), '은/는')} 쓸 수 있는 기술이 없다! 몸통박치기로 버틴다!`, { auto: 700 });
+      } else if (cmd.type === 'fight') continue;
       else if (cmd.type === 'run') {
         if (kind !== 'wild') { await this.say(kind === 'tutorial' ? '박사: 도망치면 안 된다! 첫 사냥이다!' : '도망칠 수 없다! 이건 목숨을 건 승부다!'); continue; }
         const p = Math.min(0.95, 0.45 + 0.5 * (spdVal(B.player) / Math.max(1, spdVal(B.enemy))) - (B.enemy.m.alpha ? 0.2 : 0));
@@ -697,6 +784,7 @@ export class Game {
       for (const f of seq) {
         const foe = f === B.player ? B.enemy : B.player;
         const skill = f === B.player ? mySkill : eSkill;
+        if (f.m.hp > 0) usePP(f.m, skill);
         await this.play(act(f, foe, skill));
         const out = await this.checkFaints(B);
         if (out) return out;
@@ -857,12 +945,13 @@ export class Game {
       ], { cancel: true, wide: true });
       if (i >= 0 && i < res.learnable.length) {
         const s = res.learnable[i];
-        if (pred.skills.length < 4) { pred.skills.push(s); sfx.ding(); await this.say(`${josa(formName(pred), '은/는')} ${josa(SKILLS[s].name, '을/를')} 익혔다!`); }
+        if (pred.skills.length < 4) { pred.skills.push(s); if (pred.ppUsed) delete pred.ppUsed[s]; sfx.ding(); await this.say(`${josa(formName(pred), '은/는')} ${josa(SKILLS[s].name, '을/를')} 익혔다!`); }
         else {
           const j = await this.choose(`어떤 기술을 잊을까? (→ ${SKILLS[s].name})`, [...pred.skills.map((k) => ({ label: `${ELEMENTS[SKILLS[k].el].icon} ${SKILLS[k].name}${SKILLS[k].pow ? ` (위력 ${SKILLS[k].pow})` : ''}`, sub: SKILLS[k].desc })), '그만둔다'], { cancel: true, wide: true });
           if (j >= 0 && j < 4) {
             const forgot = pred.skills[j];
             pred.skills[j] = s;
+            if (pred.ppUsed) { delete pred.ppUsed[s]; delete pred.ppUsed[forgot]; }
             sfx.ding();
             await this.say(`${SKILLS[forgot].name}을(를) 잊고… ${josa(SKILLS[s].name, '을/를')} 익혔다!`);
           }
@@ -908,10 +997,11 @@ export class Game {
       m = S.party[j];
     }
     const k = keys[i];
-    if (m.hp >= maxHp(m) && !(k === 'bigMeat' && B?.player.status)) { await this.say('체력이 이미 가득하다!'); return false; }
+    const ppSpent = Object.values(m.ppUsed || {}).some((n) => n > 0);
+    if (m.hp >= maxHp(m) && !(k === 'bigMeat' && (B?.player.status || ppSpent))) { await this.say('체력이 이미 가득하다!'); return false; }
     S.items[k]--;
     m.hp = Math.min(maxHp(m), m.hp + Math.round(maxHp(m) * (k === 'meat' ? 0.5 : 1)));
-    if (k === 'bigMeat' && B) B.player.status = null;
+    if (k === 'bigMeat') { restorePP(m); if (B) B.player.status = null; }
     sfx.ding();
     this.updateHud();
     await this.say(`${josa(formName(m), '은/는')} ${josa(ITEMS[k].name, '을/를')} 허겁지겁 먹었다! 체력이 회복되었다.`, { auto: B ? 700 : 0 });
@@ -952,14 +1042,38 @@ export class Game {
       { label: '🎒 가방', sub: `🦴${S.bones} · 🍖${S.items.meat || 0} 🍗${S.items.bigMeat || 0} 🪨${S.items.stone || 0}` },
       { label: '📖 도감', sub: `발견 ${Object.keys(S.codex.seen).length} · 포식 ${Object.keys(S.codex.eaten).length} / ${SPECIES_COUNT}` },
       { label: '🪦 기록 · 무덤', sub: `${S.runs}번째 생 · 먹힌 스톤몬 ${S.grave.length}` },
-      { label: '💾 저장', sub: '자동 저장도 됩니다' },
+      { label: '💾 저장 · 이어하기 코드', sub: this.S.cloudCode ? `모험 코드 ${this.S.cloudCode}` : '다른 기기에서 이어하기 코드 발급' },
+      { label: '🏠 타이틀로', sub: '진행은 자동 저장됩니다' },
       '닫기',
     ], { cancel: true });
     if (i === 0) this.openPanel('party');
     else if (i === 1) await this.useItemMenu(null, null);
     else if (i === 2) this.openPanel('codex');
     else if (i === 3) this.openPanel('records');
-    else if (i === 4) { this.save(); sfx.ding(); this.toast('저장했다!'); }
+    else if (i === 4) await this.saveMenu();
+    else if (i === 5) this.toTitle();
+  }
+  async saveMenu() {
+    this.save();
+    sfx.ding();
+    await this.say('기기에 저장했다! 다음에 접속하면 타이틀에서 \'이어하기\'로 계속할 수 있다.', { auto: 0 });
+    const i = await this.choose('다른 기기에서도 이어하려면?', [
+      { label: '🔑 모험 코드 발급/갱신', sub: '서버에 저장 · 다른 기기 타이틀에서 코드 입력' },
+      { label: '📋 백업 문자열 복사', sub: '서버 없이 텍스트로 보관 · 붙여넣어 복원' },
+      '닫기',
+    ], { cancel: true });
+    if (i === 0) {
+      await this.say('제단의 돌판에 모험을 새기는 중…', { auto: 400 });
+      const ok = await this.cloudSync(true);
+      if (ok) {
+        await this.showCard({ kind: 'code', code: this.S.cloudCode });
+      } else await this.say('서버에 저장하지 못했다… \'백업 문자열 복사\'를 이용해 주세요.');
+    } else if (i === 1) {
+      const text = encodeBackup(this.S);
+      let copied = false;
+      try { await navigator.clipboard.writeText(text); copied = true; } catch (e) { /* ignore */ }
+      await this.showCard({ kind: 'code', backup: text, copied });
+    }
   }
   openPanel(kind) { this.setUi({ panel: { kind } }); }
   closePanel() { sfx.tick(); this.setUi({ panel: null }); }

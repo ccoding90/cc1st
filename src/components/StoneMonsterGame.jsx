@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { Game, PARTY_MAX } from './stonemon/game';
 import { draw, SW, SH } from './stonemon/render';
 import { monDataUrl } from './stonemon/sprites';
-import { SPECIES, SKILLS, TRAITS, ELEMENTS, STAGES, TIER_NAME, SPECIES_COUNT } from './stonemon/data';
-import { formName, power, maxHp, eff, elementsOf, geneTotal, stageThreshold } from './stonemon/monster';
+import { SPECIES, SKILLS, TRAITS, ELEMENTS, STAGES, TIER_NAME, SPECIES_COUNT, maxPP, isBasic } from './stonemon/data';
+import { formName, power, maxHp, eff, elementsOf, geneTotal, stageThreshold, ppLeft } from './stonemon/monster';
 import { typeMult, STATUS } from './stonemon/battle';
 import { unlockAudio, setMuted } from './coffee/sound';
 
@@ -21,6 +21,9 @@ function usePixelFont() {
     document.head.appendChild(link);
   }, []);
 }
+
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const fsSupported = () => typeof document !== 'undefined' && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 
 const KEYMAP = {
   ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down',
@@ -61,19 +64,21 @@ const StoneMonsterGame = () => {
   // 키보드
   useEffect(() => {
     const down = (e) => {
-      if (e.target?.tagName === 'INPUT') return;
+      if (e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA') return;
       const k = KEYMAP[e.key];
       if (!k) return;
       e.preventDefault();
       unlockAudio();
       if (['up', 'down', 'left', 'right'].includes(k)) g.hold(k, true);
+      if (k === 'b') g.running = true;
       g.press(k);
     };
     const up = (e) => {
       const k = KEYMAP[e.key];
       if (k && ['up', 'down', 'left', 'right'].includes(k)) g.hold(k, false);
+      if (k === 'b') g.running = false;
     };
-    const blur = () => { g.held = []; };
+    const blur = () => { g.held = []; g.running = false; };
     const persist = () => { if (g.S && !g.ui.title) g.save(); };
     const onHide = () => { if (document.hidden) persist(); };
     window.addEventListener('pagehide', persist);
@@ -91,6 +96,43 @@ const StoneMonsterGame = () => {
   const ui = g.ui;
   const v = g.v;
 
+  // 전체화면: 지원 브라우저는 Fullscreen API, 아이폰 사파리 등은 화면을 꽉 채우는 가상 전체화면
+  const fsRef = useRef(null);
+  const [nativeFs, setNativeFs] = useState(false);
+  const [pseudoFs, setPseudoFs] = useState(false);
+  const isFs = nativeFs || pseudoFs;
+  const [codeOpen, setCodeOpen] = useState(false);
+  useEffect(() => {
+    const sync = () => setNativeFs(!!fsElement());
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => { document.removeEventListener('fullscreenchange', sync); document.removeEventListener('webkitfullscreenchange', sync); };
+  }, []);
+  useEffect(() => {
+    if (!pseudoFs) return undefined;
+    const { body, documentElement: html } = document;
+    const prev = [body.style.overflow, html.style.overflow];
+    body.style.overflow = 'hidden'; html.style.overflow = 'hidden';
+    window.scrollTo(0, 0);
+    return () => { [body.style.overflow, html.style.overflow] = prev; };
+  }, [pseudoFs]);
+  const toggleFullscreen = () => {
+    unlockAudio();
+    const el = fsRef.current;
+    if (!el) return;
+    if (pseudoFs) { setPseudoFs(false); return; }
+    if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {}); return; }
+    const req = fsSupported() && (el.requestFullscreen || el.webkitRequestFullscreen);
+    if (!req) { setPseudoFs(true); return; }
+    try { req.call(el)?.catch?.(() => setPseudoFs(true)); } catch (e) { setPseudoFs(true); }
+  };
+
+  // 주기적 자동 저장 (이동 위치까지 저장 → 언제 나가도 이어하기)
+  useEffect(() => {
+    const id = setInterval(() => { if (!g.ui.title && g.S?.flags?.intro) g.save(); }, 8000);
+    return () => clearInterval(id);
+  }, [g]);
+
   const startNew = () => {
     unlockAudio();
     if (g.hasSave() && !window.confirm('새로 시작하면 지금 데리고 있는 스톤몬과 아이템이 모두 사라집니다. (도감·무덤 기록은 유지)\n계속할까요?')) return;
@@ -100,19 +142,21 @@ const StoneMonsterGame = () => {
 
   return (
     <div style={page}>
-      <div style={topBar}>
-        <Link to="/game-hub" style={topLink}>← 게임 센터</Link>
+      <div ref={fsRef} style={pseudoFs ? pseudoFsShell : isFs ? fsShell : undefined}>
+      <div style={isFs ? { ...topBar, width: '100%', maxWidth: 720, margin: '0 auto 6px' } : topBar}>
+        {!isFs && <Link to="/game-hub" style={topLink}>← 게임 센터</Link>}
         <span style={{ flex: 1 }} />
         <button type="button" style={topBtn} onClick={() => setMutedState((m) => !m)}>{muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'}</button>
+        <button type="button" style={topBtn} onClick={toggleFullscreen}>{isFs ? '⤢ 전체화면 종료' : '⛶ 전체화면'}</button>
       </div>
 
-      <div style={stageWrap}>
+      <div style={isFs ? fsStageWrap : stageWrap}>
         <div style={stage} onPointerDown={() => unlockAudio()}>
           <canvas ref={canvasRef} width={SW} height={SH} style={canvasStyle} />
 
           {ui.hud && v.mode === 'battle' && <BattleHud hud={ui.hud} />}
           {v.mode === 'map' && !ui.title && g.S?.party?.[0] && <MapHud m={g.S.party[0]} S={g.S} />}
-          {ui.title && <TitleOverlay hasSave={g.hasSave()} save={g.S} onNew={startNew} onContinue={cont} />}
+          {ui.title && <TitleOverlay hasSave={g.hasSave()} save={g.S} onNew={startNew} onContinue={cont} onCode={() => setCodeOpen(true)} />}
           {ui.dialog && <DialogBox d={ui.dialog} onTap={() => g.press('a')} />}
           {ui.choice && !ui.choice.wide && <ChoiceBox c={ui.choice} />}
           {ui.cmd && v.battle && <CommandBox c={ui.cmd} g={g} />}
@@ -123,13 +167,17 @@ const StoneMonsterGame = () => {
 
       <Controls g={g} />
 
-      <div style={helpText}>
-        방향키/WASD 이동 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴
-      </div>
+      {!isFs && (
+        <div style={helpText}>
+          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · 진행은 자동 저장되어 언제든 이어할 수 있어요
+        </div>
+      )}
 
       {ui.choice && ui.choice.wide && <WideChoice c={ui.choice} />}
       {ui.card && <ResultCard card={ui.card} />}
       {ui.panel && <Panel kind={ui.panel.kind} g={g} />}
+      {codeOpen && <CodeLoad g={g} onClose={() => setCodeOpen(false)} onLoaded={() => { setCodeOpen(false); refresh(); }} />}
+      </div>
 
       <GameIntro />
     </div>
@@ -137,24 +185,76 @@ const StoneMonsterGame = () => {
 };
 
 // ───────── 타이틀 ─────────
-const TitleOverlay = ({ hasSave, save, onNew, onContinue }) => (
-  <div style={titleWrap}>
-    <div style={logoEn}>STONE MONSTER</div>
-    <div style={logoKo}>스톤몬스터</div>
-    <div style={tagline}>먹어라. 진화하라. 먹히지 마라.</div>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: '4%' }}>
-      {hasSave && (
-        <button type="button" style={titleBtn} onClick={onContinue}>
-          ▶ 이어하기 <span style={{ fontSize: '0.75em', opacity: 0.85 }}>({save.name} · {formName(save.party[0])} ★{power(save.party[0])})</span>
+const ago = (t) => {
+  if (!t) return '';
+  const m = Math.floor((Date.now() - t) / 60000);
+  return m < 1 ? '방금 전' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`;
+};
+const TitleOverlay = ({ hasSave, save, onNew, onContinue, onCode }) => {
+  const lead = save?.party?.[0];
+  return (
+    <div style={titleWrap}>
+      <div style={logoEn}>STONE MONSTER</div>
+      <div style={logoKo}>스톤몬스터</div>
+      <div style={tagline}>먹어라. 진화하라. 먹히지 마라.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: '3%', alignItems: 'stretch' }}>
+        {hasSave && (
+          <button type="button" style={titleBtn} onClick={onContinue}>
+            ▶ 이어하기
+            <span style={{ display: 'block', fontSize: '0.68em', fontWeight: 400, opacity: 0.9 }}>
+              {save.name} · {save.runs}번째 생 · {lead ? `${formName(lead)} ★${power(lead)}` : '스톤몬 받기 전'}{save.savedAt ? ` · ${ago(save.savedAt)} 저장` : ''}
+            </span>
+          </button>
+        )}
+        <button type="button" style={{ ...titleBtn, background: hasSave ? '#5a3a4a' : '#c62828' }} onClick={onNew}>
+          {hasSave ? '↺ 새로 시작' : '▶ 모험 시작'}
         </button>
-      )}
-      <button type="button" style={{ ...titleBtn, background: hasSave ? '#5a3a4a' : '#c62828' }} onClick={onNew}>
-        {hasSave ? '↺ 새로 시작' : '▶ 모험 시작'}
-      </button>
+        <button type="button" style={{ ...titleBtn, background: '#2a3a5a', fontSize: '0.8em', padding: '0.35em 1em' }} onClick={onCode}>
+          🔑 코드로 이어하기 (다른 기기)
+        </button>
+      </div>
+      <div style={titleFoot}>DEMO · 1단계 태초마을 · 스톤몬 {SPECIES_COUNT}종 · 자동 저장</div>
     </div>
-    <div style={titleFoot}>DEMO · 1단계 태초마을 · 스톤몬 {SPECIES_COUNT}종</div>
-  </div>
-);
+  );
+};
+
+// ───────── 코드로 이어하기 ─────────
+const CodeLoad = ({ g, onClose, onLoaded }) => {
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    if (!code.trim() || busy) return;
+    if (g.hasSave() && !window.confirm('이 기기에 있던 진행이 불러온 모험으로 바뀝니다. 계속할까요?')) return;
+    setBusy(true);
+    const r = await g.loadFromCode(code);
+    setBusy(false);
+    setMsg(r.msg);
+    if (r.ok) setTimeout(onLoaded, 700);
+  };
+  return (
+    <div style={modalBack} onClick={onClose}>
+      <div style={{ ...modalBox, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+        <div style={modalTitle}>🔑 코드로 이어하기</div>
+        <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
+          게임 메뉴 → <b>💾 저장 · 이어하기 코드</b>에서 받은 <b>10자리 모험 코드</b> 또는 <b>백업 문자열(SM1:…)</b>을 입력하세요.
+        </div>
+        <textarea
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="예) K7QX2M9PTA"
+          rows={code.length > 20 ? 4 : 1}
+          style={{ ...nameInputStyle, width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+        />
+        {msg && <div style={{ marginTop: 8, fontSize: 13, color: msg.includes('불러왔') ? '#7fe08a' : '#ff8a8a' }}>{msg}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button type="button" style={{ ...titleBtn, flex: 1 }} onClick={load} disabled={busy}>{busy ? '불러오는 중…' : '불러오기'}</button>
+          <button type="button" style={smallBtn} onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ───────── 맵 HUD: 대장의 포식·변이 진행도 ─────────
 const MapHud = ({ m, S }) => {
@@ -302,16 +402,18 @@ const CommandBox = ({ c, g }) => {
       <div style={{ ...cmdGrid, width: '100%', gridTemplateColumns: '1fr 1fr' }}>
         {skills.map((s, i) => {
           const sk = SKILLS[s];
+          const left = ppLeft(B.player.m, s);
           return (
-            <div key={s} role="button" tabIndex={-1} style={{ ...cmdItem, background: c.idx === i ? '#ffd166' : 'transparent', borderLeft: `4px solid ${ELEMENTS[sk.el].color}` }} onClick={() => g.cmdPick(i)}>
-              {ELEMENTS[sk.el].icon} {sk.name}
+            <div key={s} role="button" tabIndex={-1} style={{ ...cmdItem, display: 'flex', gap: 4, background: c.idx === i ? '#ffd166' : 'transparent', borderLeft: `4px solid ${ELEMENTS[sk.el].color}`, opacity: left > 0 ? 1 : 0.4 }} onClick={() => g.cmdPick(i)}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{ELEMENTS[sk.el].icon} {sk.name}</span>
+              <span style={{ fontSize: '0.75em', opacity: 0.8 }}>{left === Infinity ? '∞' : `${left}/${maxPP(s)}`}</span>
             </div>
           );
         })}
       </div>
       {cur && (
         <div style={skillInfo}>
-          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc}{cur.pow ? (tm > 1 ? ' · 💥효과 굉장' : tm < 1 ? ' · 💤효과 별로' : '') : ''}</span>
+          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc} · {isBasic(skills[c.idx]) ? '기본기(무제한)' : `남은 횟수 ${ppLeft(B.player.m, skills[c.idx])}/${maxPP(skills[c.idx])}`}{cur.pow ? (tm > 1 ? ' · 💥효과 굉장' : tm < 1 ? ' · 💤효과 별로' : '') : ''}</span>
           <span role="button" tabIndex={-1} style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => g.cmdPick(-1)}>◀ 뒤로</span>
         </div>
       )}
@@ -344,6 +446,7 @@ const NameInput = ({ onSubmit }) => {
 const STAT_LABEL = { hp: '체력', atk: '공격', def: '방어', spd: '스피드' };
 const ResultCard = ({ card }) => {
   const { kind, mon, res } = card;
+  if (kind === 'code') return <CodeCard card={card} />;
   const total = geneTotal(mon);
   const next = stageThreshold(mon.stage + 1);
   const prevT = stageThreshold(mon.stage);
@@ -412,6 +515,28 @@ const ResultCard = ({ card }) => {
     </div>
   );
 };
+
+// ───────── 이어하기 코드 안내 ─────────
+const CodeCard = ({ card }) => (
+  <div style={modalBack} onClick={card.close}>
+    <div style={{ ...modalBox, maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+      <div style={modalTitle}>💾 이어하기</div>
+      {card.code ? (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>다른 기기(또는 브라우저)의 타이틀 화면 → <b>🔑 코드로 이어하기</b>에 아래 코드를 입력하세요. 집에서 쉴 때마다 자동으로 갱신됩니다.</div>
+          <div style={codeText}>{card.code}</div>
+          <div style={{ fontSize: 12, opacity: 0.75 }}>코드를 아는 사람은 이 모험을 불러올 수 있으니 혼자만 보관하세요.</div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>{card.copied ? '백업 문자열을 클립보드에 복사했습니다.' : '아래 문자열을 전부 복사해 보관하세요.'} 타이틀 → <b>🔑 코드로 이어하기</b>에 붙여넣으면 복원됩니다.</div>
+          <textarea readOnly value={card.backup} rows={5} style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, marginTop: 8 }} onFocus={(e) => e.target.select()} />
+        </>
+      )}
+      <button type="button" style={{ ...titleBtn, width: '100%', marginTop: 12 }} onClick={card.close}>확인 (A)</button>
+    </div>
+  </div>
+);
 
 // ───────── 패널: 스톤몬 / 도감 / 기록 ─────────
 const Panel = ({ kind, g }) => (
@@ -578,7 +703,7 @@ const Controls = ({ g }) => {
       </div>
       <button type="button" style={startBtn} {...tap('start')}>MENU</button>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button type="button" style={{ ...abtn, marginTop: 24 }} {...tap('b')}>B</button>
+        <button type="button" style={{ ...abtn, marginTop: 24 }} onPointerDown={(e) => { e.preventDefault(); unlockAudio(); g.running = true; g.press('b'); }} onPointerUp={() => { g.running = false; }} onPointerLeave={() => { g.running = false; }} onPointerCancel={() => { g.running = false; }}>B</button>
         <button type="button" style={abtn} {...tap('a')}>A</button>
       </div>
     </div>
@@ -605,6 +730,13 @@ const page = { maxWidth: 760, margin: '0 auto', padding: '12px 10px 30px', fontF
 const topBar = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 };
 const topLink = { fontSize: 13, color: '#5a3a4a', textDecoration: 'none', fontWeight: 700 };
 const topBtn = { padding: '6px 10px', fontSize: 12, border: '2px solid #2a1e2e', background: '#fff', cursor: 'pointer', fontFamily: FONT };
+const fsShell = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', background: '#1a1220', overflow: 'auto', boxSizing: 'border-box', padding: 8 };
+const pseudoFsShell = {
+  ...fsShell, position: 'fixed', inset: 0, zIndex: 9000, height: '100dvh', overscrollBehavior: 'contain',
+  padding: 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))',
+};
+const fsStageWrap = { width: `min(calc(100vw - 16px), 960px, calc((100dvh - 210px) * ${SW / SH}))`, minWidth: 260, margin: '0 auto' };
+const codeText = { fontSize: 28, fontWeight: 900, letterSpacing: '0.12em', textAlign: 'center', margin: '12px 0', padding: 10, background: '#fbf7ee', color: '#1c1424', userSelect: 'all', WebkitUserSelect: 'all' };
 const stageWrap = { width: `min(100%, 720px, calc((100dvh - 250px) * ${SW / SH}))`, minWidth: 280, margin: '0 auto' };
 const stage = {
   position: 'relative', width: '100%', aspectRatio: `${SW} / ${SH}`, background: '#000', overflow: 'hidden',
