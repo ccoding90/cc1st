@@ -20,6 +20,7 @@ import FeelconomyTest from './components/FeelconomyTest';
 import EmotionTypeTest from './components/EmotionTypeTest';
 import GoalkeeperGame from './components/GoalkeeperGame';
 import ThreeJoGame from './components/ThreeJoGame';
+import StoneMonsterGame from './components/StoneMonsterGame';
 import CoffeeBetGame from './components/CoffeeBetGame';
 import CoffeeGamePage from './components/CoffeeGamePage';
 import GameHub from './components/GameHub';
@@ -72,6 +73,7 @@ const App = () => {
             <Route path="/game-hub" element={<GameHub />} />
             <Route path="/goalkeeper-game" element={<GoalkeeperGame />} />
             <Route path="/three-jo-game" element={<ThreeJoGame />} />
+            <Route path="/stone-monster" element={<StoneMonsterGame />} />
             <Route path="/coffee-bet" element={<CoffeeBetGame />} />
             <Route path="/coffee-bet/:gameId" element={<CoffeeGamePage />} />
             <Route path="/dodge-game" element={<Navigate to="/game-hub" replace />} />
