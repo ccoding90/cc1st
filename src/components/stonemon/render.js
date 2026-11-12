@@ -1,10 +1,11 @@
 // 🖼️ 스톤몬스터 캔버스 렌더러 (240x176 도트 화면)
-import { GRID, MAP_W, MAP_H, BUILDINGS, NPCS, LOOKS } from './world';
+import { MAP_W, MAP_H, LOOKS, mapOf } from './world';
 import { SPECIES, ELEMENTS, STARTERS } from './data';
 import { monSprite, monScale, charSprite, tiles, building, eggSprite } from './sprites';
 
 export const SW = 240, SH = 176;
-const TILE_OF = { ',': 'tall', '=': 'path', T: 'tree', P: 'palm', f: 'flower', r: 'rock', '#': 'fence', s: 'sign', b: 'bones' };
+const TILE_OF = { ',': 'tall', v: 'dry', a: 'ash', '=': 'path', c: 'canyon', S: 'stone', m: 'mud', T: 'tree', P: 'palm', f: 'flower', r: 'rock', '#': 'fence', s: 'sign', b: 'bones', R: 'redrock', I: 'pillar' };
+const ENC = { ',': 'tall', v: 'dry', a: 'ash' };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = (p) => 1 - (1 - p) * (1 - p);
 
@@ -64,7 +65,7 @@ function drawEmbers(ctx, t) {
 
 // ───────── 맵 ─────────
 function drawMap(ctx, g) {
-  const v = g.v, T = tiles();
+  const v = g.v, M = mapOf(v.map), GRID = M.grid, T = tiles(M.theme);
   let px = v.x * 16, py = v.y * 16, walking = false;
   if (v.mv) {
     const p = Math.min(1, v.mv.t / v.mv.dur);
@@ -78,11 +79,13 @@ function drawMap(ctx, g) {
     const ch = GRID[ty][tx];
     let img;
     if (ch === '~') img = wf ? T.water1 : T.water0;
+    else if (ch === 'W') img = Math.floor(v.t / 160) % 2 ? T.fall1 : T.fall0;
+    else if (ch === 'L') img = Math.floor(v.t / 420 + tx * 0.3) % 2 ? T.lava1 : T.lava0;
     else if (ch === '.') img = (tx * 7 + ty * 13) % 5 === 0 ? T.grass2 : T.grass;
     else img = T[TILE_OF[ch]] || T.grass;
     ctx.drawImage(img, tx * 16 - camX, ty * 16 - camY);
   }
-  for (const b of BUILDINGS) {
+  for (const b of M.buildings) {
     ctx.drawImage(building(b.type), b.x * 16 - camX, b.y * 16 - camY);
     if (b.type === 'altar') {
       const a = 0.18 + 0.12 * Math.sin(v.t / 220);
@@ -90,9 +93,16 @@ function drawMap(ctx, g) {
       ctx.beginPath(); ctx.ellipse(b.x * 16 - camX + 24, b.y * 16 - camY + 30, 22, 14, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
+  // 출구 표시 (화살표 깜빡임)
+  for (const w of M.warps) {
+    if (Math.floor(v.t / 450) % 2) continue;
+    const sx = w.x * 16 - camX + 6, sy = w.y * 16 - camY + 6;
+    ctx.fillStyle = w.gate && !g.S.flags[w.gate] ? '#ff5a5a' : '#ffe680';
+    ctx.fillRect(sx, sy, 4, 4);
+  }
   // 인물: y 순 정렬
   const ents = [];
-  for (const n of NPCS) {
+  for (const n of M.npcs) {
     if (n.trainer && g.S.flags.trainers?.[n.trainer] === 'gone') continue;
     ents.push({ y: n.y * 16, x: n.x * 16, img: charSprite(LOOKS[n.look], g.npcDir[n.id] || n.dir, 0), ex: n.trainer && !g.S.flags.trainers?.[n.trainer] });
   }
@@ -107,45 +117,113 @@ function drawMap(ctx, g) {
     if (e.hero) {
       // 수풀 속에서는 다리가 가려짐
       const cx = Math.round(px / 16), cy = Math.round(py / 16);
-      if (GRID[cy]?.[cx] === ',') ctx.drawImage(T.tall, 0, 10, 16, 6, sx, sy + 12, 16, 6);
+      const enc = ENC[GRID[cy]?.[cx]];
+      if (enc) ctx.drawImage(T[enc], 0, 10, 16, 6, sx, sy + 12, 16, 6);
     }
   }
+  if (M.theme === 'volcano') { ctx.fillStyle = `rgba(255,80,20,${0.06 + 0.03 * Math.sin(v.t / 600)})`; ctx.fillRect(0, 0, SW, SH); drawEmbers(ctx, v.t); }
   // 대장 스톤몬 미니 아이콘(화면 좌상단)
   const lead = g.S.party?.[0];
   if (lead) {
-    ctx.fillStyle = 'rgba(20,14,28,0.55)'; ctx.fillRect(2, 2, 30, 30);
-    ctx.drawImage(monSprite(lead), 0, 0, 64, 64, 1, 1, 32, 32);
+    ctx.fillStyle = 'rgba(60,34,16,0.75)'; ctx.fillRect(1, 1, 32, 32);
+    ctx.strokeStyle = '#c8904a'; ctx.lineWidth = 1; ctx.strokeRect(1.5, 1.5, 31, 31);
+    ctx.drawImage(monSprite(lead), 1, 1, 32, 32);
+  }
+  // 지역 이름 배너
+  const bn = v.banner;
+  if (bn) {
+    const e = v.t - bn.t0;
+    if (e < 2600) {
+      const a = e < 300 ? e / 300 : e > 2100 ? (2600 - e) / 500 : 1;
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.fillStyle = '#3a2210'; ctx.fillRect(40, 138, 160, 26);
+      ctx.fillStyle = '#c8904a'; ctx.fillRect(42, 140, 156, 22);
+      ctx.fillStyle = '#fbf0d8'; ctx.fillRect(44, 142, 152, 18);
+      ctx.fillStyle = '#3a2210'; ctx.font = '10px Galmuri11, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(bn.text, SW / 2, 151);
+      ctx.restore();
+    } else v.banner = null;
   }
 }
 
 // ───────── 배틀 ─────────
 const EPOS = { x: 182, y: 72 }, PPOS = { x: 62, y: 124 };
+const PLAT = {
+  temple: ['#3a3440', '#6a6270'], altar: ['#5a1a24', '#8a2a34'], forest: ['#4a8a30', '#7ac050'], swamp: ['#3a6a4a', '#5a9a6a'],
+  canyon: ['#8a4a2a', '#c8784a'], volcano: ['#2a1e20', '#5a4446'], ruins: ['#6a6458', '#a8a294'],
+};
+function sky(ctx, top, bot, h = 90) {
+  const gr = ctx.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, top); gr.addColorStop(1, bot);
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, SW, h);
+}
+function jungleTree(ctx, x, y, s, dk, md) {
+  ctx.fillStyle = '#4a2a14'; ctx.fillRect(x - 3 * s, y, 6 * s, 40 * s);
+  ctx.fillStyle = dk; ctx.beginPath(); ctx.ellipse(x, y, 22 * s, 14 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = md; ctx.beginPath(); ctx.ellipse(x - 6 * s, y - 4 * s, 14 * s, 9 * s, 0, 0, Math.PI * 2); ctx.fill();
+}
 function drawBattleBg(ctx, bg, t) {
   if (bg === 'temple') {
-    const gr = ctx.createLinearGradient(0, 0, 0, SH); gr.addColorStop(0, '#2a2430'); gr.addColorStop(1, '#4a4250');
+    const gr = ctx.createLinearGradient(0, 0, 0, SH); gr.addColorStop(0, '#2a3a24'); gr.addColorStop(1, '#4a5a40');
     ctx.fillStyle = gr; ctx.fillRect(0, 0, SW, SH);
-    ctx.fillStyle = '#3a3440';
+    ctx.fillStyle = '#3a4a34';
     for (const x of [14, 70, 150, 206]) ctx.fillRect(x, 0, 18, 90);
+    ctx.fillStyle = '#5a8a3a'; for (const x of [18, 76, 154, 210]) ctx.fillRect(x, 10, 3, 60);
     for (const x of [22, 214]) { ctx.fillStyle = Math.sin(t / 90 + x) > 0 ? '#ff8a3a' : '#ffd23a'; ctx.fillRect(x, 40, 4, 6); }
-    ctx.fillStyle = '#5a5260'; ctx.fillRect(0, 90, SW, SH - 90);
+    ctx.fillStyle = '#5a6a50'; ctx.fillRect(0, 90, SW, SH - 90);
   } else if (bg === 'altar') {
     const gr = ctx.createLinearGradient(0, 0, 0, SH); gr.addColorStop(0, '#1a0810'); gr.addColorStop(1, '#4a1420');
     ctx.fillStyle = gr; ctx.fillRect(0, 0, SW, SH);
     ctx.fillStyle = `rgba(255,40,60,${0.08 + 0.05 * Math.sin(t / 300)})`; ctx.fillRect(0, 0, SW, SH);
     ctx.fillStyle = '#2a0c14'; for (let i = 0; i < 6; i++) ctx.fillRect(i * 44 + 6, 60 - (i % 3) * 8, 10, 40 + (i % 3) * 8);
+  } else if (bg === 'swamp') {
+    sky(ctx, '#7ac0d8', '#d0f0e8');
+    // 폭포
+    ctx.fillStyle = '#4a6a4a'; ctx.fillRect(150, 0, 70, 84);
+    ctx.fillStyle = '#7ac8f0'; ctx.fillRect(165, 0, 40, 84);
+    ctx.fillStyle = '#e8f8ff'; for (let i = 0; i < 6; i++) ctx.fillRect(168 + i * 6, ((t / 6 + i * 13) % 84), 2, 14);
+    jungleTree(ctx, 30, 30, 1.1, '#1a4a2a', '#2a6a3a'); jungleTree(ctx, 110, 22, 0.9, '#1a4a2a', '#2a6a3a');
+    ctx.fillStyle = '#3a7a8a'; ctx.fillRect(0, 84, SW, 10);
+    ctx.fillStyle = '#6aa860'; ctx.fillRect(0, 92, SW, SH - 92);
+    ctx.fillStyle = '#4a8a4a'; for (let x = 0; x < SW; x += 12) ctx.fillRect(x + 3, 94, 2, 6);
+  } else if (bg === 'canyon') {
+    sky(ctx, '#f0a868', '#ffe0b0');
+    ctx.fillStyle = '#a8482a'; ctx.beginPath(); ctx.moveTo(0, 90); ctx.lineTo(0, 20); ctx.lineTo(30, 10); ctx.lineTo(60, 40); ctx.lineTo(70, 90); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(240, 90); ctx.lineTo(240, 14); ctx.lineTo(200, 6); ctx.lineTo(180, 36); ctx.lineTo(160, 90); ctx.fill();
+    ctx.fillStyle = '#d8784a'; ctx.fillRect(4, 30, 30, 3); ctx.fillRect(196, 24, 36, 3); ctx.fillRect(10, 56, 40, 3); ctx.fillRect(178, 60, 50, 3);
+    ctx.fillStyle = '#c86a3a'; ctx.beginPath(); ctx.moveTo(80, 90); ctx.lineTo(100, 52); ctx.lineTo(130, 48); ctx.lineTo(150, 90); ctx.fill();
+    ctx.fillStyle = '#e8a070'; ctx.fillRect(0, 90, SW, SH - 90);
+  } else if (bg === 'volcano') {
+    sky(ctx, '#2a1018', '#a83a1a');
+    ctx.fillStyle = '#1a1014'; ctx.beginPath(); ctx.moveTo(50, 90); ctx.lineTo(105, 24); ctx.lineTo(135, 24); ctx.lineTo(190, 90); ctx.fill();
+    ctx.fillStyle = '#ff6a1a'; ctx.fillRect(108, 22, 24, 4);
+    ctx.fillStyle = '#ff8a2a'; ctx.beginPath(); ctx.moveTo(118, 26); ctx.lineTo(126, 26); ctx.lineTo(132, 70); ctx.lineTo(116, 70); ctx.fill();
+    for (let i = 0; i < 7; i++) { ctx.fillStyle = 'rgba(60,40,44,0.55)'; ctx.beginPath(); ctx.arc(120 + Math.sin(t / 700 + i) * 10 + i * 4, 16 - ((t / 50 + i * 10) % 40), 5 + (i % 3), 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#3a2a2a'; ctx.fillRect(0, 90, SW, SH - 90);
+    ctx.fillStyle = '#e8401a'; ctx.fillRect(0, 86, SW, 5); ctx.fillStyle = '#ffb03a'; for (let x = 0; x < SW; x += 16) ctx.fillRect(x + ((t / 40) % 16), 87, 5, 2);
+    drawEmbers(ctx, t);
+  } else if (bg === 'ruins') {
+    sky(ctx, '#d87a4a', '#f8d0a0');
+    ctx.fillStyle = '#8a8478';
+    for (const [x, h] of [[10, 70], [44, 52], [176, 64], [212, 74]]) { ctx.fillRect(x, 90 - h, 18, h); ctx.fillStyle = '#c8c0b0'; ctx.fillRect(x + 2, 90 - h, 6, h); ctx.fillStyle = '#8a8478'; }
+    ctx.fillStyle = '#6a6458'; ctx.fillRect(70, 30, 100, 8); ctx.fillRect(76, 38, 10, 52); ctx.fillRect(154, 38, 10, 52);
+    ctx.fillStyle = '#5a8a3a'; ctx.fillRect(80, 38, 2, 30); ctx.fillRect(158, 38, 2, 22); ctx.fillRect(48, 40, 2, 26);
+    ctx.fillStyle = '#b8b0a0'; ctx.fillRect(0, 90, SW, SH - 90);
+    ctx.fillStyle = '#a09888'; for (let x = 0; x < SW; x += 24) ctx.fillRect(x, 90, 1, SH - 90);
   } else {
-    const gr = ctx.createLinearGradient(0, 0, 0, 90); gr.addColorStop(0, '#9fd8ff'); gr.addColorStop(1, '#eaf8ff');
-    ctx.fillStyle = gr; ctx.fillRect(0, 0, SW, 90);
-    ctx.fillStyle = '#7a9aa8'; ctx.beginPath(); ctx.moveTo(0, 70); ctx.lineTo(40, 40); ctx.lineTo(70, 62); ctx.lineTo(110, 30); ctx.lineTo(150, 66); ctx.lineTo(240, 50); ctx.lineTo(240, 90); ctx.lineTo(0, 90); ctx.fill();
-    ctx.fillStyle = '#e8f4ff'; ctx.beginPath(); ctx.moveTo(100, 38); ctx.lineTo(110, 30); ctx.lineTo(120, 38); ctx.fill();
-    ctx.fillStyle = '#5a9a48'; ctx.fillRect(0, 84, SW, 8);
+    // 원시 정글 (태초의 숲)
+    sky(ctx, '#8fd0ff', '#e8f8e0');
+    ctx.fillStyle = '#6a9aa8'; ctx.beginPath(); ctx.moveTo(0, 70); ctx.lineTo(40, 40); ctx.lineTo(70, 62); ctx.lineTo(110, 30); ctx.lineTo(150, 66); ctx.lineTo(240, 50); ctx.lineTo(240, 90); ctx.lineTo(0, 90); ctx.fill();
+    ctx.fillStyle = '#c84a2a'; ctx.beginPath(); ctx.moveTo(100, 38); ctx.lineTo(110, 30); ctx.lineTo(120, 38); ctx.fill();
+    jungleTree(ctx, 18, 34, 1, '#2a6a2a', '#3a8a3a'); jungleTree(ctx, 222, 30, 1.1, '#2a6a2a', '#3a8a3a');
+    ctx.fillStyle = '#3a8a2a'; for (let x = 0; x < SW; x += 10) { ctx.beginPath(); ctx.ellipse(x + 5, 86, 7, 5, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = '#a8d878'; ctx.fillRect(0, 90, SW, SH - 90);
+    ctx.fillStyle = '#88c060'; for (let x = 0; x < SW; x += 14) ctx.fillRect(x + 4, 94 + (x % 3) * 8, 3, 2);
   }
+  const pc = PLAT[bg] || PLAT.forest;
   const plat = (x, y, rx, ry) => {
-    ctx.fillStyle = bg === 'altar' ? '#5a1a24' : bg === 'temple' ? '#3a3440' : '#5a9a40';
-    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = bg === 'altar' ? '#8a2a34' : bg === 'temple' ? '#6a6270' : '#88c860';
-    ctx.beginPath(); ctx.ellipse(x, y - 2, rx - 4, ry - 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1c1424'; ctx.beginPath(); ctx.ellipse(x, y + 1, rx + 1, ry + 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pc[0]; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pc[1]; ctx.beginPath(); ctx.ellipse(x, y - 2, rx - 4, ry - 3, 0, 0, Math.PI * 2); ctx.fill();
   };
   plat(EPOS.x, EPOS.y - 4, 44, 10);
   plat(PPOS.x, PPOS.y - 4, 56, 12);
@@ -395,11 +473,11 @@ function drawTitle(ctx, g) {
   for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(80,60,70,0.5)'; ctx.beginPath(); ctx.arc(126 + Math.sin(t / 900 + i) * 6 + i * 3, 50 - ((t / 40 + i * 12) % 60), 4 + i % 3, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = '#2a0c14'; ctx.fillRect(0, 150, SW, 26);
   // 행진하는 스톤몬 실루엣
-  const parade = [1, 4, 35, 29, 47, 15, 2, 26, 3, 50];
+  const parade = [2, 5, 29, 15, 47, 36, 3, 26, 4, 28, 7, 18];
   parade.forEach((sid, i) => {
     const x = ((t / 30 + i * 52) % (SW + 520)) - 60;
     const m = { sid };
-    const s = 0.75 * SPECIES[sid].size;
+    const s = 0.7 * Math.min(1.3, SPECIES[sid].size);
     ctx.drawImage(monSprite(m, { silhouette: true }), Math.round(x), Math.round(158 - 64 * s), 64 * s, 64 * s);
   });
   drawEmbers(ctx, t);

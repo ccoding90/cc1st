@@ -1,64 +1,69 @@
 // ⚔️ 스톤몬 턴제 배틀 계산 (순수 로직). 연출은 StoneMonsterGame.jsx 가 이벤트를 받아 재생한다.
-import { SKILLS, SPECIES, STRONG, WEAK, ELEMENTS } from './data';
+import { SKILLS, SPECIES, TYPE_CHART, ELEMENTS } from './data';
 import { eff, tl, maxHp, elementsOf, josa, formName, usableSkills } from './monster';
 
 export const STATUS = {
-  burn: { name: '화상', color: '#ff6a3d' },
+  burn: { name: '화상', color: '#ff6a3d', turns: 3 },
   para: { name: '마비', color: '#ffd93d' },
-  psn: { name: '중독', color: '#b05cff' },
+  psn: { name: '중독', color: '#b05cff', turns: 4 },
   frz: { name: '빙결', color: '#9ee8ff' },
 };
+export const STAB = 1.2; // 속성 일치 보너스
 
 export function fighter(m, side) {
-  return { m, side, st: { atk: 0, def: 0, spd: 0 }, status: null, flinch: false, sturdyUsed: false, atkMul: 1 };
+  return { m, side, st: { atk: 0, def: 0, spd: 0 }, status: null, stTurns: 0, flinch: false, sturdyUsed: false, atkMul: 1 };
 }
 export const nameOf = (f) => formName(f.m);
 const stageMul = (s) => (s >= 0 ? (2 + s) / 2 : 2 / (2 - s));
 
+// 상성 배율: 유리 1.5 ~ 천적 2.0 / 보통 1.0 / 불리 0.5 (흡수해 보유한 속성은 추가 내성 ×0.85)
 export function typeMult(el, defM) {
   const core = SPECIES[defM.sid].el;
-  let m = 1;
-  if (STRONG[el].includes(core)) m = 1.6;
-  else if (WEAK[el].includes(core)) m = 0.6;
-  if (el !== core && (defM.genes?.[el] || 0) >= 3) m *= 0.85; // 흡수한 속성엔 내성
+  let m = TYPE_CHART[el]?.[core] ?? 1;
+  if (el !== core && (defM.genes?.[el] || 0) >= 3) m *= 0.85;
   return m;
 }
 
-function atkVal(f) {
+function atkVal(f, sk) {
   const e = eff(f.m);
   let a = e.atk * stageMul(f.st.atk) * f.atkMul;
-  if (f.status === 'burn') a *= 0.75;
-  if (f.m.hp <= maxHp(f.m) / 3) a *= 1 + 0.15 * tl(f.m, 'rage');
+  if (f.status === 'burn' && !sk?.sp) a *= 0.8; // 화상: 물리 공격력 20% 감소
+  if (f.m.hp <= maxHp(f.m) / 3) a *= 1 + 0.12 * tl(f.m, 'rage');
   return a;
 }
 export function spdVal(f) {
   return eff(f.m).spd * stageMul(f.st.spd) * (f.status === 'para' ? 0.5 : 1);
 }
 
+// 비율 기반 데미지 공식
+//  최종 = max(2, floor(((2×Lv/5+2) × 위력 × (공격/방어)) / 4 × 상성 × 속성일치(1.2) × 난수(0.9~1.1)))
+//  (+ 급소 ×1.5, 철갑 특성 경감)
 export function calcDamage(att, def, skillId, { roll = true } = {}) {
   const sk = SKILLS[skillId];
-  const A = atkVal(att);
+  const A = atkVal(att, sk);
   const D = Math.max(1, eff(def.m).def * stageMul(def.st.def));
-  let dmg = (sk.pow * A) / D * 0.15 + 2;
-  if (elementsOf(att.m).includes(sk.el)) dmg *= 1.25;
+  const lv = att.m.lv || 1;
+  const base = ((2 * lv / 5 + 2) * sk.pow * (A / D)) / 4;
   const tm = typeMult(sk.el, def.m);
-  dmg *= tm;
-  dmg *= Math.max(0.5, 1 - 0.05 * tl(def.m, 'armor'));
+  const stab = elementsOf(att.m).includes(sk.el) ? STAB : 1;
+  let extra = Math.max(0.6, 1 - 0.04 * tl(def.m, 'armor'));
   let crit = false;
+  let r = 1;
   if (roll) {
-    const cr = 1 / 16 + (sk.crit ? 0.12 : 0) + 0.04 * tl(att.m, 'crit');
+    const cr = 1 / 16 + (sk.crit ? 0.12 : 0) + 0.03 * tl(att.m, 'crit');
     crit = Math.random() < cr;
-    if (crit) dmg *= 1.5;
-    dmg *= 0.85 + Math.random() * 0.15;
-  } else dmg *= 0.925;
-  return { dmg: Math.max(1, Math.round(dmg)), tm, crit };
+    if (crit) extra *= 1.5;
+    r = 0.9 + Math.random() * 0.2;
+  }
+  const dmg = Math.max(2, Math.floor(base * tm * stab * extra * r));
+  return { dmg, tm, crit };
 }
 
 // 행동 순서: 우선도 → 선제 특성 → 스피드
 export function order(a, sa, b, sb) {
   const pa = SKILLS[sa]?.prio || 0, pb = SKILLS[sb]?.prio || 0;
   if (pa !== pb) return pa > pb ? [a, b] : [b, a];
-  const fa = Math.random() < 0.15 * tl(a.m, 'first'), fb = Math.random() < 0.15 * tl(b.m, 'first');
+  const fa = Math.random() < 0.12 * tl(a.m, 'first'), fb = Math.random() < 0.12 * tl(b.m, 'first');
   if (fa !== fb) return fa ? [a, b] : [b, a];
   const va = spdVal(a), vb = spdVal(b);
   if (va !== vb) return va > vb ? [a, b] : [b, a];
@@ -98,7 +103,7 @@ export function act(att, def, skillId) {
     return ev;
   }
   // 명중
-  const evade = Math.min(0.35, 0.05 * tl(def.m, 'flight'));
+  const evade = Math.min(0.3, 0.04 * tl(def.m, 'flight'));
   if (Math.random() * 100 >= sk.acc * (1 - evade)) {
     ev.push({ t: 'lunge', side: att.side, el: sk.el });
     ev.push({ t: 'msg', text: `그러나 ${josa(dn, '은/는')} 공격을 피했다!` });
@@ -115,7 +120,7 @@ export function act(att, def, skillId) {
   const { dmg: raw, tm, crit } = calcDamage(att, def, skillId);
   let dmg = Math.min(raw, def.m.hp);
   let sturdy = false;
-  if (raw >= def.m.hp && def.m.hp > 1 && !def.sturdyUsed && Math.random() < 0.25 * tl(def.m, 'sturdy')) {
+  if (raw >= def.m.hp && def.m.hp > 1 && !def.sturdyUsed && Math.random() < 0.2 * tl(def.m, 'sturdy')) {
     dmg = def.m.hp - 1; sturdy = true; def.sturdyUsed = true;
   }
   if (def.immortal) dmg = Math.min(dmg, Math.max(0, def.m.hp - 1)); // 튜토리얼 보호
@@ -124,12 +129,13 @@ export function act(att, def, skillId) {
   ev.push({ t: 'hit', side: def.side, el: sk.el, big: tm > 1 || crit });
   ev.push({ t: 'hp', side: def.side, hp: def.m.hp });
   if (crit) ev.push({ t: 'msg', text: '급소에 맞았다!' });
-  if (tm > 1) ev.push({ t: 'msg', text: '효과가 굉장했다!' });
+  if (tm >= 2) ev.push({ t: 'msg', text: '천적의 일격! 효과가 엄청났다!' });
+  else if (tm > 1) ev.push({ t: 'msg', text: '효과가 굉장했다!' });
   else if (tm < 1) ev.push({ t: 'msg', text: '효과가 별로인 듯하다…' });
   if (sturdy) ev.push({ t: 'msg', text: `${josa(dn, '은/는')} 끈질기게 버텼다!` });
 
   // 흡혈
-  const drain = (sk.drain || 0) + 0.06 * tl(att.m, 'drain');
+  const drain = (sk.drain || 0) + 0.04 * tl(att.m, 'drain');
   if (drain > 0 && att.m.hp > 0 && att.m.hp < maxHp(att.m)) {
     att.m.hp = Math.min(maxHp(att.m), att.m.hp + Math.max(1, Math.round(dmg * drain)));
     ev.push({ t: 'hp', side: att.side, hp: att.m.hp });
@@ -150,10 +156,10 @@ export function act(att, def, skillId) {
   }
   // 접촉 특성 반격
   if (att.m.hp > 0 && !att.status) {
-    const contact = [['staticSkin', 'para', 0.1], ['flameBody', 'burn', 0.1], ['poisonPoint', 'psn', 0.1], ['frostBody', 'frz', 0.08]];
+    const contact = [['staticSkin', 'para', 0.08], ['flameBody', 'burn', 0.08], ['poisonPoint', 'psn', 0.08], ['frostBody', 'frz', 0.06]];
     for (const [t, st, p] of contact) {
       const lv = tl(def.m, t);
-      if (lv && Math.random() < Math.min(0.6, p * lv)) {
+      if (lv && !sk.sp && Math.random() < Math.min(0.5, p * lv)) {
         ev.push({ t: 'msg', text: `${dn}의 ${t === 'staticSkin' ? '전기 피부' : t === 'flameBody' ? '불꽃 몸' : t === 'poisonPoint' ? '독가시' : '냉기 몸'}!` });
         ev.push(...inflict(att, st));
         break;
@@ -175,30 +181,39 @@ function shiftStat(f, k, v) {
 
 function inflict(f, st, verbose = false) {
   const n = nameOf(f);
-  if (f.status) return verbose ? [{ t: 'msg', text: '그러나 아무 일도 일어나지 않았다!' }] : [];
+  // 이미 상태이상이면 중복 적용 불가
+  if (f.status) return verbose ? [{ t: 'msg', text: `그러나 ${josa(n, '은/는')} 이미 ${STATUS[f.status].name} 상태다!` }] : [];
   const core = SPECIES[f.m.sid].el;
   const immune = (st === 'burn' && core === 'fire') || (st === 'para' && core === 'thunder') || (st === 'psn' && core === 'poison') || (st === 'frz' && core === 'ice');
   if (immune) return verbose ? [{ t: 'msg', text: `${josa(n, '은/는')} ${ELEMENTS[core].name} 속성이라 끄떡없다!` }] : [];
   f.status = st;
+  f.stTurns = 0;
   const text = { burn: '화상을 입었다!', para: '마비되었다!', psn: '독에 중독되었다!', frz: '꽁꽁 얼어붙었다!' }[st];
   return [{ t: 'status', side: f.side }, { t: 'msg', text: `${josa(n, '은/는')} ${text}` }];
 }
 
-// 턴 종료: 화상/중독 피해, 재생
+// 턴 종료: 중독(최대 HP 1/16, 4턴) · 화상(최대 HP 5%, 3턴) 피해 후 지속 턴이 끝나면 자동 해제, 재생
 export function endTurn(f) {
   const ev = [];
   if (f.m.hp <= 0) return ev;
   const mh = maxHp(f.m), n = nameOf(f);
   if (f.status === 'burn' || f.status === 'psn') {
-    const d = Math.max(1, Math.round(mh / (f.status === 'burn' ? 12 : 8)));
+    const burn = f.status === 'burn';
+    const d = Math.max(1, Math.floor(burn ? mh * 0.05 : mh / 16));
     f.m.hp = Math.max(0, f.m.hp - d);
-    ev.push({ t: 'hit', side: f.side, el: f.status === 'burn' ? 'fire' : 'poison' });
+    ev.push({ t: 'hit', side: f.side, el: burn ? 'fire' : 'poison' });
     ev.push({ t: 'hp', side: f.side, hp: f.m.hp });
-    ev.push({ t: 'msg', text: `${josa(n, '은/는')} ${f.status === 'burn' ? '화상' : '독'} 피해를 입었다!` });
+    ev.push({ t: 'msg', text: `${josa(n, '은/는')} ${burn ? '화상' : '독'} 피해를 입었다!`, quick: true });
+    f.stTurns = (f.stTurns || 0) + 1;
+    if (f.m.hp > 0 && f.stTurns >= STATUS[f.status].turns) {
+      f.status = null; f.stTurns = 0;
+      ev.push({ t: 'status', side: f.side });
+      ev.push({ t: 'msg', text: burn ? `${n}의 화상이 나았다!` : `${n}의 몸에서 독이 빠졌다!`, quick: true });
+    }
   }
   const rg = tl(f.m, 'regen');
   if (rg && f.m.hp > 0 && f.m.hp < mh) {
-    f.m.hp = Math.min(mh, f.m.hp + Math.max(1, Math.round(mh * 0.03 * rg)));
+    f.m.hp = Math.min(mh, f.m.hp + Math.max(1, Math.round(mh * 0.02 * rg)));
     ev.push({ t: 'hp', side: f.side, hp: f.m.hp });
     ev.push({ t: 'msg', text: `${josa(n, '은/는')} 상처가 재생되었다.`, quick: true });
   }
@@ -236,6 +251,6 @@ export function chooseSkill(me, foe, smart) {
 export function intimidate(f, foe) {
   const lv = tl(f.m, 'intimidate');
   if (!lv) return [];
-  foe.atkMul *= Math.max(0.5, 1 - 0.06 * lv);
+  foe.atkMul *= Math.max(0.6, 1 - 0.05 * lv);
   return [{ t: 'msg', text: `${nameOf(f)}의 위압! ${josa(nameOf(foe), '은/는')} 기가 죽었다!` }];
 }

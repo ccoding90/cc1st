@@ -5,7 +5,6 @@ import { db } from '../../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, where, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { pack, unpack, createMonster, randomMutate, power, pick, rand } from './monster';
 import { SPECIES } from './data';
-import { scaleTo } from './world';
 
 const ARENA = 'stonemon_arena';
 const RESULTS = 'stonemon_results';
@@ -33,7 +32,7 @@ export async function fetchMyResults(ownerId) {
 const WANDERERS = ['떠돌이 사냥꾼 그르릉', '뼈수집가 오크', '동굴소녀 미르', '외눈 사냥꾼 카악', '늪지기 무르', '화산족 불돌', '바다사냥꾼 해랑', '얼음족 설아'];
 
 // 상대 목록: 실제 플레이어 그림자(먹히지 않은 것) + 부족하면 떠돌이 NPC 그림자
-export async function fetchOpponents({ ownerId, myPower }) {
+export async function fetchOpponents({ ownerId, myPower, myLv = 5 }) {
   let real = [];
   let online = true;
   try {
@@ -58,18 +57,17 @@ export async function fetchOpponents({ ownerId, myPower }) {
   // 내 전투력 근처 위주로 4명, 나머지는 무작위
   real.sort((a, b) => Math.abs(a.power - myPower) - Math.abs(b.power - myPower));
   const list = real.slice(0, 6);
-  while (list.length < 4) list.push(makeWanderer(myPower, list.length));
+  while (list.length < 4) list.push(makeWanderer(myLv, list.length));
   list.sort((a, b) => a.power - b.power);
   return { list, online };
 }
 
-function makeWanderer(myPower, i) {
+function makeWanderer(myLv, i) {
   const pool = Object.values(SPECIES).filter((s) => s.tier <= 3).map((s) => s.id);
   const sid = pick(pool);
-  const target = myPower * [0.8, 1.0, 1.15, 1.35][i % 4] * rand(0.92, 1.05);
-  const m = createMonster(sid);
+  const lv = Math.max(2, myLv + [-2, 0, 1, 3][i % 4]);
+  const m = createMonster(sid, { lv });
   randomMutate(m, 3 + Math.floor(Math.random() * 10));
-  scaleTo(m, target);
   m.devours = Math.floor(rand(2, 12));
   return { id: 'npc-' + Math.random().toString(36).slice(2), nick: pick(WANDERERS), mon: m, power: power(m), real: false };
 }

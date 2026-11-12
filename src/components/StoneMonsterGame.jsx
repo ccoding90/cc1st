@@ -2,9 +2,10 @@ import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Game, PARTY_MAX } from './stonemon/game';
 import { draw, SW, SH } from './stonemon/render';
-import { monDataUrl } from './stonemon/sprites';
+import { monDataUrl, loadSprites, onSpritesReady } from './stonemon/sprites';
 import { SPECIES, SKILLS, TRAITS, ELEMENTS, STAGES, TIER_NAME, SPECIES_COUNT, maxPP, isBasic } from './stonemon/data';
-import { formName, power, maxHp, eff, elementsOf, geneTotal, stageThreshold, ppLeft } from './stonemon/monster';
+import { formName, power, maxHp, eff, elementsOf, geneTotal, stageThreshold, ppLeft, expNext } from './stonemon/monster';
+import { mapOf } from './stonemon/world';
 import { typeMult, STATUS } from './stonemon/battle';
 import { unlockAudio, setMuted } from './coffee/sound';
 
@@ -28,7 +29,7 @@ const fsSupported = () => typeof document !== 'undefined' && !!(document.fullscr
 const KEYMAP = {
   ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down',
   ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right',
-  z: 'a', Z: 'a', ' ': 'a', x: 'b', X: 'b', Escape: 'b', Backspace: 'b', Enter: 'start', m: 'start', M: 'start',
+  z: 'a', Z: 'a', ' ': 'a', x: 'b', X: 'b', Escape: 'b', Backspace: 'b', Enter: 'start', m: 'start', M: 'start', q: 'speed', Q: 'speed',
 };
 
 // 🦖 스톤몬스터 - 화면 껍데기. 진행 로직은 stonemon/game.js, 그림은 stonemon/render.js
@@ -40,6 +41,8 @@ const StoneMonsterGame = () => {
   const canvasRef = useRef(null);
   const [muted, setMutedState] = useState(() => { try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (e) { return false; } });
   usePixelFont();
+  // 도감 일러스트 아틀라스 로드 → 로드되면 화면 갱신
+  useEffect(() => { loadSprites(); return onSpritesReady(() => refresh()); }, []);
 
   useEffect(() => {
     setMuted(muted);
@@ -146,6 +149,7 @@ const StoneMonsterGame = () => {
       <div style={isFs ? { ...topBar, width: '100%', maxWidth: 720, margin: '0 auto 6px' } : topBar}>
         {!isFs && <Link to="/game-hub" style={topLink}>← 게임 센터</Link>}
         <span style={{ flex: 1 }} />
+        <button type="button" style={{ ...topBtn, background: g.speed > 1 ? '#ffd166' : '#fff' }} title="게임 속도 (Q)" onClick={() => { unlockAudio(); g.cycleSpeed(); }}>⏩ {g.speed}x</button>
         <button type="button" style={topBtn} onClick={() => setMutedState((m) => !m)}>{muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'}</button>
         <button type="button" style={topBtn} onClick={toggleFullscreen}>{isFs ? '⤢ 전체화면 종료' : '⛶ 전체화면'}</button>
       </div>
@@ -155,7 +159,7 @@ const StoneMonsterGame = () => {
           <canvas ref={canvasRef} width={SW} height={SH} style={canvasStyle} />
 
           {ui.hud && v.mode === 'battle' && <BattleHud hud={ui.hud} />}
-          {v.mode === 'map' && !ui.title && g.S?.party?.[0] && <MapHud m={g.S.party[0]} S={g.S} />}
+          {v.mode === 'map' && !ui.title && g.S?.party?.[0] && <MapHud m={g.S.party[0]} S={g.S} map={v.map} />}
           {ui.title && <TitleOverlay hasSave={g.hasSave()} save={g.S} onNew={startNew} onContinue={cont} onCode={() => setCodeOpen(true)} />}
           {ui.dialog && <DialogBox d={ui.dialog} onTap={() => g.press('a')} />}
           {ui.choice && !ui.choice.wide && <ChoiceBox c={ui.choice} />}
@@ -169,7 +173,7 @@ const StoneMonsterGame = () => {
 
       {!isFs && (
         <div style={helpText}>
-          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · 진행은 자동 저장되어 언제든 이어할 수 있어요
+          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · Q = 배속(1x/2x/3x) · 진행은 자동 저장되어 언제든 이어할 수 있어요
         </div>
       )}
 
@@ -194,7 +198,7 @@ const TitleOverlay = ({ hasSave, save, onNew, onContinue, onCode }) => {
   const lead = save?.party?.[0];
   return (
     <div style={titleWrap}>
-      <div style={logoEn}>STONE MONSTER</div>
+      <div style={logoEn}>STONE MONSTERS</div>
       <div style={logoKo}>스톤몬스터</div>
       <div style={tagline}>먹어라. 진화하라. 먹히지 마라.</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: '3%', alignItems: 'stretch' }}>
@@ -202,7 +206,7 @@ const TitleOverlay = ({ hasSave, save, onNew, onContinue, onCode }) => {
           <button type="button" style={titleBtn} onClick={onContinue}>
             ▶ 이어하기
             <span style={{ display: 'block', fontSize: '0.68em', fontWeight: 400, opacity: 0.9 }}>
-              {save.name} · {save.runs}번째 생 · {lead ? `${formName(lead)} ★${power(lead)}` : '스톤몬 받기 전'}{save.savedAt ? ` · ${ago(save.savedAt)} 저장` : ''}
+              {save.name} · {save.runs}번째 생 · {lead ? `${formName(lead)} Lv.${lead.lv}` : '스톤몬 받기 전'} · {mapOf(save.pos?.map).name}{save.savedAt ? ` · ${ago(save.savedAt)} 저장` : ''}
             </span>
           </button>
         )}
@@ -213,7 +217,7 @@ const TitleOverlay = ({ hasSave, save, onNew, onContinue, onCode }) => {
           🔑 코드로 이어하기 (다른 기기)
         </button>
       </div>
-      <div style={titleFoot}>DEMO · 1단계 태초마을 · 스톤몬 {SPECIES_COUNT}종 · 자동 저장</div>
+      <div style={titleFoot}>v2.0 DEMO · Stage 1~3 (태초의 숲 · 메아리의 습지 · 작열하는 화산) · 스톤몬 {SPECIES_COUNT}종</div>
     </div>
   );
 };
@@ -257,16 +261,20 @@ const CodeLoad = ({ g, onClose, onLoaded }) => {
 };
 
 // ───────── 맵 HUD: 대장의 포식·변이 진행도 ─────────
-const MapHud = ({ m, S }) => {
+const MapHud = ({ m, S, map }) => {
   const total = geneTotal(m), next = stageThreshold(m.stage + 1), prev = stageThreshold(m.stage);
+  const M = mapOf(map);
   return (
     <div style={mapHud}>
-      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>👑 {formName(m)} <span style={{ color: '#ffd166' }}>★{power(m)}</span></div>
+      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>👑 {formName(m)} <span style={{ color: '#ffd166' }}>Lv.{m.lv}</span></div>
+      <div style={{ ...hpTrack, height: 4, border: '1px solid #000', margin: '1px 0' }}>
+        <div style={{ ...hpFill, width: `${Math.min(1, (m.exp || 0) / expNext(m.lv)) * 100}%`, background: '#5ab8ff' }} />
+      </div>
       <div style={{ fontSize: '0.8em', opacity: 0.9 }}>변이 {m.stage}단계 · 포식 {m.devours}회 · 🦴{S.bones}</div>
-      <div style={{ ...hpTrack, height: 5, border: '1px solid #000' }}>
+      <div style={{ ...hpTrack, height: 4, border: '1px solid #000' }}>
         <div style={{ ...hpFill, width: `${Math.max(0, Math.min(1, (total - prev) / (next - prev))) * 100}%`, background: 'linear-gradient(90deg,#7fe0ff,#ff5aff)' }} />
       </div>
-      <div style={{ fontSize: '0.7em', opacity: 0.8 }}>다음 변이까지 유전자 {total}/{next}</div>
+      <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Stage {M.stage} · {M.name}{S.flags.endless ? ' · ♾️무한 사냥' : ''}</div>
     </div>
   );
 };
@@ -323,7 +331,7 @@ const WideChoice = ({ c }) => (
               opacity: o.disabled ? 0.45 : 1,
             }}
           >
-            {o.mon && <img alt="" src={monDataUrl(o.mon, {}, 2)} style={{ width: 64, height: 64, imageRendering: 'pixelated', flexShrink: 0 }} />}
+            {o.mon && <img alt="" src={monDataUrl(o.mon, {}, 2)} style={{ width: 64, height: 64, flexShrink: 0 }} />}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>{c.idx === i ? '▶ ' : ''}{o.label}</div>
               {o.sub && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3, lineHeight: 1.45 }}>{o.sub}</div>}
@@ -356,9 +364,9 @@ const BattleHud = ({ hud }) => (
       <div style={{ ...hudBox, left: '3%', top: '3%' }}>
         <div style={hudName}>
           {hud.e.alpha && <span style={{ color: '#ff5a5a' }}>👑</span>}{hud.e.name}
-          {hud.e.status && <span style={{ ...stTag, background: STATUS[hud.e.status].color }}>{STATUS[hud.e.status].name}</span>}
+          {hud.e.status && <span style={{ ...stTag, background: STATUS[hud.e.status].color }}>{STATUS[hud.e.status].name}{STATUS[hud.e.status].turns ? ` ${STATUS[hud.e.status].turns - (hud.e.stTurns || 0)}` : ''}</span>}
         </div>
-        <div style={hudSub}><ElChips els={hud.e.els} /> ★{hud.e.power}{hud.e.stage ? ` · 변이${hud.e.stage}` : ''}</div>
+        <div style={hudSub}><ElChips els={hud.e.els} /> <b>Lv.{hud.e.lv}</b>{hud.e.stage ? ` · 변이${hud.e.stage}` : ''}</div>
         <HpBar hp={hud.e.hp} max={hud.e.max} />
       </div>
     )}
@@ -366,11 +374,15 @@ const BattleHud = ({ hud }) => (
       <div style={{ ...hudBox, right: '3%', top: '46%' }}>
         <div style={hudName}>
           {hud.p.name}
-          {hud.p.status && <span style={{ ...stTag, background: STATUS[hud.p.status].color }}>{STATUS[hud.p.status].name}</span>}
+          {hud.p.status && <span style={{ ...stTag, background: STATUS[hud.p.status].color }}>{STATUS[hud.p.status].name}{STATUS[hud.p.status].turns ? ` ${STATUS[hud.p.status].turns - (hud.p.stTurns || 0)}` : ''}</span>}
         </div>
-        <div style={hudSub}><ElChips els={hud.p.els} /> ★{hud.p.power}{hud.p.stage ? ` · 변이${hud.p.stage}` : ''}</div>
+        <div style={hudSub}><ElChips els={hud.p.els} /> <b>Lv.{hud.p.lv}</b>{hud.p.stage ? ` · 변이${hud.p.stage}` : ''}</div>
         <HpBar hp={hud.p.hp} max={hud.p.max} />
-        <div style={{ textAlign: 'right', fontSize: '0.85em' }}>{hud.p.hp} / {hud.p.max}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.85em' }}>
+          <span style={{ ...hpLabel, color: '#3a8ad8' }}>EXP</span>
+          <div style={{ ...hpTrack, height: 4 }}><div style={{ ...hpFill, width: `${Math.min(1, hud.p.exp) * 100}%`, background: '#5ab8ff' }} /></div>
+          <span>{hud.p.hp} / {hud.p.max}</span>
+        </div>
       </div>
     )}
   </>
@@ -413,7 +425,7 @@ const CommandBox = ({ c, g }) => {
       </div>
       {cur && (
         <div style={skillInfo}>
-          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc} · {isBasic(skills[c.idx]) ? '기본기(무제한)' : `남은 횟수 ${ppLeft(B.player.m, skills[c.idx])}/${maxPP(skills[c.idx])}`}{cur.pow ? (tm > 1 ? ' · 💥효과 굉장' : tm < 1 ? ' · 💤효과 별로' : '') : ''}</span>
+          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc} · {isBasic(skills[c.idx]) ? '기본기(무제한)' : `남은 횟수 ${ppLeft(B.player.m, skills[c.idx])}/${maxPP(skills[c.idx])}`}{cur.pow ? (tm >= 2 ? ' · 💥💥천적(×2)' : tm > 1 ? ' · 💥효과 굉장(×1.5)' : tm < 1 ? ' · 💤효과 별로(×0.5)' : '') : ''}{cur.sp ? ' · 특수' : cur.pow ? ' · 물리' : ''}</span>
           <span role="button" tabIndex={-1} style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => g.cmdPick(-1)}>◀ 뒤로</span>
         </div>
       )}
@@ -447,6 +459,7 @@ const STAT_LABEL = { hp: '체력', atk: '공격', def: '방어', spd: '스피드
 const ResultCard = ({ card }) => {
   const { kind, mon, res } = card;
   if (kind === 'code') return <CodeCard card={card} />;
+  if (kind === 'clear') return <ClearCard card={card} />;
   const total = geneTotal(mon);
   const next = stageThreshold(mon.stage + 1);
   const prevT = stageThreshold(mon.stage);
@@ -458,20 +471,20 @@ const ResultCard = ({ card }) => {
           <>
             <div style={{ ...modalTitle, color: '#ff6a6a' }}>🍖 포식 완료</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <img alt="" src={monDataUrl(card.prey, { silhouette: true }, 1)} style={{ width: 48, height: 48, imageRendering: 'pixelated', opacity: 0.6 }} />
+              <img alt="" src={monDataUrl(card.prey, { silhouette: true }, 1)} style={{ width: 48, height: 48, opacity: 0.6 }} />
               <span style={{ fontSize: 22 }}>▶</span>
-              <img alt="" src={monDataUrl(mon, {}, 2)} style={{ width: 96, height: 96, imageRendering: 'pixelated' }} />
+              <img alt="" src={monDataUrl(mon, {}, 2)} style={{ width: 96, height: 96 }} />
             </div>
-            <div style={{ textAlign: 'center', fontWeight: 700 }}>{formName(mon)}</div>
+            <div style={{ textAlign: 'center', fontWeight: 700 }}>{formName(mon)} <span style={{ color: '#ffd166' }}>Lv.{mon.lv}</span></div>
             <div style={{ textAlign: 'center', fontSize: 12, opacity: 0.8 }}>{SPECIES[card.prey.sid].name}의 피와 뼈가 녹아들었다</div>
           </>
         ) : (
           <>
             <div style={{ ...modalTitle, color: '#7fe0ff' }}>🧬 변이 진화!</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <img alt="" src={monDataUrl(card.old, {}, 1)} style={{ width: 64, height: 64, imageRendering: 'pixelated', opacity: 0.75 }} />
+              <img alt="" src={monDataUrl(card.old, {}, 1)} style={{ width: 64, height: 64, opacity: 0.75 }} />
               <span style={{ fontSize: 22 }}>▶</span>
-              <img alt="" src={monDataUrl(mon, {}, 2)} style={{ width: 128, height: 128, imageRendering: 'pixelated' }} />
+              <img alt="" src={monDataUrl(mon, {}, 2)} style={{ width: 128, height: 128 }} />
             </div>
             <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 18 }}>{res.before.name} ▶ <span style={{ color: '#ffd166' }}>{res.after.name}</span></div>
             <div style={{ textAlign: 'center', fontSize: 12, opacity: 0.85 }}>변이 {res.before.stage}단계 ▶ {res.after.stage}단계 · 다음 단계는 끝이 없다</div>
@@ -516,6 +529,28 @@ const ResultCard = ({ card }) => {
   );
 };
 
+// ───────── 데모 클리어 ─────────
+const ClearCard = ({ card }) => (
+  <div style={modalBack} onClick={card.close}>
+    <div style={{ ...modalBox, maxWidth: 480, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...modalTitle, color: '#ffd166', fontSize: 22 }}>🏆 STONE MONSTERS 데모 클리어!</div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {card.party.map((m) => (
+          <div key={m.uid} style={{ width: 96 }}>
+            <img alt="" src={monDataUrl(m, {}, 2)} style={{ width: 88, height: 88 }} />
+            <div style={{ fontSize: 11 }}>{formName(m)}<br />Lv.{m.lv}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, lineHeight: 1.7, marginTop: 8 }}>
+        {card.runs}번째 생 · 이번 생 포식 {card.devours}회 · 도감 포식 {card.eaten}/{SPECIES_COUNT}종<br />
+        <b style={{ color: '#7fe08a' }}>♾️ 무한 사냥 모드 해금</b> — 모든 수풀에서 56종 전부가 출현합니다.
+      </div>
+      <button type="button" style={{ ...titleBtn, width: '100%', marginTop: 12 }} onClick={card.close}>계속 사냥하기 (A)</button>
+    </div>
+  </div>
+);
+
 // ───────── 이어하기 코드 안내 ─────────
 const CodeCard = ({ card }) => (
   <div style={modalBack} onClick={card.close}>
@@ -544,9 +579,9 @@ const Panel = ({ kind, g }) => (
     <div style={{ ...modalBox, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <div style={{ ...modalTitle, margin: 0, flex: 1, textAlign: 'left' }}>
-          {kind === 'party' ? '🦖 스톤몬' : kind === 'codex' ? '📖 스톤몬 도감' : '🪦 기록 · 무덤'}
+          {kind === 'party' ? (g.ui.panel?.prep ? '⚔️ 전투 준비' : '🦖 스톤몬') : kind === 'codex' ? '📖 스톤몬 도감' : '🪦 기록 · 무덤'}
         </div>
-        <button type="button" style={smallBtn} onClick={() => g.closePanel()}>닫기 ✕</button>
+        <button type="button" style={smallBtn} onClick={() => g.closePanel()}>{g.ui.panel?.prep ? '준비 완료 ✓' : '닫기 ✕'}</button>
       </div>
       {kind === 'party' && <PartyPanel g={g} />}
       {kind === 'codex' && <CodexPanel g={g} />}
@@ -557,30 +592,47 @@ const Panel = ({ kind, g }) => (
 
 const PartyPanel = ({ g }) => {
   const party = g.S.party;
+  const prep = !!g.ui.panel?.prep;
   if (!party.length) return <div>스톤몬이 없다.</div>;
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>동료 {party.length}/{PARTY_MAX} · 맨 위가 대장(먼저 싸움). 패배한 스톤몬은 먹혀서 영원히 사라집니다.</div>
+      <div style={{ fontSize: 12, opacity: 0.8 }}>동료 {party.length}/{PARTY_MAX} · 맨 위가 대장(먼저 싸움). ▲▼ 로 동료 순서와 기술 위치(전투 명령 순서)를 바꿀 수 있습니다. 패배한 스톤몬은 먹혀서 영원히 사라집니다.</div>
       {party.map((m, i) => {
         const e = eff(m);
         const genes = Object.entries(m.genes || {}).sort((a, b) => b[1] - a[1]);
         const eaten = Object.entries(m.prey || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const bonus = Math.round(((m.bonus?.hp || 0) + (m.bonus?.atk || 0) + (m.bonus?.def || 0) + (m.bonus?.spd || 0)) / 4 * 100);
         return (
           <div key={m.uid} style={monCard}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <img alt="" src={monDataUrl(m, {}, 2)} style={{ width: 96, height: 96, imageRendering: 'pixelated', flexShrink: 0, background: '#1a1224', borderRadius: 6 }} />
+              <img alt="" src={monDataUrl(m, {}, 2)} style={{ width: 96, height: 96, flexShrink: 0, background: '#3a2414', border: '2px solid #8a5a2a', borderRadius: 6 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800 }}>{i === 0 && '👑 '}{formName(m)}</div>
+                <div style={{ fontWeight: 800 }}>{i === 0 && '👑 '}{formName(m)} <span style={{ color: '#ffd166' }}>Lv.{m.lv}</span></div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  No.{m.sid} {SPECIES[m.sid].name} · ★{power(m)} · 변이 {m.stage}단계 · 포식 {m.devours}회
+                  No.{m.sid} {SPECIES[m.sid].name} · ★{power(m)} · 변이 {m.stage}단계 · 포식 {m.devours}회 · 포식 보너스 +{bonus}%
                 </div>
                 <div style={{ fontSize: 12, margin: '3px 0' }}>{elementsOf(m).map((el) => `${ELEMENTS[el].icon}${ELEMENTS[el].name}`).join(' ')}</div>
                 <HpBar hp={m.hp} max={maxHp(m)} />
                 <div style={{ fontSize: 12 }}>HP {m.hp}/{maxHp(m)} · 공격 {e.atk} · 방어 {e.def} · 스피드 {e.spd}</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>EXP {m.exp || 0} / {expNext(m.lv)}</div>
               </div>
             </div>
-            <div style={chipRow}>
-              {m.skills.map((s) => <span key={s} style={{ ...chip, borderColor: ELEMENTS[SKILLS[s].el].color }}>{ELEMENTS[SKILLS[s].el].icon} {SKILLS[s].name}{SKILLS[s].pow ? ` ${SKILLS[s].pow}` : ''}</span>)}
+            <div style={{ fontSize: 12, fontWeight: 700, marginTop: 8 }}>🗡️ 기술 (위치 변경)</div>
+            <div style={{ display: 'grid', gap: 3, marginTop: 4 }}>
+              {m.skills.map((s, k) => {
+                const sk = SKILLS[s];
+                const left = ppLeft(m, s);
+                return (
+                  <div key={s} style={{ ...skillRow, borderLeft: `4px solid ${ELEMENTS[sk.el].color}` }}>
+                    <span style={{ width: 16, opacity: 0.7 }}>{k + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ELEMENTS[sk.el].icon} {sk.name}{sk.pow ? ` · 위력 ${sk.pow}` : ' · 변화'} <span style={{ opacity: 0.7, fontSize: 11 }}>{left === Infinity ? '∞' : `${left}/${maxPP(s)}`}</span>
+                    </span>
+                    <button type="button" aria-label="위로" style={arrowBtn} disabled={k === 0} onClick={() => g.moveSkill(m, k, -1)}>▲</button>
+                    <button type="button" aria-label="아래로" style={arrowBtn} disabled={k === m.skills.length - 1} onClick={() => g.moveSkill(m, k, 1)}>▼</button>
+                  </div>
+                );
+              })}
             </div>
             <div style={chipRow}>
               {Object.entries(m.traits).map(([t, lv]) => <span key={t} title={TRAITS[t].desc} style={{ ...chip, borderColor: '#ffd166' }}>✨ {TRAITS[t].name} Lv{lv}</span>)}
@@ -599,7 +651,9 @@ const PartyPanel = ({ g }) => {
             {eaten.length > 0 && <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>먹은 것: {eaten.map(([sid, c]) => `${SPECIES[sid].name}×${c}`).join(', ')}</div>}
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               {i > 0 && <button type="button" style={smallBtn} onClick={() => g.setLead(m)}>👑 대장으로</button>}
-              {party.length > 1 && <button type="button" style={{ ...smallBtn, background: '#7a1a24', color: '#fff' }} onClick={() => g.feed(m)}>🍖 먹이로 바치기</button>}
+              {i > 0 && <button type="button" style={smallBtn} onClick={() => g.moveMon(m, -1)}>▲ 순서 위로</button>}
+              {i < party.length - 1 && <button type="button" style={smallBtn} onClick={() => g.moveMon(m, 1)}>▼ 순서 아래로</button>}
+              {!prep && party.length > 1 && <button type="button" style={{ ...smallBtn, background: '#7a1a24', color: '#fff' }} onClick={() => g.feed(m)}>🍖 먹이로 바치기</button>}
             </div>
           </div>
         );
@@ -621,10 +675,10 @@ const CodexPanel = ({ g }) => {
       {sp && (
         <div style={{ ...monCard, marginBottom: 10 }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <img alt="" src={monDataUrl({ sid: sp.id }, { silhouette: !seen[sp.id] }, 2)} style={{ width: 96, height: 96, imageRendering: 'pixelated', background: '#1a1224', borderRadius: 6 }} />
+            <img alt="" src={monDataUrl({ sid: sp.id }, { silhouette: !seen[sp.id] }, 2)} style={{ width: 96, height: 96, background: '#3a2414', border: '2px solid #8a5a2a', borderRadius: 6 }} />
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>No.{sp.id} {seen[sp.id] ? sp.name : '???'}</div>
-              <div>{ELEMENTS[sp.el].icon}{ELEMENTS[sp.el].name} · {TIER_NAME[sp.tier]} · 서식지: {STAGES[sp.stage].name}</div>
+              <div>{ELEMENTS[sp.el].icon}{ELEMENTS[sp.el].name} · {TIER_NAME[sp.tier]} · 서식지: {sp.stage ? `Stage ${sp.stage} ` : ''}{STAGES[sp.stage].name}</div>
               {known ? (
                 <>
                   <div>체력 {sp.base.hp} · 공격 {sp.base.atk} · 방어 {sp.base.def} · 스피드 {sp.base.spd}</div>
@@ -647,7 +701,7 @@ const CodexPanel = ({ g }) => {
             <div key={s.id} role="button" tabIndex={-1} onClick={() => setSel(s.id)} style={{ ...codexCell, outline: sel === s.id ? '2px solid #ffd166' : 'none' }}>
               <div style={{ fontSize: 10, opacity: 0.7 }}>{String(s.id).padStart(2, '0')}</div>
               {st === 'none' ? <div style={{ height: 48, display: 'grid', placeItems: 'center', opacity: 0.4 }}>?</div>
-                : <img alt="" src={monDataUrl({ sid: s.id }, { silhouette: st === 'seen' }, 1)} style={{ width: 48, height: 48, imageRendering: 'pixelated' }} />}
+                : <img alt="" src={monDataUrl({ sid: s.id }, { silhouette: st === 'seen' }, 1)} style={{ width: 48, height: 48 }} />}
               <div style={{ fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {st === 'none' ? '???' : s.name}{st === 'eaten' ? ' 🍖' : st === 'owned' ? ' 🪨' : ''}
               </div>
@@ -667,15 +721,17 @@ const RecordsPanel = ({ g }) => {
         <div>👤 {S.name} · {S.runs}번째 생</div>
         <div>이번 생: 포식 {S.stats.devours}회 · 승리 {S.stats.wins}회 · 제단 승리 {S.stats.pvpWins}회 · 🦴{S.bones}</div>
         <div>역대 최강: {S.stats.bestName ? `${S.stats.bestName} ★${S.stats.best}` : '-'}</div>
-        <div>태초마을: {S.flags.chief ? '🏆 족장 우가 격파' : '족장 우가 미격파'}</div>
+        <div>Stage 1 태초의 숲: {S.flags.boss1 ? '🏆 숲의 수호자 격파' : '숲의 수호자 미격파'}</div>
+        <div>Stage 2 메아리의 습지: {S.flags.boss2 ? '🏆 협곡의 지배자 격파' : '협곡의 지배자 미격파'}</div>
+        <div>Stage 3 작열하는 화산: {S.flags.boss3 ? '🏆 태초의 왕좌 격파 · ♾️ 무한 사냥 해금' : '태초의 왕좌 미격파'}</div>
       </div>
       <div style={{ fontWeight: 800, margin: '10px 0 4px' }}>🪦 먹힌 스톤몬들</div>
       {S.grave.length === 0 && <div style={{ opacity: 0.7 }}>아직 아무도 먹히지 않았다.</div>}
       {S.grave.map((r, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #3a2a4a', padding: '4px 0' }}>
-          <img alt="" src={monDataUrl({ sid: r.sid }, {}, 1)} style={{ width: 40, height: 40, imageRendering: 'pixelated', filter: 'grayscale(1)', opacity: 0.8 }} />
+          <img alt="" src={monDataUrl({ sid: r.sid }, {}, 1)} style={{ width: 40, height: 40, filter: 'grayscale(1)', opacity: 0.8 }} />
           <div style={{ fontSize: 12 }}>
-            <b>{r.name}</b> ★{r.power} · 포식 {r.devours}회 · 변이 {r.stage}단계<br />
+            <b>{r.name}</b>{r.lv ? ` Lv.${r.lv}` : ''} ★{r.power} · 포식 {r.devours}회 · 변이 {r.stage}단계<br />
             <span style={{ opacity: 0.75 }}>{r.run}번째 생 · {r.cause}에게 먹힘 · {new Date(r.date).toLocaleDateString('ko-KR')}</span>
           </div>
         </div>
@@ -713,14 +769,14 @@ const Controls = ({ g }) => {
 // ───────── 게임 소개 (검색/처음 방문자용) ─────────
 const GameIntro = () => (
   <section style={introBox}>
-    <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>🦖 스톤몬스터 (Stone Monster) — 포식 진화 RPG</h1>
-    <p>원시 시대와 몬스터 세계가 뒤섞인 땅. 돌알에서 태어난 <b>스톤몬스터</b>는 레벨업으로 자라지 않습니다. 오직 <b>쓰러뜨린 상대를 잡아먹는 것(포식)</b>으로만 강해집니다.</p>
+    <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>🦖 스톤몬스터 (STONE MONSTERS) v2.0 — 포식 진화 RPG</h1>
+    <p>원시 정글 · 습지 · 화산이 뒤섞인 땅. 돌알에서 태어난 <b>스톤몬스터</b>는 싸워서 <b>레벨</b>을 올리고, 쓰러뜨린 상대를 <b>잡아먹어(포식)</b> 끝없이 변이합니다.</p>
     <ul style={{ paddingLeft: 18, margin: '8px 0' }}>
-      <li><b>포식 흡수</b> — 먹은 스톤몬의 능력치·속성 유전자·특성·기술이 그대로 흡수됩니다. 번개 스톤몬을 먹으면 번개 가시와 번개 내성이 생겨요.</li>
-      <li><b>무한 변이 진화</b> — 유전자가 쌓일 때마다 날개·불꽃 꼬리·얼음 결정 등 외형이 변하고 이름이 바뀝니다. 변이 단계에는 끝이 없습니다.</li>
-      <li><b>포식의 제단(대전)</b> — 다른 플레이어가 키운 스톤몬의 그림자와 목숨을 건 대결. 이기면 먹고, 지면 먹힙니다.</li>
+      <li><b>포식 흡수</b> — 먹은 스톤몬의 능력치 보너스·속성 유전자·특성·기술을 흡수합니다. 프테라를 먹으면 날개가, 번개 스톤몬을 먹으면 번개 가시가 돋아요.</li>
+      <li><b>정직한 상성</b> — 유리 1.5배 · 천적 2배 · 불리 0.5배, 같은 속성 기술 1.2배. 독(1/16·4턴)과 화상(5%·3턴, 물리 공격 -20%)은 저절로 낫습니다.</li>
+      <li><b>Stage 1~3</b> — 태초의 숲(Lv.1~10) → 메아리의 습지 &amp; 협곡(Lv.11~22) → 작열하는 화산 &amp; 고대 유적(Lv.23~35). 최종 보스 라돈·기가노·기가를 꺾으면 <b>무한 사냥 모드</b>로 56종 도감을 완성할 수 있어요.</li>
+      <li><b>편의 기능</b> — 1x/2x/3x 배속, 기술 위치 변경, 상점 연속 구매, 자동 저장 · 모험 코드로 다른 기기에서 이어하기.</li>
       <li><b>약육강식</b> — 진 스톤몬은 영원히 사라지고, 모두 잃으면 처음부터 다시 시작합니다.</li>
-      <li>스톤몬 {SPECIES_COUNT}종 · 8속성(원시·화염·물·번개·바람·대지·얼음·독) · 데모는 1단계 「태초마을」까지 플레이할 수 있습니다.</li>
     </ul>
   </section>
 );
@@ -740,19 +796,20 @@ const codeText = { fontSize: 28, fontWeight: 900, letterSpacing: '0.12em', textA
 const stageWrap = { width: `min(100%, 720px, calc((100dvh - 250px) * ${SW / SH}))`, minWidth: 280, margin: '0 auto' };
 const stage = {
   position: 'relative', width: '100%', aspectRatio: `${SW} / ${SH}`, background: '#000', overflow: 'hidden',
-  border: '4px solid #2a1e2e', boxShadow: '6px 6px 0 #a1887f', containerType: 'inline-size', userSelect: 'none', WebkitUserSelect: 'none',
+  border: '6px solid #8a5a2a', outline: '3px solid #2a1608', borderRadius: 6, boxShadow: '6px 6px 0 #a1887f', containerType: 'inline-size', userSelect: 'none', WebkitUserSelect: 'none',
   fontSize: 'clamp(10px, 3.1cqw, 17px)', lineHeight: 1.5, touchAction: 'manipulation',
 };
-const canvasStyle = { width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' };
-const boxBase = { position: 'absolute', background: '#fbf7ee', color: '#1c1424', border: '3px solid #1c1424', boxShadow: 'inset 0 0 0 2px #fbf7ee, inset 0 0 0 4px #6a5a7a', boxSizing: 'border-box' };
+const canvasStyle = { width: '100%', height: '100%', display: 'block' };
+// 나무 프레임 UI (도감 STONE MONSTERS 스타일)
+const boxBase = { position: 'absolute', background: '#fbf0d8', color: '#2a1608', border: '3px solid #2a1608', boxShadow: 'inset 0 0 0 3px #b8803e, inset 0 0 0 5px #6a3e18', boxSizing: 'border-box', borderRadius: 4 };
 const dialogBox = { ...boxBase, left: '1.5%', right: '1.5%', bottom: '2%', minHeight: '29%', padding: '2% 3%', cursor: 'pointer', zIndex: 5 };
-const speakerTag = { position: 'absolute', top: '-1.6em', left: '3%', background: '#1c1424', color: '#ffd166', padding: '0 0.6em', fontSize: '0.85em' };
+const speakerTag = { position: 'absolute', top: '-1.6em', left: '3%', background: '#6a3e18', color: '#ffe8b0', border: '2px solid #2a1608', borderRadius: 3, padding: '0 0.6em', fontSize: '0.85em' };
 const nextMark = { position: 'absolute', right: '3%', bottom: '6%', animation: 'none', fontSize: '0.8em' };
 const choiceBox = { ...boxBase, right: '1.5%', bottom: '33%', maxWidth: '72%', maxHeight: '64%', overflowY: 'auto', padding: '1.5% 2.5%', zIndex: 6 };
 const choiceItem = { display: 'flex', cursor: 'pointer', padding: '0.15em 0' };
 const choiceSub = { display: 'block', fontSize: '0.75em', opacity: 0.7 };
 const cmdGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, width: '56%' };
-const cmdItem = { padding: '0.25em 0.4em', cursor: 'pointer', border: '2px solid #1c1424', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+const cmdItem = { padding: '0.25em 0.4em', cursor: 'pointer', border: '2px solid #6a3e18', borderRadius: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 const skillInfo = { display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', marginTop: '1.2%' };
 const hudBox = { ...boxBase, width: '50%', padding: '1% 2%', zIndex: 4, fontSize: '0.9em' };
 const hudName = { fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
@@ -762,7 +819,7 @@ const hpOuter = { display: 'flex', alignItems: 'center', gap: 4 };
 const hpLabel = { fontSize: '0.7em', fontWeight: 800, color: '#e8a030' };
 const hpTrack = { flex: 1, height: 7, background: '#3a2a3a', border: '2px solid #1c1424', overflow: 'hidden' };
 const hpFill = { height: '100%', transition: 'width 0.4s linear, background 0.3s' };
-const mapHud = { position: 'absolute', left: '15%', top: '1.5%', width: '44%', background: 'rgba(20,14,28,0.78)', color: '#fff', padding: '0.3em 0.6em', fontSize: '0.72em', lineHeight: 1.35, zIndex: 3, pointerEvents: 'none' };
+const mapHud = { position: 'absolute', left: '15%', top: '1.5%', width: '46%', background: 'rgba(58,34,14,0.85)', border: '2px solid #b8803e', borderRadius: 3, color: '#fff', padding: '0.3em 0.6em', fontSize: '0.72em', lineHeight: 1.35, zIndex: 3, pointerEvents: 'none' };
 const toast = { position: 'absolute', top: '4%', left: '50%', transform: 'translateX(-50%)', background: '#1c1424', color: '#ffd166', padding: '0.3em 0.9em', zIndex: 9 };
 const nameInputStyle = { flex: 1, minWidth: 100, padding: 6, fontSize: 16, fontFamily: FONT, border: '2px solid #1c1424' };
 const titleWrap = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', textAlign: 'center', zIndex: 3, paddingBottom: '12%' };
@@ -772,7 +829,7 @@ const tagline = { marginTop: '1%', color: '#ffe0c0', textShadow: '2px 2px 0 #1c1
 const titleBtn = { padding: '0.5em 1.4em', fontSize: '1em', fontWeight: 800, color: '#fff', background: '#c62828', border: '3px solid #1c1424', boxShadow: '4px 4px 0 #1c1424', cursor: 'pointer', fontFamily: FONT };
 const titleFoot = { position: 'absolute', bottom: '3%', fontSize: '0.7em', color: '#ffe0c0', textShadow: '1px 1px 0 #000' };
 const modalBack = { position: 'fixed', inset: 0, background: 'rgba(10,6,16,0.72)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, boxSizing: 'border-box' };
-const modalBox = { width: '100%', maxHeight: '92dvh', overflowY: 'auto', background: '#1c1424', color: '#f4eadc', border: '3px solid #ffd166', boxShadow: '6px 6px 0 #000', padding: 14, boxSizing: 'border-box', fontFamily: FONT };
+const modalBox = { width: '100%', maxHeight: '92dvh', overflowY: 'auto', background: '#2e1c10', color: '#f8ecd4', border: '4px solid #b8803e', outline: '3px solid #2a1608', boxShadow: '6px 6px 0 #000, inset 0 0 0 2px #6a3e18', borderRadius: 6, padding: 14, boxSizing: 'border-box', fontFamily: FONT };
 const modalTitle = { fontSize: 18, fontWeight: 800, textAlign: 'center', marginBottom: 10 };
 const wideItem = { display: 'flex', gap: 10, alignItems: 'center', padding: 10, border: '2px solid', cursor: 'pointer' };
 const smallBtn = { padding: '6px 10px', fontSize: 12, fontWeight: 700, border: '2px solid #1c1424', background: '#fbf7ee', color: '#1c1424', cursor: 'pointer', fontFamily: FONT };
@@ -780,9 +837,11 @@ const mutBox = { margin: '10px 0', padding: 10, background: '#2a1e38', borderLef
 const statTable = { display: 'grid', gridTemplateColumns: '1fr 1.4fr 0.6fr', gap: '2px 8px', margin: '10px 0', fontSize: 13, background: '#2a1e38', padding: 10 };
 const chipRow = { display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 };
 const chip = { fontSize: 11, padding: '2px 6px', border: '2px solid', background: '#241a30' };
-const monCard = { background: '#2a1e38', padding: 10, border: '2px solid #4a3a5a' };
+const monCard = { background: '#3e2814', padding: 10, border: '2px solid #8a5a2a', borderRadius: 4 };
+const skillRow = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 6px', background: '#2e1c10' };
+const arrowBtn = { padding: '2px 8px', fontSize: 12, border: '2px solid #2a1608', background: '#f8ecd4', color: '#2a1608', cursor: 'pointer', fontFamily: FONT };
 const codexGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6 };
-const codexCell = { background: '#2a1e38', textAlign: 'center', padding: 4, cursor: 'pointer' };
+const codexCell = { background: '#3e2814', border: '2px solid #8a5a2a', borderRadius: 4, textAlign: 'center', padding: 4, cursor: 'pointer' };
 const controls = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 520, margin: '14px auto 0', padding: '0 8px', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' };
 const dpad = { display: 'grid', gridTemplateAreas: '". u ." "l . r" ". d ."', gridTemplateColumns: '48px 48px 48px', gridTemplateRows: '48px 48px 48px' };
 const dbtn = { background: '#2a1e2e', color: '#fff', border: 'none', fontSize: 18, cursor: 'pointer', touchAction: 'none' };

@@ -1,9 +1,12 @@
-// 🦖 스톤몬 개체 로직: 생성 · 능력치 · 포식(흡수) · 무한 변이 진화
-import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS, maxPP, FALLBACK_SKILL } from './data';
+// 🦖 스톤몬 개체 로직: 생성 · 레벨/경험치 · 능력치 · 포식(흡수) · 무한 변이 진화
+// v2.0 능력치 = 종족값 × 레벨 성장(완만한 직선) × 개체차 × (1 + 포식 보너스) × 변이 단계 × 특성
+//  - 체력/공격/방어/스피드가 모두 같은 성장 곡선을 쓰고, 포식 보너스도 네 능력치에 고르게(상한·편차 제한) 붙는다.
+import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS, maxPP, FALLBACK_SKILL, learnLevels } from './data';
 
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const STAT_KEYS = ['hp', 'atk', 'def', 'spd'];
 
 // 조사 처리: 받침 유무로 이/가, 을/를, 은/는, 과/와
 export function josa(word, pair) {
@@ -13,17 +16,34 @@ export function josa(word, pair) {
   return word + (has ? a : b);
 }
 
-export function createMonster(sid, { scale = 1, genes = null, extraTraits = null, jitter = true } = {}) {
+// ── 레벨 · 성장 ──
+export const LV_MAX = 100;
+export const growth = (lv) => 1 + 0.12 * (Math.max(1, lv) - 1); // 모든 능력치 공통 (Lv35 ≈ ×5.1)
+const HP_K = 5; // 체력 배율 (데미지 공식 스케일에 맞춤)
+export const BONUS_CAP = 0.5; // 포식 보너스 능력치당 최대 +50%
+const BONUS_SPREAD = 0.15; // 가장 낮은 능력치 보너스보다 15%p 이상 앞서지 못함 → 한쪽 스탯 폭등 방지
+export const expNext = (lv) => Math.round(0.9 * lv * lv + 8 * lv + 12);
+
+// 레벨에 맞는 기술(최근 4개)
+export function skillsAt(sid, lv) {
   const sp = SPECIES[sid];
-  const j = () => (jitter ? rand(0.93, 1.07) : 1);
-  const stats = {};
-  for (const k of ['hp', 'atk', 'def', 'spd']) stats[k] = Math.max(1, Math.round(sp.base[k] * scale * j()));
+  const at = learnLevels(sid);
+  const list = sp.skills.filter((_, i) => lv >= at[i]);
+  return list.slice(-4);
+}
+
+export function createMonster(sid, { lv = 5, genes = null, extraTraits = null, jitter = true, bonus = 0 } = {}) {
+  const j = () => (jitter ? Math.round(rand(0.94, 1.06) * 100) / 100 : 1);
+  const sp = SPECIES[sid];
   const m = {
     uid: uid(),
     sid,
-    stats,
+    lv: Math.max(1, Math.min(LV_MAX, Math.round(lv))),
+    exp: 0,
+    iv: { hp: j(), atk: j(), def: j(), spd: j() },
+    bonus: { hp: bonus, atk: bonus, def: bonus, spd: bonus },
     hp: 0,
-    skills: sp.skills.slice(0, 4),
+    skills: skillsAt(sid, lv),
     traits: { [sp.trait]: 1 },
     genes: {},
     devours: 0,
@@ -31,7 +51,7 @@ export function createMonster(sid, { scale = 1, genes = null, extraTraits = null
     stage: 0,
     born: Date.now(),
   };
-  if (genes) for (const [k, v] of Object.entries(genes)) m.genes[k] = (m.genes[k] || 0) + v;
+  if (genes) for (const [k, v] of Object.entries(genes)) if (ELEMENTS[k]) m.genes[k] = (m.genes[k] || 0) + v;
   if (extraTraits) for (const [k, v] of Object.entries(extraTraits)) m.traits[k] = Math.min(TRAIT_MAX, (m.traits[k] || 0) + v);
   m.stage = stageFor(geneTotal(m));
   m.hp = maxHp(m);
@@ -68,23 +88,49 @@ export function stageFor(total) {
   while (total >= stageThreshold(n + 1)) n++;
   return n;
 }
+const stageMul = (m) => 1 + 0.03 * (m.stage || 0);
 
-export function maxHp(m) {
-  return Math.round(m.stats.hp * (1 + 0.1 * tl(m, 'giant')));
-}
 // 특성을 반영한 실전 능력치
 export function eff(m) {
+  const sp = SPECIES[m.sid];
+  const g = growth(m.lv || 1) * stageMul(m);
+  const one = (k, trait, per = 0.06) => sp.base[k] * g * (m.iv?.[k] || 1) * (1 + (m.bonus?.[k] || 0)) * (1 + per * tl(m, trait));
   return {
-    hp: maxHp(m),
-    atk: Math.round(m.stats.atk * (1 + 0.08 * tl(m, 'jaw'))),
-    def: Math.round(m.stats.def * (1 + 0.08 * tl(m, 'hide'))),
-    spd: Math.round(m.stats.spd * (1 + 0.08 * tl(m, 'swift'))),
+    hp: Math.round(one('hp', 'giant') * HP_K) + 10,
+    atk: Math.max(1, Math.round(one('atk', 'jaw'))),
+    def: Math.max(1, Math.round(one('def', 'hide'))),
+    spd: Math.max(1, Math.round(one('spd', 'swift'))),
   };
 }
+export const maxHp = (m) => eff(m).hp;
+
 export function power(m) {
   const e = eff(m);
   const traitLv = Object.values(m.traits || {}).reduce((a, b) => a + b, 0);
-  return Math.round(e.hp * 0.6 + e.atk * 2.2 + e.def * 1.6 + e.spd * 1.4 + traitLv * 3);
+  return Math.round(e.hp * 0.12 + e.atk * 2.2 + e.def * 1.6 + e.spd * 1.4 + traitLv * 3);
+}
+
+// 경험치 획득 → 레벨업 목록 [{lv, learn:[기술]}]. 레벨업해도 깎인 체력은 그대로(최대치만 증가)
+export function gainExp(m, n) {
+  const ups = [];
+  m.exp = (m.exp || 0) + Math.max(0, Math.round(n));
+  while (m.lv < LV_MAX && m.exp >= expNext(m.lv)) {
+    m.exp -= expNext(m.lv);
+    const before = maxHp(m);
+    m.lv++;
+    m.hp = Math.max(1, m.hp + (maxHp(m) - before));
+    const at = learnLevels(m.sid);
+    const learn = SPECIES[m.sid].skills.filter((s, i) => at[i] === m.lv && !m.skills.includes(s));
+    ups.push({ lv: m.lv, learn });
+  }
+  if (m.lv >= LV_MAX) m.exp = 0;
+  return ups;
+}
+// 쓰러뜨린 상대가 주는 경험치
+export function expYield(enemy, kind = 'wild') {
+  const sp = SPECIES[enemy.sid];
+  const mul = kind === 'boss' ? 1.8 : kind === 'trainer' || kind === 'pvp' ? 1.4 : kind === 'tutorial' ? 2.5 : 1;
+  return Math.round(((14 + 8 * sp.tier) * (enemy.lv || 1) / 3) * mul * (enemy.alpha ? 1.5 : 1));
 }
 
 // 보유 속성: 핵 속성 + 유전자 3 이상 흡수한 속성
@@ -111,7 +157,7 @@ export function partsOf(m) {
   const core = SPECIES[m.sid].el;
   const parts = {};
   for (const [k, v] of Object.entries(m.genes || {})) {
-    if (k === core) continue;
+    if (k === core || !ELEMENTS[k]) continue;
     const lv = v >= 20 ? 3 : v >= 8 ? 2 : v >= 2 ? 1 : 0;
     if (lv) parts[k] = lv;
   }
@@ -136,7 +182,7 @@ export function formName(m) {
   const prefix = dom ? ELEMENTS[dom].prefix + ' ' : '';
   let favorite = null, fc = 0;
   for (const [id, c] of Object.entries(m.prey || {})) {
-    if (Number(id) !== sp.id && c > fc) { favorite = SPECIES[id]; fc = c; }
+    if (Number(id) !== sp.id && SPECIES[id] && c > fc) { favorite = SPECIES[id]; fc = c; }
   }
   const core = favorite ? fuse(sp.name, favorite.name) : sp.name;
   const roman = m.stage >= 10 ? ` ${m.stage}식` : ROMAN[m.stage] ? ` ${ROMAN[m.stage]}` : '';
@@ -147,7 +193,7 @@ export function formName(m) {
 const PART_TEXT = {
   wind: [
     '견갑골을 찢고 얇은 피막 날개 한 쌍이 돋아났다. 아직 서툴지만 땅을 박차면 몸이 붕 떠오른다.',
-    '날개가 몸통보다 커졌다. 날갯짓 한 번에 풀숲이 눕고, 그림자가 마을을 덮는다.',
+    '날개가 몸통보다 커졌다. 날갯짓 한 번에 풀숲이 눕고, 그림자가 숲을 덮는다.',
     '네 장의 거대한 날개. 하늘은 이제 이 녀석의 사냥터다.',
   ],
   thunder: [
@@ -164,6 +210,11 @@ const PART_TEXT = {
     '등에 반투명한 지느러미가 돋았다. 비늘 사이로 물방울이 맺힌다.',
     '꼬리에도 지느러미가 생겼다. 물속에서도 숨을 쉰다.',
     '심해의 수압을 견디는 몸. 주변 공기마저 축축해진다.',
+  ],
+  grass: [
+    '등에서 파릇한 새싹이 돋았다. 햇볕을 쬐면 기분 좋게 흔들린다.',
+    '새싹이 덩굴과 큰 잎사귀로 자랐다. 머리에 작은 꽃이 피었다.',
+    '등 전체가 작은 정글이 됐다. 걸을 때마다 꽃가루가 흩날린다.',
   ],
   ice: [
     '등에서 서리 결정이 자라났다. 닿는 것마다 하얗게 언다.',
@@ -190,31 +241,41 @@ export function mutationLines(before, after) {
   const lines = [];
   for (const [el, lv] of Object.entries(after)) {
     const prev = before[el] || 0;
-    for (let l = prev + 1; l <= lv; l++) lines.push({ el, text: PART_TEXT[el][l - 1] });
+    for (let l = prev + 1; l <= lv; l++) if (PART_TEXT[el]) lines.push({ el, text: PART_TEXT[el][l - 1] });
   }
   return lines;
 }
 
-// 포식: 승자가 패자를 삼켜 능력치 · 유전자 · 특성을 흡수
+// 포식 보너스: 네 능력치에 고르게 + 상대의 가장 두드러진 능력치에 조금 더. 상한·편차 제한
+function addBonus(m, rate, top) {
+  m.bonus = m.bonus || { hp: 0, atk: 0, def: 0, spd: 0 };
+  for (const k of STAT_KEYS) m.bonus[k] = Math.min(BONUS_CAP, (m.bonus[k] || 0) + rate * (k === top ? 1.5 : 1));
+  const low = Math.min(...STAT_KEYS.map((k) => m.bonus[k]));
+  for (const k of STAT_KEYS) m.bonus[k] = Math.round(Math.min(m.bonus[k], low + BONUS_SPREAD) * 10000) / 10000;
+}
+function topStat(sid) {
+  const b = SPECIES[sid].base;
+  const norm = { hp: b.hp / 4, atk: b.atk, def: b.def, spd: b.spd };
+  return STAT_KEYS.reduce((a, k) => (norm[k] > norm[a] ? k : a), 'hp');
+}
+
+// 포식: 승자가 패자를 삼켜 능력치 보너스 · 유전자 · 특성을 흡수
 // mode: tutorial | wild | trainer | boss | pvp | feed
-const RATE = { tutorial: 0.15, wild: 0.12, trainer: 0.15, boss: 0.22, pvp: 0.2, feed: 0.25 };
+const RATE = { tutorial: 0.02, wild: 0.012, trainer: 0.018, boss: 0.03, pvp: 0.03, feed: 0.03 };
 export function absorb(pred, prey, mode = 'wild') {
   const sp = SPECIES[prey.sid];
-  const before = { stats: { ...eff(pred) }, power: power(pred), stage: pred.stage, parts: partsOf(pred), name: formName(pred) };
-  const rate = RATE[mode] * (1 + 0.15 * tl(pred, 'glutton'));
-  const pe = eff(prey);
-  const gains = {};
-  for (const k of ['hp', 'atk', 'def', 'spd']) {
-    gains[k] = Math.max(k === 'hp' ? 2 : 1, Math.round(pe[k] * rate));
-    pred.stats[k] += gains[k];
-  }
+  const before = { stats: { ...eff(pred) }, power: power(pred), stage: pred.stage, parts: partsOf(pred), name: formName(pred), lv: pred.lv };
+  const hpBefore = before.stats.hp;
+  const gm = 1 + 0.15 * tl(pred, 'glutton');
+  // 상대가 나보다 레벨이 높을수록 조금 더 흡수 (최대 ×1.5)
+  const lvMul = Math.max(0.6, Math.min(1.5, 1 + ((prey.lv || 1) - (pred.lv || 1)) * 0.04));
+  addBonus(pred, RATE[mode] * gm * lvMul, topStat(prey.sid));
   // 유전자: 상대 핵 속성 + 상대가 지닌 유전자의 절반
   const geneGain = {};
-  const add = (el, n) => { if (n > 0) geneGain[el] = (geneGain[el] || 0) + n; };
+  const add = (el, n) => { if (n > 0 && ELEMENTS[el]) geneGain[el] = (geneGain[el] || 0) + n; };
   add(sp.el, 1 + sp.tier + (mode === 'pvp' || mode === 'boss' ? 2 : 0));
   for (const [el, v] of Object.entries(prey.genes || {})) add(el, Math.floor(v * 0.5));
   if (mode === 'tutorial') for (const k in geneGain) geneGain[k] *= 2;
-  const gm = 1 + 0.15 * tl(pred, 'glutton');
   for (const [el, n] of Object.entries(geneGain)) {
     geneGain[el] = Math.max(1, Math.round(n * gm));
     pred.genes[el] = (pred.genes[el] || 0) + geneGain[el];
@@ -234,21 +295,33 @@ export function absorb(pred, prey, mode = 'wild') {
   pred.prey[prey.sid] = (pred.prey[prey.sid] || 0) + 1;
   const newStage = stageFor(geneTotal(pred));
   const stageUp = newStage > pred.stage;
-  if (stageUp) {
-    // 변이 단계가 오를 때마다 전 능력치 +5%
-    for (let s = pred.stage; s < newStage; s++)
-      for (const k of ['hp', 'atk', 'def', 'spd']) pred.stats[k] = Math.round(pred.stats[k] * 1.05) + 1;
-    pred.stage = newStage;
-  }
+  if (stageUp) pred.stage = newStage; // 변이 단계마다 전 능력치 +3% (eff 에서 계산)
   // 먹으면 회복 (최대 체력 30% + 제한 기술 1회씩 충전)
   restorePP(pred, 1);
-  pred.hp = Math.min(maxHp(pred), pred.hp + Math.round(maxHp(pred) * 0.3) + gains.hp);
+  pred.hp = Math.min(maxHp(pred), pred.hp + (maxHp(pred) - hpBefore) + Math.round(maxHp(pred) * 0.3));
   const learnable = (prey.skills || []).filter((s) => SKILLS[s] && !pred.skills.includes(s));
   const afterParts = partsOf(pred);
   return {
-    gains, geneGain, traitGain, learnable, stageUp,
+    geneGain, traitGain, learnable, stageUp,
     before,
-    after: { stats: eff(pred), power: power(pred), stage: pred.stage, parts: afterParts, name: formName(pred) },
+    after: { stats: eff(pred), power: power(pred), stage: pred.stage, parts: afterParts, name: formName(pred), lv: pred.lv },
+    mutations: mutationLines(before.parts, afterParts),
+  };
+}
+
+// 진화석: 핵 속성 유전자 +n (변이 단계 진행)
+export function applyGenes(m, el, n) {
+  const before = { stats: { ...eff(m) }, power: power(m), stage: m.stage, parts: partsOf(m), name: formName(m), lv: m.lv };
+  const hpBefore = maxHp(m);
+  m.genes[el] = (m.genes[el] || 0) + n;
+  const ns = stageFor(geneTotal(m));
+  const stageUp = ns > m.stage;
+  m.stage = ns;
+  m.hp = Math.min(maxHp(m), m.hp + (maxHp(m) - hpBefore));
+  const afterParts = partsOf(m);
+  return {
+    geneGain: { [el]: n }, traitGain: [], learnable: [], stageUp, before,
+    after: { stats: eff(m), power: power(m), stage: m.stage, parts: afterParts, name: formName(m), lv: m.lv },
     mutations: mutationLines(before.parts, afterParts),
   };
 }
@@ -261,28 +334,53 @@ export function randomMutate(m, points) {
     m.genes[el] = (m.genes[el] || 0) + 1;
   }
   m.stage = stageFor(geneTotal(m));
-  for (let s = 0; s < m.stage; s++) for (const k of ['hp', 'atk', 'def', 'spd']) m.stats[k] = Math.round(m.stats[k] * 1.05) + 1;
   m.hp = maxHp(m);
+  return m;
+}
+
+// 구버전(레벨 없는 절대 능력치) → 레벨 추정
+export function legacyLevel(stats = {}, traits = {}) {
+  const tsum = Object.values(traits || {}).reduce((a, b) => a + b, 0);
+  const p = (stats.hp || 40) * 0.6 + (stats.atk || 10) * 2.2 + (stats.def || 10) * 1.6 + (stats.spd || 10) * 1.4 + tsum * 3;
+  return Math.max(3, Math.min(60, Math.round(3 + (p - 90) / 40)));
+}
+// 저장 데이터 속 개체 보정 (구버전 변환 포함)
+export function normalizeMon(m) {
+  if (!m || !SPECIES[m.sid]) return null;
+  if (!Number.isFinite(m.lv)) m.lv = legacyLevel(m.stats, m.traits);
+  m.lv = Math.max(1, Math.min(LV_MAX, Math.round(m.lv)));
+  m.exp = Math.max(0, Number(m.exp) || 0);
+  delete m.stats;
+  m.iv = m.iv || {};
+  m.bonus = m.bonus || {};
+  for (const k of STAT_KEYS) {
+    m.iv[k] = Math.max(0.9, Math.min(1.1, Number(m.iv[k]) || 1));
+    m.bonus[k] = Math.max(0, Math.min(BONUS_CAP, Number(m.bonus[k]) || 0));
+  }
+  m.skills = (m.skills || []).filter((s) => SKILLS[s]).slice(0, 4);
+  if (!m.skills.length) m.skills = skillsAt(m.sid, m.lv);
+  m.traits = Object.fromEntries(Object.entries(m.traits || {}).filter(([k]) => TRAITS[k]).map(([k, v]) => [k, Math.min(TRAIT_MAX, v)]));
+  if (!Object.keys(m.traits).length) m.traits = { [SPECIES[m.sid].trait]: 1 };
+  m.genes = Object.fromEntries(Object.entries(m.genes || {}).filter(([k]) => ELEMENTS[k]));
+  m.prey = m.prey || {};
+  m.devours = m.devours || 0;
+  m.stage = stageFor(geneTotal(m));
+  m.uid = m.uid || uid();
+  m.hp = Math.max(1, Math.min(maxHp(m), Number(m.hp) || maxHp(m)));
   return m;
 }
 
 // 저장/네트워크용 직렬화
 export function pack(m) {
   return {
-    sid: m.sid, stats: m.stats, skills: m.skills, traits: m.traits, genes: m.genes,
+    sid: m.sid, lv: m.lv, iv: m.iv, bonus: m.bonus, skills: m.skills, traits: m.traits, genes: m.genes,
     devours: m.devours || 0, prey: m.prey || {}, stage: m.stage || 0,
   };
 }
 export function unpack(d) {
   if (!d || !SPECIES[d.sid]) return null;
-  const m = {
-    uid: uid(), sid: d.sid, stats: { ...d.stats }, skills: (d.skills || []).filter((s) => SKILLS[s]).slice(0, 4),
-    traits: Object.fromEntries(Object.entries(d.traits || {}).filter(([k]) => TRAITS[k]).map(([k, v]) => [k, Math.min(TRAIT_MAX, v)])),
-    genes: Object.fromEntries(Object.entries(d.genes || {}).filter(([k]) => ELEMENTS[k])),
-    devours: d.devours || 0, prey: d.prey || {}, stage: d.stage || 0, hp: 0, born: Date.now(),
-  };
-  for (const k of ['hp', 'atk', 'def', 'spd']) m.stats[k] = Math.max(1, Math.min(99999, Number(m.stats[k]) || 1));
-  if (!m.skills.length) m.skills = SPECIES[d.sid].skills.slice(0, 4);
+  const m = normalizeMon({ ...JSON.parse(JSON.stringify(d)), uid: uid(), hp: 0, born: Date.now() });
+  if (!m) return null;
   m.hp = maxHp(m);
   return m;
 }
