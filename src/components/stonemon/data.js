@@ -1,4 +1,4 @@
-// 🦖 스톤몬스터 v2.0 - 정적 기획 데이터 (속성 · 상성 · 기술 · 특성 · 스톤몬 56종 · 스테이지)
+// 🦖 스톤몬스터 v3.0 - 정적 기획 데이터 (속성 · 상성 · 기술 · 특성 · 스톤몬 56종 · 스테이지 1~5)
 // 레벨(전투 경험치)로 기본 체급이 오르고, '포식'으로 능력치 보너스·유전자·특성·기술을 흡수해 끝없이 변이한다.
 
 export const ELEMENTS = {
@@ -97,6 +97,21 @@ export const SKILLS = {
   toxic: { name: '맹독', el: 'poison', pow: 0, acc: 90, st: 'psn', p: 1, desc: '상대를 확실히 중독시킨다.' },
   acid: { name: '부식액', el: 'poison', pow: 50, acc: 100, sp: 1, debuff: { def: -1 }, p: 0.5, desc: '녹이는 액체. 방어를 깎을 때가 많다.' },
   plague: { name: '역병', el: 'poison', pow: 115, acc: 85, sp: 1, st: 'psn', p: 0.5, desc: '고대의 역병을 퍼뜨린다.' },
+  // ── v3.0 희귀 기술: 고대 변종(이로치)·알파 개체를 포식해야만 전수된다 ──
+  ancientFang: { name: '고대의 송곳니', el: 'primal', pow: 100, acc: 95, crit: 1, drain: 0.2, rare: 1, desc: '[희귀] 태고의 송곳니로 물어뜯고 피를 마신다.' },
+  solarFlare: { name: '태양폭염', el: 'fire', pow: 110, acc: 90, sp: 1, st: 'burn', p: 0.3, rare: 1, desc: '[희귀] 작은 태양을 터뜨린다. 화상을 잘 입힌다.' },
+  primeTide: { name: '태고의 해류', el: 'water', pow: 110, acc: 90, sp: 1, drain: 0.25, rare: 1, desc: '[희귀] 원시 바다의 해류가 생명력을 빼앗는다.' },
+  worldTree: { name: '세계수의 분노', el: 'grass', pow: 110, acc: 90, drain: 0.3, rare: 1, desc: '[희귀] 세계수의 뿌리가 대지를 뚫고 솟는다.' },
+  skyHammer: { name: '천뢰', el: 'thunder', pow: 110, acc: 85, sp: 1, st: 'para', p: 0.3, rare: 1, desc: '[희귀] 하늘이 내리치는 망치. 마비시킬 때가 많다.' },
+  skyRend: { name: '천공 가르기', el: 'wind', pow: 95, acc: 95, prio: 1, crit: 1, rare: 1, desc: '[희귀] 하늘을 가르며 반드시 먼저 공격한다.' },
+  tectonic: { name: '지각 붕괴', el: 'earth', pow: 120, acc: 85, debuff: { def: -1 }, p: 0.4, rare: 1, desc: '[희귀] 판을 뒤엎어 상대를 짓누른다.' },
+  glacialLance: { name: '빙하창', el: 'ice', pow: 110, acc: 85, sp: 1, st: 'frz', p: 0.25, rare: 1, desc: '[희귀] 만년설로 벼린 창을 던진다.' },
+  miasma: { name: '원시 독무', el: 'poison', pow: 105, acc: 90, sp: 1, st: 'psn', p: 0.6, rare: 1, desc: '[희귀] 태고의 늪에서 피어난 독안개.' },
+};
+// 변종 포식 시 전수되는 속성별 희귀 기술
+export const RARE_SKILL = {
+  primal: 'ancientFang', fire: 'solarFlare', water: 'primeTide', grass: 'worldTree', thunder: 'skyHammer',
+  wind: 'skyRend', earth: 'tectonic', ice: 'glacialLance', poison: 'miasma',
 };
 
 // 특성(패시브): 포식하면 상대의 특성이 흡수되고, 같은 특성은 레벨이 오른다(최대 5)
@@ -122,11 +137,13 @@ export const TRAITS = {
 };
 export const TRAIT_MAX = 5; // v2.0: 특성 중첩 상한 10 → 5 (포식 무한 반복 시 폭주 방지)
 
-// 스테이지 (데모 v2.0: 1~3단계 플레이 가능)
+// 스테이지 (v3.0: 1~5단계 + 엔드게임 원시 투기장)
 export const STAGES = {
   1: { name: '태초의 숲', lv: '1~10', open: true },
   2: { name: '메아리의 습지 & 협곡', lv: '11~22', open: true },
   3: { name: '작열하는 화산 & 고대 유적', lv: '23~35', open: true },
+  4: { name: '만년설의 빙하 동굴', lv: '36~48', open: true },
+  5: { name: '태고의 하늘 신전', lv: '49~65', open: true },
   0: { name: '미확인 · 무한 사냥', lv: '클리어 후', open: true },
 };
 
@@ -160,37 +177,37 @@ const RAW = [
   [24, '딜로', 'raptor', 'poison', 2, 44, 14, 9, 13, ['venomFang', 'acid', 'toxic', 'sludge'], 'poisonPoint', 2, ['#9a5ad0', '#f0e0ff', '#e8b040'], 1, '목 주름을 활짝 펴고 독액을 뱉는다. 습지의 독사냥꾼.', { frill: true }],
   [25, '볼로', 'stego', 'water', 2, 66, 15, 17, 6, ['waterGun', 'tailWhip', 'aquaPillar', 'tidal'], 'armor', 3, ['#3a8ad8', '#c8e8ff', '#e8e8f8'], 1.05, '등에 하얀 돌기가 돋은 파란 갑룡. 화산 온천에서 김을 뿜으며 산다.'],
   [26, '라돈', 'ptero', 'fire', 4, 96, 28, 18, 24, ['ember', 'dive', 'flamethrower', 'eruption'], 'flight', 3, ['#d83a2a', '#ffd08a', '#ffcc33'], 1.45, '【최종 보스 · 화염 비룡】 불꽃 날개를 펼치면 화산이 깨어난다. 하늘을 불태우는 왕.', { flame: true }],
-  [27, '미크로', 'ptero', 'wind', 2, 40, 14, 9, 20, ['wingBeat', 'gust', 'dive', 'tailwind'], 'swift', 0, ['#4ac87a', '#e0f8e8', '#2a8a5a'], 0.8, '초록 날개로 나무 사이를 활공하는 작은 비룡. 바람보다 빠르다.'],
+  [27, '미크로', 'ptero', 'wind', 2, 40, 14, 9, 20, ['wingBeat', 'gust', 'dive', 'tailwind'], 'swift', 5, ['#4ac87a', '#e0f8e8', '#2a8a5a'], 0.8, '초록 날개로 나무 사이를 활공하는 작은 비룡. 바람보다 빠르다.'],
   [28, '기가', 'rex', 'water', 4, 150, 26, 30, 8, ['aquaPillar', 'quake', 'tidal', 'abyss'], 'armor', 3, ['#2aa898', '#c8f0e0', '#1a6a6a'], 1.45, '【최종 보스 · 유적의 거신】 고대 유적 지하 호수에서 깨어난 청록 괴수. 등의 가시는 산맥과 같다.'],
   // ── 시리즈 2 ──
   [29, '기가노', 'rex', 'primal', 4, 115, 32, 20, 16, ['bite', 'fang', 'stomp', 'devourBite'], 'glutton', 3, ['#d8382a', '#ffd0a0', '#7a1a1a'], 1.45, '【최종 보스 · 원시의 폭군】 수천 마리를 삼키고도 배고프다.'],
   [30, '수코', 'dimetro', 'water', 2, 60, 16, 13, 10, ['waterGun', 'bite', 'aquaPillar', 'tidal'], 'drain', 2, ['#6ab83a', '#f0f0c0', '#3a7a2a'], 1.05, '늪 동굴에 사는 초록 악어. 커다란 입으로 물고기를 통째로 삼킨다.', { noSail: true }],
   [31, '프시타', 'bird', 'grass', 1, 38, 10, 10, 11, ['vineWhip', 'tackle', 'synthesis', 'razorLeaf'], 'regen', 1, ['#f08a2a', '#fff0c0', '#2a2a2a'], 0.8, '앵무새 부리를 가진 주황 꼬마 공룡. 단단한 열매도 톡 쪼갠다.', { beak: 'hook' }],
-  [32, '도쿠', 'saber', 'poison', 2, 50, 15, 13, 11, ['sting', 'venomFang', 'acid', 'plague'], 'poisonPoint', 0, ['#9a5a9a', '#f0d8e8', '#5a2a5a'], 1, '동굴 속 독버섯을 먹고 자란 보랏빛 짐승. 털 끝에 독이 맺힌다.'],
+  [32, '도쿠', 'saber', 'poison', 2, 50, 15, 13, 11, ['sting', 'venomFang', 'acid', 'plague'], 'poisonPoint', 4, ['#9a5a9a', '#f0d8e8', '#5a2a5a'], 1, '동굴 속 독버섯을 먹고 자란 보랏빛 짐승. 털 끝에 독이 맺힌다.'],
   [33, '코리토', 'raptor', 'ice', 2, 54, 14, 12, 12, ['iceBreath', 'scratch', 'iceFang', 'blizzard'], 'frostBody', 2, ['#6ab8e8', '#e8f8ff', '#e8e0c8'], 1, '하얀 뿔을 단 하늘색 공룡. 폭포 물보라를 얼려 무기로 쓴다.'],
   [34, '켄트라', 'raptor', 'poison', 2, 54, 14, 15, 8, ['sting', 'tailWhip', 'acid', 'sludge'], 'poisonPoint', 2, ['#9a6a3a', '#e8d0a8', '#5a3a1a'], 1.05, '등줄기를 따라 독가시가 솟은 갈색 공룡. 협곡 바위틈에 숨는다.'],
-  [35, '모노', 'trike', 'thunder', 2, 56, 15, 14, 9, ['shock', 'headbutt', 'thunderFang', 'charge'], 'intimidate', 0, ['#f0d040', '#fff8c8', '#f0e8d0'], 1, '외뿔에 번개를 모으는 노란 각룡. 뿔이 번쩍이면 피해야 한다.'],
+  [35, '모노', 'trike', 'thunder', 2, 56, 15, 14, 9, ['shock', 'headbutt', 'thunderFang', 'charge'], 'intimidate', 5, ['#f0d040', '#fff8c8', '#f0e8d0'], 1, '외뿔에 번개를 모으는 노란 각룡. 뿔이 번쩍이면 피해야 한다.'],
   [36, '데이노', 'raptor', 'thunder', 2, 48, 17, 10, 18, ['shock', 'scratch', 'thunderFang', 'volt'], 'staticSkin', 3, ['#7a4ac8', '#e8d8ff', '#3a2a7a'], 1.05, '보랏빛 깃털에 정전기가 흐르는 화산 랩터. 깃털을 세우면 번개가 튄다.'],
   [37, '도치', 'saber', 'earth', 1, 42, 10, 14, 7, ['tackle', 'sting', 'rockArmor', 'rockDrop'], 'hide', 1, ['#a87a4a', '#f0e0c0', '#5a3a1a'], 0.75, '등에 가시가 빼곡한 고슴도치. 겁이 나면 밤송이처럼 몸을 만다.'],
   [38, '파라', 'hadro', 'water', 2, 56, 13, 12, 11, ['waterGun', 'roar', 'aquaPillar', 'tidal'], 'giant', 2, ['#f08a2a', '#fff0d8', '#a83a2a'], 1.05, '나팔 같은 긴 볏. 폭포 소리보다 큰 소리로 운다.', { crest: 'long' }],
-  [39, '마크라', 'mammoth', 'earth', 2, 62, 15, 14, 9, ['tackle', 'stomp', 'rockArmor', 'quake'], 'giant', 0, ['#b88a5a', '#f0d8b8', '#7a5a3a'], 1.05, '짧은 코와 작은 엄니의 초원 짐승. 무리 지어 대지를 울리며 달린다.'],
+  [39, '마크라', 'mammoth', 'earth', 2, 62, 15, 14, 9, ['tackle', 'stomp', 'rockArmor', 'quake'], 'giant', 4, ['#b88a5a', '#f0d8b8', '#7a5a3a'], 1.05, '짧은 코와 작은 엄니의 초원 짐승. 무리 지어 대지를 울리며 달린다.'],
   [40, '크로노', 'plesio', 'water', 3, 80, 22, 14, 12, ['bite', 'aquaPillar', 'tidal', 'abyss'], 'jaw', 2, ['#2a3a6a', '#d0e0f8', '#5a6a9a'], 1.2, '습지 가장 깊은 물웅덩이의 왕. 긴 목으로 물 위를 살핀다.'],
   [41, '안킬로', 'shark', 'water', 2, 60, 15, 14, 13, ['waterGun', 'bite', 'aquaPillar', 'tidal'], 'swift', 2, ['#2aa8a8', '#c8f0f0', '#1a6a6a'], 1.05, '물살을 가르는 청록 어룡. 이빨을 드러내고 웃으며 먹잇감을 쫓는다.'],
-  [42, '파치', 'ankylo', 'earth', 2, 60, 13, 19, 6, ['tackle', 'headbutt', 'rockArmor', 'quake'], 'armor', 0, ['#9a9a4a', '#e8e8b8', '#c8783a'], 1.05, '올리브색 돌기 갑옷과 꼬리 곤봉. 머리의 혹으로 바위를 깬다.'],
+  [42, '파치', 'ankylo', 'earth', 2, 60, 13, 19, 6, ['tackle', 'headbutt', 'rockArmor', 'quake'], 'armor', 4, ['#9a9a4a', '#e8e8b8', '#c8783a'], 1.05, '올리브색 돌기 갑옷과 꼬리 곤봉. 머리의 혹으로 바위를 깬다.'],
   [43, '메가테', 'mammoth', 'primal', 3, 88, 19, 18, 6, ['scratch', 'stomp', 'roar', 'quake'], 'giant', 3, ['#7a5a3a', '#c8a880', '#3a2a1a'], 1.2, '집채만 한 갈색 짐승. 느리지만 앞발 한 번에 바위가 갈라진다.', { noTusk: true }],
   [44, '다이어', 'saber', 'ice', 2, 52, 17, 10, 16, ['iceFang', 'bite', 'roar', 'fang'], 'first', 2, ['#8a8a9a', '#e8e8f0', '#4a4a5a'], 1, '협곡을 무리 지어 달리는 회색 늑대. 하울링이 메아리친다.'],
   [45, '글립토', 'ankylo', 'earth', 2, 62, 12, 22, 4, ['tackle', 'rockArmor', 'rockDrop', 'quake'], 'armor', 3, ['#a87a4a', '#e8d0a8', '#6a4a2a'], 1.05, '거북 등딱지 같은 둥근 갑옷. 용암이 튀어도 끄떡없다.', { dome: true }],
-  [46, '디노', 'rex', 'fire', 2, 58, 18, 11, 13, ['ember', 'bite', 'fireFang', 'flamethrower'], 'rage', 0, ['#d8382a', '#ffd0a0', '#7a1a1a'], 1.1, '등에 불꽃 가시가 돋은 붉은 폭군. 화가 날수록 강해진다.'],
+  [46, '디노', 'rex', 'fire', 2, 58, 18, 11, 13, ['ember', 'bite', 'fireFang', 'flamethrower'], 'rage', 5, ['#d8382a', '#ffd0a0', '#7a1a1a'], 1.1, '등에 불꽃 가시가 돋은 붉은 폭군. 화가 날수록 강해진다.'],
   [47, '아파토', 'bird', 'fire', 3, 62, 20, 12, 19, ['ember', 'wingBeat', 'dive', 'flamethrower'], 'flight', 3, ['#d84a2a', '#ffd8a0', '#f0b030'], 1.15, '불꽃색 날개를 펼친 화산의 괴조. 상승기류를 타고 용암 위를 맴돈다.', { bigWing: true, beak: 'hook' }],
-  [48, '사르코', 'sauro', 'grass', 3, 92, 18, 17, 7, ['vineWhip', 'tailWhip', 'leafBlade', 'synthesis'], 'giant', 0, ['#8ac850', '#e8f0c0', '#4a8a30'], 1.3, '유적 위에 덩굴을 드리운 연둣빛 거인. 꼬리 채찍은 소리보다 빠르다.', { leaf: true }],
-  [49, '테라토', 'dimetro', 'water', 3, 78, 21, 16, 9, ['bite', 'aquaPillar', 'fang', 'abyss'], 'jaw', 0, ['#6a8a3a', '#e0e0b0', '#3a4a2a'], 1.2, '등에 가시 비늘이 줄지은 고대 악어. 늪의 그림자 속에서 기다린다.', { noSail: true }],
-  [50, '이구아나', 'raptor', 'grass', 1, 40, 11, 10, 10, ['vineWhip', 'scratch', 'razorLeaf', 'synthesis'], 'regen', 0, ['#a8e05a', '#f0f8d0', '#5a9a2a'], 0.85, '연둣빛 비늘의 작은 공룡. 햇볕을 쬐며 꾸벅꾸벅 존다.'],
+  [48, '사르코', 'sauro', 'grass', 3, 92, 18, 17, 7, ['vineWhip', 'tailWhip', 'leafBlade', 'synthesis'], 'giant', 5, ['#8ac850', '#e8f0c0', '#4a8a30'], 1.3, '유적 위에 덩굴을 드리운 연둣빛 거인. 꼬리 채찍은 소리보다 빠르다.', { leaf: true }],
+  [49, '테라토', 'dimetro', 'water', 3, 78, 21, 16, 9, ['bite', 'aquaPillar', 'fang', 'abyss'], 'jaw', 5, ['#6a8a3a', '#e0e0b0', '#3a4a2a'], 1.2, '등에 가시 비늘이 줄지은 고대 악어. 늪의 그림자 속에서 기다린다.', { noSail: true }],
+  [50, '이구아나', 'raptor', 'grass', 1, 40, 11, 10, 10, ['vineWhip', 'scratch', 'razorLeaf', 'synthesis'], 'regen', 1, ['#a8e05a', '#f0f8d0', '#5a9a2a'], 0.85, '연둣빛 비늘의 작은 공룡. 햇볕을 쬐며 꾸벅꾸벅 존다.'],
   [51, '아르젠', 'sauro', 'water', 3, 110, 19, 22, 6, ['tailWhip', 'aquaPillar', 'quake', 'tidal'], 'giant', 3, ['#4aa8e8', '#d8f0ff', '#2a6aa8'], 1.4, '하늘색 대지의 거신. 화산 너머 유적까지 한 걸음에 닿는다.'],
   [52, '바리오', 'raptor', 'water', 3, 74, 20, 14, 12, ['aquaPillar', 'scratch', 'slash', 'tidal'], 'crit', 3, ['#2aa898', '#d0f0e8', '#1a5a5a'], 1.15, '갈고리 발톱의 청록 사냥꾼. 용암 웅덩이 옆 온천에서 물고기를 낚는다.'],
-  [53, '디크라', 'raptor', 'poison', 2, 66, 15, 15, 9, ['sting', 'sludge', 'toxic', 'plague'], 'poisonPoint', 0, ['#9a6a3a', '#e8d0a8', '#5a3a1a'], 1.05, '등줄기의 가시에서 독안개가 피어오르는 얼룩무늬 공룡.'],
+  [53, '디크라', 'raptor', 'poison', 2, 66, 15, 15, 9, ['sting', 'sludge', 'toxic', 'plague'], 'poisonPoint', 4, ['#9a6a3a', '#e8d0a8', '#5a3a1a'], 1.05, '등줄기의 가시에서 독안개가 피어오르는 얼룩무늬 공룡.'],
   [54, '하드로', 'hadro', 'grass', 2, 64, 14, 14, 10, ['vineWhip', 'stomp', 'leafBlade', 'synthesis'], 'regen', 3, ['#f08aa8', '#fff0f4', '#c84a7a'], 1.1, '유적 정원의 풀을 뜯는 분홍 오리주둥이. 화나면 무리가 몰려온다.', { crest: 'bump' }],
   [55, '아비', 'bird', 'wind', 2, 46, 15, 10, 18, ['wingBeat', 'gust', 'dive', 'slash'], 'flight', 3, ['#a87a4a', '#f0e0c8', '#e8c040'], 0.9, '커다란 눈의 부엉이 새. 화산재 속에서도 먹잇감을 놓치지 않는다.'],
-  [56, '플라토', 'trike', 'earth', 2, 66, 15, 15, 8, ['tackle', 'headbutt', 'rockDrop', 'quake'], 'sturdy', 0, ['#d8a860', '#f8ecd0', '#a87a3a'], 1.05, '목에 뼈 장식 프릴을 두른 황토빛 공룡. 고집이 세다.', { beakHead: true }],
+  [56, '플라토', 'trike', 'earth', 2, 66, 15, 15, 8, ['tackle', 'headbutt', 'rockDrop', 'quake'], 'sturdy', 4, ['#d8a860', '#f8ecd0', '#a87a3a'], 1.05, '목에 뼈 장식 프릴을 두른 황토빛 공룡. 고집이 세다.', { beakHead: true }],
 ];
 
 export const SPECIES = {};

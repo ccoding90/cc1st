@@ -1,6 +1,7 @@
 // ⚔️ 스톤몬 턴제 배틀 계산 (순수 로직). 연출은 StoneMonsterGame.jsx 가 이벤트를 받아 재생한다.
 import { SKILLS, SPECIES, TYPE_CHART, ELEMENTS } from './data';
 import { eff, tl, maxHp, elementsOf, josa, formName, usableSkills } from './monster';
+import { hasSyn, SYNERGIES, BLAZE_CHANCE, VENOM_REFLECT, CHIMERA_FLOOR } from './synergy';
 
 export const STATUS = {
   burn: { name: '화상', color: '#ff6a3d', turns: 3 },
@@ -11,7 +12,7 @@ export const STATUS = {
 export const STAB = 1.2; // 속성 일치 보너스
 
 export function fighter(m, side) {
-  return { m, side, st: { atk: 0, def: 0, spd: 0 }, status: null, stTurns: 0, flinch: false, sturdyUsed: false, atkMul: 1 };
+  return { m, side, st: { atk: 0, def: 0, spd: 0 }, status: null, stTurns: 0, flinch: false, chill: false, sturdyUsed: false, atkMul: 1 };
 }
 export const nameOf = (f) => formName(f.m);
 const stageMul = (s) => (s >= 0 ? (2 + s) / 2 : 2 / (2 - s));
@@ -21,6 +22,12 @@ export function typeMult(el, defM) {
   const core = SPECIES[defM.sid].el;
   let m = TYPE_CHART[el]?.[core] ?? 1;
   if (el !== core && (defM.genes?.[el] || 0) >= 3) m *= 0.85;
+  return m;
+}
+// 공격자 시너지까지 반영한 실전 상성 배율 (고대 키메라: 불리 ×0.5 → ×0.8)
+export function effTypeMult(attM, el, defM) {
+  const m = typeMult(el, defM);
+  if (m < CHIMERA_FLOOR && attM && hasSyn(attM, 'chimera')) return CHIMERA_FLOOR;
   return m;
 }
 
@@ -44,7 +51,7 @@ export function calcDamage(att, def, skillId, { roll = true } = {}) {
   const D = Math.max(1, eff(def.m).def * stageMul(def.st.def));
   const lv = att.m.lv || 1;
   const base = ((2 * lv / 5 + 2) * sk.pow * (A / D)) / 4;
-  const tm = typeMult(sk.el, def.m);
+  const tm = effTypeMult(att.m, sk.el, def.m);
   const stab = elementsOf(att.m).includes(sk.el) ? STAB : 1;
   let extra = Math.max(0.6, 1 - 0.04 * tl(def.m, 'armor'));
   let crit = false;
@@ -72,13 +79,25 @@ export function order(a, sa, b, sb) {
 
 const STAT_NAME = { atk: '공격', def: '방어', spd: '스피드' };
 
+// v3.0 빙하 동굴 눈보라: 얼음 속성이 아니면 턴 시작 시 일정 확률로 몸이 굳어 1턴 행동 불가
+export const BLIZZARD_CHILL = 0.1;
+export function blizzardRoll(f) {
+  if (f.m.hp <= 0 || f.status === 'frz' || f.chill) return [];
+  if (SPECIES[f.m.sid].el === 'ice' || (f.m.genes?.ice || 0) >= 8) return [];
+  if (Math.random() >= BLIZZARD_CHILL) return [];
+  f.chill = true;
+  return [{ t: 'chill', side: f.side }, { t: 'msg', text: `❄️ 눈보라! ${josa(nameOf(f), '은/는')} 몸이 얼어붙었다! (1턴 행동 불가)`, emph: 'ice' }];
+}
+
 // 한 번의 행동을 이벤트 목록으로 계산
-// 이벤트: msg | lunge | hit | hp | status | buff | miss
-export function act(att, def, skillId) {
+// 이벤트: msg(emph 강조) | lunge | hit(dmg·crit·tm) | hp | status | buff | aura | chill | syn
+//  opts.first: 이번 턴에 먼저 행동했는가 (폭염의 비룡)
+export function act(att, def, skillId, opts = {}) {
   const ev = [];
   const an = nameOf(att), dn = nameOf(def);
   const sk = SKILLS[skillId];
   if (att.m.hp <= 0) return ev;
+  if (att.chill) { att.chill = false; ev.push({ t: 'msg', text: `${josa(an, '은/는')} 몸이 얼어 움직일 수 없다!` }); return ev; }
   // 행동 불가 상태
   if (att.status === 'frz') {
     if (Math.random() < 0.3) { att.status = null; ev.push({ t: 'msg', text: `${an}의 얼음이 녹았다!` }); ev.push({ t: 'status', side: att.side }); }
@@ -126,13 +145,34 @@ export function act(att, def, skillId) {
   if (def.immortal) dmg = Math.min(dmg, Math.max(0, def.m.hp - 1)); // 튜토리얼 보호
   def.m.hp -= dmg;
   ev.push({ t: 'lunge', side: att.side, el: sk.el });
-  ev.push({ t: 'hit', side: def.side, el: sk.el, big: tm > 1 || crit });
+  ev.push({ t: 'hit', side: def.side, el: sk.el, big: tm > 1 || crit, dmg, crit, tm });
   ev.push({ t: 'hp', side: def.side, hp: def.m.hp });
-  if (crit) ev.push({ t: 'msg', text: '급소에 맞았다!' });
-  if (tm >= 2) ev.push({ t: 'msg', text: '천적의 일격! 효과가 엄청났다!' });
-  else if (tm > 1) ev.push({ t: 'msg', text: '효과가 굉장했다!' });
-  else if (tm < 1) ev.push({ t: 'msg', text: '효과가 별로인 듯하다…' });
+  if (crit) ev.push({ t: 'msg', text: '급소에 맞았다!', emph: 'crit' });
+  if (tm >= 2) ev.push({ t: 'msg', text: '천적의 일격! 효과가 엄청났다!', emph: 'super2' });
+  else if (tm > 1) ev.push({ t: 'msg', text: '효과가 굉장했다!', emph: 'super' });
+  else if (tm < 1) ev.push({ t: 'msg', text: '효과가 별로인 듯하다…', emph: 'weak' });
   if (sturdy) ev.push({ t: 'msg', text: `${josa(dn, '은/는')} 끈질기게 버텼다!` });
+
+  // 시너지: 폭염의 비룡 (먼저 공격했을 때 25% 확률 추가 화염 피해)
+  if (opts.first && def.m.hp > 0 && att.m.hp > 0 && dmg > 0 && hasSyn(att.m, 'blazeWyvern') && Math.random() < BLAZE_CHANCE) {
+    const tmF = effTypeMult(att.m, 'fire', def.m);
+    const extra = Math.min(def.m.hp, Math.max(2, Math.round(dmg * 0.3 * tmF)));
+    def.m.hp -= extra;
+    ev.push({ t: 'syn', side: att.side, key: 'blazeWyvern' });
+    ev.push({ t: 'hit', side: def.side, el: 'fire', big: true, dmg: extra, tm: tmF });
+    ev.push({ t: 'hp', side: def.side, hp: def.m.hp });
+    ev.push({ t: 'msg', text: `${SYNERGIES.blazeWyvern.icon} 폭염의 비룡! 추가 화염이 ${josa(dn, '을/를')} 휘감는다!`, emph: 'syn' });
+  }
+  // 시너지: 맹독 갑주 (물리 공격에 맞으면 10% 반사 + 중독)
+  if (!sk.sp && dmg > 0 && att.m.hp > 0 && hasSyn(def.m, 'venomArmor')) {
+    const r = Math.min(att.m.hp, Math.max(1, Math.round(dmg * VENOM_REFLECT)));
+    att.m.hp -= r;
+    ev.push({ t: 'syn', side: def.side, key: 'venomArmor' });
+    ev.push({ t: 'hit', side: att.side, el: 'poison', dmg: r });
+    ev.push({ t: 'hp', side: att.side, hp: att.m.hp });
+    ev.push({ t: 'msg', text: `${SYNERGIES.venomArmor.icon} 맹독 갑주! 가시가 ${josa(an, '을/를')} 찔렀다!`, emph: 'syn' });
+    if (att.m.hp > 0) ev.push(...inflict(att, 'psn'));
+  }
 
   // 흡혈
   const drain = (sk.drain || 0) + 0.04 * tl(att.m, 'drain');
@@ -145,7 +185,7 @@ export function act(att, def, skillId) {
   if (sk.recoil) {
     const r = Math.max(1, Math.round(dmg * sk.recoil));
     att.m.hp = Math.max(0, att.m.hp - r);
-    ev.push({ t: 'hit', side: att.side, el: 'primal' });
+    ev.push({ t: 'hit', side: att.side, el: 'primal', dmg: r });
     ev.push({ t: 'hp', side: att.side, hp: att.m.hp });
     ev.push({ t: 'msg', text: `${josa(an, '은/는')} 반동으로 피해를 입었다!` });
   }
@@ -201,7 +241,7 @@ export function endTurn(f) {
     const burn = f.status === 'burn';
     const d = Math.max(1, Math.floor(burn ? mh * 0.05 : mh / 16));
     f.m.hp = Math.max(0, f.m.hp - d);
-    ev.push({ t: 'hit', side: f.side, el: burn ? 'fire' : 'poison' });
+    ev.push({ t: 'hit', side: f.side, el: burn ? 'fire' : 'poison', dmg: d, dot: true });
     ev.push({ t: 'hp', side: f.side, hp: f.m.hp });
     ev.push({ t: 'msg', text: `${josa(n, '은/는')} ${burn ? '화상' : '독'} 피해를 입었다!`, quick: true });
     f.stTurns = (f.stTurns || 0) + 1;

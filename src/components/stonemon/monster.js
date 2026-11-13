@@ -1,7 +1,8 @@
 // 🦖 스톤몬 개체 로직: 생성 · 레벨/경험치 · 능력치 · 포식(흡수) · 무한 변이 진화
 // v2.0 능력치 = 종족값 × 레벨 성장(완만한 직선) × 개체차 × (1 + 포식 보너스) × 변이 단계 × 특성
 //  - 체력/공격/방어/스피드가 모두 같은 성장 곡선을 쓰고, 포식 보너스도 네 능력치에 고르게(상한·편차 제한) 붙는다.
-import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS, maxPP, FALLBACK_SKILL, learnLevels } from './data';
+import { SPECIES, SKILLS, TRAITS, TRAIT_MAX, ELEMENTS, ELEMENT_KEYS, maxPP, FALLBACK_SKILL, learnLevels, RARE_SKILL } from './data';
+import { synergiesOf, PURE_KING_MUL } from './synergy';
 
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -90,10 +91,15 @@ export function stageFor(total) {
 }
 const stageMul = (m) => 1 + 0.03 * (m.stage || 0);
 
-// 특성을 반영한 실전 능력치
+// v3.0 고대 변종(이로치) · 알파 개체: 크기 1.3배, 포식 시 3배 흡수 + 희귀 기술 전수
+export const isVariant = (m) => !!(m && (m.alpha || m.shiny));
+export const VARIANT_ABSORB = 3;
+
+// 특성을 반영한 실전 능력치 (순혈 패왕 시너지: 전 능력치 ×1.15)
 export function eff(m) {
   const sp = SPECIES[m.sid];
-  const g = growth(m.lv || 1) * stageMul(m);
+  const king = m.prey && synergiesOf(m).includes('pureKing') ? PURE_KING_MUL : 1;
+  const g = growth(m.lv || 1) * stageMul(m) * king;
   const one = (k, trait, per = 0.06) => sp.base[k] * g * (m.iv?.[k] || 1) * (1 + (m.bonus?.[k] || 0)) * (1 + per * tl(m, trait));
   return {
     hp: Math.round(one('hp', 'giant') * HP_K) + 10,
@@ -130,7 +136,7 @@ export function gainExp(m, n) {
 export function expYield(enemy, kind = 'wild') {
   const sp = SPECIES[enemy.sid];
   const mul = kind === 'boss' ? 1.8 : kind === 'trainer' || kind === 'pvp' ? 1.4 : kind === 'tutorial' ? 2.5 : 1;
-  return Math.round(((14 + 8 * sp.tier) * (enemy.lv || 1) / 3) * mul * (enemy.alpha ? 1.5 : 1));
+  return Math.round(((14 + 8 * sp.tier) * (enemy.lv || 1) / 3) * mul * (isVariant(enemy) ? 1.5 : 1));
 }
 
 // 보유 속성: 핵 속성 + 유전자 3 이상 흡수한 속성
@@ -164,7 +170,7 @@ export function partsOf(m) {
   return parts;
 }
 export function sizeOf(m) {
-  return SPECIES[m.sid].size * (1 + Math.min(0.3, (m.stage || 0) * 0.04));
+  return SPECIES[m.sid].size * (1 + Math.min(0.3, (m.stage || 0) * 0.04)) * (isVariant(m) ? 1.3 : 1);
 }
 
 function fuse(a, b) {
@@ -262,14 +268,16 @@ function topStat(sid) {
 // 포식: 승자가 패자를 삼켜 능력치 보너스 · 유전자 · 특성을 흡수
 // mode: tutorial | wild | trainer | boss | pvp | feed
 const RATE = { tutorial: 0.02, wild: 0.012, trainer: 0.018, boss: 0.03, pvp: 0.03, feed: 0.03 };
-export function absorb(pred, prey, mode = 'wild') {
+// opts.mul: 업적 보너스 등 추가 흡수 배율. 변종(이로치·알파)은 능력치 흡수 3배 + 희귀 기술 전수
+export function absorb(pred, prey, mode = 'wild', opts = {}) {
   const sp = SPECIES[prey.sid];
+  const variant = isVariant(prey);
   const before = { stats: { ...eff(pred) }, power: power(pred), stage: pred.stage, parts: partsOf(pred), name: formName(pred), lv: pred.lv };
   const hpBefore = before.stats.hp;
   const gm = 1 + 0.15 * tl(pred, 'glutton');
   // 상대가 나보다 레벨이 높을수록 조금 더 흡수 (최대 ×1.5)
   const lvMul = Math.max(0.6, Math.min(1.5, 1 + ((prey.lv || 1) - (pred.lv || 1)) * 0.04));
-  addBonus(pred, RATE[mode] * gm * lvMul, topStat(prey.sid));
+  addBonus(pred, RATE[mode] * gm * lvMul * (variant ? VARIANT_ABSORB : 1) * (opts.mul || 1), topStat(prey.sid));
   // 유전자: 상대 핵 속성 + 상대가 지닌 유전자의 절반
   const geneGain = {};
   const add = (el, n) => { if (n > 0 && ELEMENTS[el]) geneGain[el] = (geneGain[el] || 0) + n; };
@@ -299,10 +307,12 @@ export function absorb(pred, prey, mode = 'wild') {
   // 먹으면 회복 (최대 체력 30% + 제한 기술 1회씩 충전)
   restorePP(pred, 1);
   pred.hp = Math.min(maxHp(pred), pred.hp + (maxHp(pred) - hpBefore) + Math.round(maxHp(pred) * 0.3));
-  const learnable = (prey.skills || []).filter((s) => SKILLS[s] && !pred.skills.includes(s));
+  const rareSkill = variant ? RARE_SKILL[sp.el] : null;
+  const learnable = [...(rareSkill ? [rareSkill] : []), ...(prey.skills || [])]
+    .filter((s, i, a) => SKILLS[s] && !pred.skills.includes(s) && a.indexOf(s) === i);
   const afterParts = partsOf(pred);
   return {
-    geneGain, traitGain, learnable, stageUp,
+    geneGain, traitGain, learnable, stageUp, variant, rareSkill,
     before,
     after: { stats: eff(pred), power: power(pred), stage: pred.stage, parts: afterParts, name: formName(pred), lv: pred.lv },
     mutations: mutationLines(before.parts, afterParts),
@@ -366,6 +376,7 @@ export function normalizeMon(m) {
   m.devours = m.devours || 0;
   m.stage = stageFor(geneTotal(m));
   m.uid = m.uid || uid();
+  m.shiny = !!m.shiny;
   m.hp = Math.max(1, Math.min(maxHp(m), Number(m.hp) || maxHp(m)));
   return m;
 }
@@ -374,7 +385,7 @@ export function normalizeMon(m) {
 export function pack(m) {
   return {
     sid: m.sid, lv: m.lv, iv: m.iv, bonus: m.bonus, skills: m.skills, traits: m.traits, genes: m.genes,
-    devours: m.devours || 0, prey: m.prey || {}, stage: m.stage || 0,
+    devours: m.devours || 0, prey: m.prey || {}, stage: m.stage || 0, shiny: !!m.shiny,
   };
 }
 export function unpack(d) {

@@ -1,12 +1,14 @@
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Game, PARTY_MAX } from './stonemon/game';
+import { Game, PARTY_MAX, BOX_MAX, EGG_MAX } from './stonemon/game';
 import { draw, SW, SH } from './stonemon/render';
 import { monDataUrl, loadSprites, onSpritesReady } from './stonemon/sprites';
-import { SPECIES, SKILLS, TRAITS, ELEMENTS, STAGES, TIER_NAME, SPECIES_COUNT, maxPP, isBasic } from './stonemon/data';
+import { SPECIES, SKILLS, TRAITS, ELEMENTS, STAGES, TIER_NAME, SPECIES_COUNT, maxPP, isBasic, RARE_SKILL } from './stonemon/data';
 import { formName, power, maxHp, eff, elementsOf, geneTotal, stageThreshold, ppLeft, expNext } from './stonemon/monster';
-import { mapOf } from './stonemon/world';
-import { typeMult, STATUS } from './stonemon/battle';
+import { mapOf, HABITAT } from './stonemon/world';
+import { effTypeMult, STATUS } from './stonemon/battle';
+import { SYNERGIES, SYNERGY_KEYS, synergiesOf, synergyProgress } from './stonemon/synergy';
+import { ACHIEVEMENTS, BONUS_NAME, achBonus, bonusText } from './stonemon/achievements';
 import { unlockAudio, setMuted } from './coffee/sound';
 
 const PIXEL_FONT_CSS = 'https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css';
@@ -165,6 +167,7 @@ const StoneMonsterGame = () => {
           {ui.choice && !ui.choice.wide && <ChoiceBox c={ui.choice} />}
           {ui.cmd && v.battle && <CommandBox c={ui.cmd} g={g} />}
           {ui.toast && <div style={toast}>{ui.toast}</div>}
+          {ui.ach && <AchToast a={ui.ach} />}
           {ui.nameInput && <NameInput onSubmit={ui.nameInput.submit} />}
         </div>
       </div>
@@ -173,13 +176,14 @@ const StoneMonsterGame = () => {
 
       {!isFs && (
         <div style={helpText}>
-          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · Q = 배속(1x/2x/3x) · 진행은 자동 저장되어 언제든 이어할 수 있어요
+          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · Q = 배속(1x/2x/3x) · 진행은 자동 저장 · 메뉴 → ⚙️ 설정에서 세이브 백업(JSON)
         </div>
       )}
 
       {ui.choice && ui.choice.wide && <WideChoice c={ui.choice} />}
       {ui.card && <ResultCard card={ui.card} />}
       {ui.panel && <Panel kind={ui.panel.kind} g={g} />}
+      {ui.backup && <BackupModal b={ui.backup} g={g} />}
       {codeOpen && <CodeLoad g={g} onClose={() => setCodeOpen(false)} onLoaded={() => { setCodeOpen(false); refresh(); }} />}
       </div>
 
@@ -217,7 +221,7 @@ const TitleOverlay = ({ hasSave, save, onNew, onContinue, onCode }) => {
           🔑 코드로 이어하기 (다른 기기)
         </button>
       </div>
-      <div style={titleFoot}>v2.0 DEMO · Stage 1~3 (태초의 숲 · 메아리의 습지 · 작열하는 화산) · 스톤몬 {SPECIES_COUNT}종</div>
+      <div style={titleFoot}>v3.0 · Stage 1~5 (태초의 숲 → 습지 → 화산 → 빙하 동굴 → 하늘 신전) · 원시 투기장 · 스톤몬 {SPECIES_COUNT}종</div>
     </div>
   );
 };
@@ -275,6 +279,83 @@ const MapHud = ({ m, S, map }) => {
         <div style={{ ...hpFill, width: `${Math.max(0, Math.min(1, (total - prev) / (next - prev))) * 100}%`, background: 'linear-gradient(90deg,#7fe0ff,#ff5aff)' }} />
       </div>
       <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Stage {M.stage} · {M.name}{S.flags.endless ? ' · ♾️무한 사냥' : ''}</div>
+      {(S.eggs?.length > 0 || S.title) && (
+        <div style={{ fontSize: '0.7em', opacity: 0.9 }}>
+          {S.title && <span style={{ color: '#ffd166' }}>「{S.title}」 </span>}
+          {S.eggs?.length > 0 && <span>🥚 부화까지 {Math.min(...S.eggs.map((e) => e.left))}걸음</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ───────── 업적 토스트 (화면 상단) ─────────
+const AchToast = ({ a }) => (
+  <div style={achToast}>
+    <div style={{ fontSize: '0.75em', color: '#ffe8b0' }}>🏆 업적 달성!</div>
+    <div style={{ fontWeight: 800 }}>{a.name} <span style={{ color: '#ffd166' }}>「{a.title}」</span></div>
+    <div style={{ fontSize: '0.72em', opacity: 0.9 }}>영구 보너스: {bonusText(a)}</div>
+  </div>
+);
+
+// ───────── 세이브 백업 (JSON 복사 / 불러오기) ─────────
+const BackupModal = ({ b, g }) => {
+  const [text, setText] = useState(b.mode === 'export' ? b.text : '');
+  const [msg, setMsg] = useState('');
+  const [ok, setOk] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setMsg('클립보드에 복사했습니다! 메모장 등에 붙여넣어 보관하세요.'); setOk(true); }
+    catch (e) { setMsg('자동 복사가 막혀 있습니다. 아래 텍스트를 전부 선택(Ctrl+A)해서 복사해 주세요.'); }
+  };
+  const download = () => {
+    try {
+      const blob = new Blob([text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `stonemon-save-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) { setMsg('파일 저장에 실패했습니다. 복사 버튼을 이용해 주세요.'); }
+  };
+  const doImport = () => {
+    if (!text.trim()) return;
+    if (!window.confirm('현재 진행 중인 모험이 불러온 세이브로 바뀝니다. (현재 진행은 예비 저장에 보관됩니다)\n계속할까요?')) return;
+    const r = g.importBackup(text);
+    setMsg(r.msg); setOk(r.ok);
+    if (r.ok) setTimeout(() => g.closeBackup(r), 900);
+  };
+  const exp = b.mode === 'export';
+  return (
+    <div style={modalBack}>
+      <div style={{ ...modalBox, maxWidth: 520 }}>
+        <div style={modalTitle}>{exp ? '📋 세이브 데이터 백업 (JSON)' : '📥 세이브 데이터 불러오기'}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+          {exp
+            ? '아래 JSON이 지금까지의 모든 진행(스톤몬 · 보관함 · 도감 · 업적)입니다. 업데이트나 브라우저 데이터 삭제에 대비해 따로 보관하세요.'
+            : '백업해 둔 JSON 전체(또는 SM1:로 시작하는 백업 문자열)를 붙여넣고 불러오기를 누르세요.'}
+        </div>
+        <textarea
+          value={text}
+          readOnly={exp}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={(e) => exp && e.target.select()}
+          rows={8}
+          placeholder={exp ? '' : '{"v":3,"name":…}'}
+          style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, marginTop: 8, fontFamily: 'monospace' }}
+        />
+        {msg && <div style={{ marginTop: 6, fontSize: 13, color: ok ? '#7fe08a' : '#ff8a8a' }}>{msg}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {exp ? (
+            <>
+              <button type="button" style={{ ...titleBtn, flex: 1 }} onClick={copy}>📋 복사</button>
+              <button type="button" style={{ ...titleBtn, flex: 1, background: '#2a3a5a' }} onClick={download}>💾 파일로 저장</button>
+            </>
+          ) : (
+            <button type="button" style={{ ...titleBtn, flex: 1 }} onClick={doImport}>불러오기</button>
+          )}
+          <button type="button" style={smallBtn} onClick={() => g.closeBackup(null)}>닫기</button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -358,12 +439,19 @@ const HpBar = ({ hp, max }) => {
 const ElChips = ({ els }) => (
   <span>{els.map((e) => <span key={e} title={ELEMENTS[e].name} style={{ marginRight: 1 }}>{ELEMENTS[e].icon}</span>)}</span>
 );
+const SynBadges = ({ syn }) => (syn?.length ? (
+  <span>{syn.map((k) => <span key={k} title={`${SYNERGIES[k].name}: ${SYNERGIES[k].desc}`} style={{ ...synBadge, borderColor: SYNERGIES[k].color }}>{SYNERGIES[k].icon}</span>)}</span>
+) : null);
+const VariantTag = ({ m }) => (m.alpha ? <span style={{ ...varTag, background: '#c62828' }}>알파</span> : m.shiny ? <span style={{ ...varTag, background: 'linear-gradient(90deg,#ff8af0,#8af0ff,#fff28a)', color: '#1c1424' }}>이로치</span> : null);
 const BattleHud = ({ hud }) => (
   <>
+    {(hud.weather || hud.round) && (
+      <div style={weatherTag}>{hud.weather === 'blizzard' ? '❄️ 눈보라' : ''}{hud.round ? `🏟️ ${hud.round}번째 상대` : ''}</div>
+    )}
     {hud.e && (
       <div style={{ ...hudBox, left: '3%', top: '3%' }}>
         <div style={hudName}>
-          {hud.e.alpha && <span style={{ color: '#ff5a5a' }}>👑</span>}{hud.e.name}
+          <VariantTag m={hud.e} />{hud.e.name} <SynBadges syn={hud.e.syn} />
           {hud.e.status && <span style={{ ...stTag, background: STATUS[hud.e.status].color }}>{STATUS[hud.e.status].name}{STATUS[hud.e.status].turns ? ` ${STATUS[hud.e.status].turns - (hud.e.stTurns || 0)}` : ''}</span>}
         </div>
         <div style={hudSub}><ElChips els={hud.e.els} /> <b>Lv.{hud.e.lv}</b>{hud.e.stage ? ` · 변이${hud.e.stage}` : ''}</div>
@@ -373,7 +461,7 @@ const BattleHud = ({ hud }) => (
     {hud.p && (
       <div style={{ ...hudBox, right: '3%', top: '46%' }}>
         <div style={hudName}>
-          {hud.p.name}
+          <VariantTag m={hud.p} />{hud.p.name} <SynBadges syn={hud.p.syn} />
           {hud.p.status && <span style={{ ...stTag, background: STATUS[hud.p.status].color }}>{STATUS[hud.p.status].name}{STATUS[hud.p.status].turns ? ` ${STATUS[hud.p.status].turns - (hud.p.stTurns || 0)}` : ''}</span>}
         </div>
         <div style={hudSub}><ElChips els={hud.p.els} /> <b>Lv.{hud.p.lv}</b>{hud.p.stage ? ` · 변이${hud.p.stage}` : ''}</div>
@@ -392,13 +480,16 @@ const BattleHud = ({ hud }) => (
 const CommandBox = ({ c, g }) => {
   const B = g.v.battle;
   if (c.level === 'main') {
-    const labels = ['⚔️ 싸운다', '🦖 스톤몬', '🎒 가방', B.kind === 'wild' ? '🏃 도망' : '🚫 도망'];
+    // 위기(HP 25% 이하) + 교대할 동료가 있으면 '교대' 버튼 강조
+    const pm = B.player.m;
+    const crisis = pm.hp <= maxHp(pm) * 0.25 && g.S.party.some((m) => m !== pm && m.hp > 0);
+    const labels = ['⚔️ 싸운다', crisis ? '🔄 교대!' : '🦖 스톤몬', '🎒 가방', B.kind === 'wild' ? '🏃 도망' : '🚫 도망'];
     return (
       <div style={{ ...dialogBox, display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <div style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{formName(B.player.m)}{'\n'}무엇을 할까?</div>
+        <div style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{formName(pm)}{'\n'}{crisis ? '위기다! 동료와 교대할까?' : '무엇을 할까?'}</div>
         <div style={cmdGrid}>
           {labels.map((l, i) => (
-            <div key={l} role="button" tabIndex={-1} style={{ ...cmdItem, background: c.idx === i ? '#ffd166' : 'transparent' }} onClick={() => g.cmdPick(i)}>
+            <div key={l} role="button" tabIndex={-1} style={{ ...cmdItem, background: c.idx === i ? '#ffd166' : i === 1 && crisis ? '#ffb4a8' : 'transparent' }} onClick={() => g.cmdPick(i)}>
               {l}
             </div>
           ))}
@@ -408,7 +499,7 @@ const CommandBox = ({ c, g }) => {
   }
   const skills = B.player.m.skills;
   const cur = SKILLS[skills[c.idx]];
-  const tm = cur?.pow ? typeMult(cur.el, B.enemy.m) : 1;
+  const tm = cur?.pow ? effTypeMult(B.player.m, cur.el, B.enemy.m) : 1;
   return (
     <div style={{ ...dialogBox, padding: '1.5% 2%' }}>
       <div style={{ ...cmdGrid, width: '100%', gridTemplateColumns: '1fr 1fr' }}>
@@ -425,7 +516,7 @@ const CommandBox = ({ c, g }) => {
       </div>
       {cur && (
         <div style={skillInfo}>
-          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc} · {isBasic(skills[c.idx]) ? '기본기(무제한)' : `남은 횟수 ${ppLeft(B.player.m, skills[c.idx])}/${maxPP(skills[c.idx])}`}{cur.pow ? (tm >= 2 ? ' · 💥💥천적(×2)' : tm > 1 ? ' · 💥효과 굉장(×1.5)' : tm < 1 ? ' · 💤효과 별로(×0.5)' : '') : ''}{cur.sp ? ' · 특수' : cur.pow ? ' · 물리' : ''}</span>
+          <span>{ELEMENTS[cur.el].name} · {cur.pow ? `위력 ${cur.pow}` : '변화'} · 명중 {cur.acc} · {isBasic(skills[c.idx]) ? '기본기(무제한)' : `남은 횟수 ${ppLeft(B.player.m, skills[c.idx])}/${maxPP(skills[c.idx])}`}{cur.pow ? (tm >= 2 ? ' · 💥💥천적(×2)' : tm > 1 ? ' · 💥효과 굉장(×1.5)' : tm < 1 ? ` · 💤효과 별로(×${+tm.toFixed(2)}${tm === 0.8 && synergiesOf(B.player.m).includes('chimera') ? ' 🧬키메라' : ''})` : '') : ''}{cur.sp ? ' · 특수' : cur.pow ? ' · 물리' : ''}</span>
           <span role="button" tabIndex={-1} style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => g.cmdPick(-1)}>◀ 뒤로</span>
         </div>
       )}
@@ -477,6 +568,7 @@ const ResultCard = ({ card }) => {
             </div>
             <div style={{ textAlign: 'center', fontWeight: 700 }}>{formName(mon)} <span style={{ color: '#ffd166' }}>Lv.{mon.lv}</span></div>
             <div style={{ textAlign: 'center', fontSize: 12, opacity: 0.8 }}>{SPECIES[card.prey.sid].name}의 피와 뼈가 녹아들었다</div>
+            {res.variant && <div style={{ textAlign: 'center', fontSize: 13, color: '#ffd166', fontWeight: 700, marginTop: 4 }}>✨ 변종 포식! 능력치 3배 흡수 · 희귀 기술 [{SKILLS[res.rareSkill]?.name}] 전수 가능</div>}
           </>
         ) : (
           <>
@@ -518,6 +610,9 @@ const ResultCard = ({ card }) => {
               {res.traitGain.map(({ t, lv }) => (
                 <span key={t} style={{ ...chip, borderColor: '#ffd166' }}>✨ {TRAITS[t].name} Lv{lv}</span>
               ))}
+              {(res.synNew || []).map((k) => (
+                <span key={k} style={{ ...chip, borderColor: SYNERGIES[k].color, background: '#4a2a10', fontWeight: 700 }}>🧬 각성! {SYNERGIES[k].icon} {SYNERGIES[k].name}</span>
+              ))}
             </div>
             <div style={{ fontSize: 12, marginTop: 8 }}>다음 변이까지 유전자 {total} / {next}</div>
             <div style={hpTrack}><div style={{ ...hpFill, width: `${prog * 100}%`, background: 'linear-gradient(90deg,#7fe0ff,#ff5aff)' }} /></div>
@@ -533,7 +628,7 @@ const ResultCard = ({ card }) => {
 const ClearCard = ({ card }) => (
   <div style={modalBack} onClick={card.close}>
     <div style={{ ...modalBox, maxWidth: 480, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-      <div style={{ ...modalTitle, color: '#ffd166', fontSize: 22 }}>🏆 STONE MONSTERS 데모 클리어!</div>
+      <div style={{ ...modalTitle, color: '#ffd166', fontSize: 22 }}>🏆 STONE MONSTERS v3.0 클리어!</div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
         {card.party.map((m) => (
           <div key={m.uid} style={{ width: 96 }}>
@@ -544,9 +639,9 @@ const ClearCard = ({ card }) => (
       </div>
       <div style={{ fontSize: 13, lineHeight: 1.7, marginTop: 8 }}>
         {card.runs}번째 생 · 이번 생 포식 {card.devours}회 · 도감 포식 {card.eaten}/{SPECIES_COUNT}종<br />
-        <b style={{ color: '#7fe08a' }}>♾️ 무한 사냥 모드 해금</b> — 모든 수풀에서 56종 전부가 출현합니다.
+        <b style={{ color: '#7fe08a' }}>🏟️ 무한의 원시 투기장 해금</b> — 하늘 신전 동쪽 아래 투기장에서 끝없는 연승에 도전하세요.
       </div>
-      <button type="button" style={{ ...titleBtn, width: '100%', marginTop: 12 }} onClick={card.close}>계속 사냥하기 (A)</button>
+      <button type="button" style={{ ...titleBtn, width: '100%', marginTop: 12 }} onClick={card.close}>계속하기 (A)</button>
     </div>
   </div>
 );
@@ -579,13 +674,14 @@ const Panel = ({ kind, g }) => (
     <div style={{ ...modalBox, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <div style={{ ...modalTitle, margin: 0, flex: 1, textAlign: 'left' }}>
-          {kind === 'party' ? (g.ui.panel?.prep ? '⚔️ 전투 준비' : '🦖 스톤몬') : kind === 'codex' ? '📖 스톤몬 도감' : '🪦 기록 · 무덤'}
+          {kind === 'party' ? (g.ui.panel?.prep ? '⚔️ 전투 준비' : '🦖 스톤몬 · 보관함') : kind === 'codex' ? '📖 스톤 도감' : kind === 'achieve' ? '🏆 칭호 · 업적' : '🪦 기록 · 무덤'}
         </div>
         <button type="button" style={smallBtn} onClick={() => g.closePanel()}>{g.ui.panel?.prep ? '준비 완료 ✓' : '닫기 ✕'}</button>
       </div>
       {kind === 'party' && <PartyPanel g={g} />}
       {kind === 'codex' && <CodexPanel g={g} />}
       {kind === 'records' && <RecordsPanel g={g} />}
+      {kind === 'achieve' && <AchievePanel g={g} />}
     </div>
   </div>
 );
@@ -596,18 +692,19 @@ const PartyPanel = ({ g }) => {
   if (!party.length) return <div>스톤몬이 없다.</div>;
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>동료 {party.length}/{PARTY_MAX} · 맨 위가 대장(먼저 싸움). ▲▼ 로 동료 순서와 기술 위치(전투 명령 순서)를 바꿀 수 있습니다. 패배한 스톤몬은 먹혀서 영원히 사라집니다.</div>
+      <div style={{ fontSize: 12, opacity: 0.8 }}>파티 {party.length}/{PARTY_MAX} · 보관함 {g.S.box?.length || 0}/{BOX_MAX} · 맨 위가 대장(먼저 싸움). ▲▼ 로 동료 순서와 기술 위치(전투 명령 순서)를 바꿀 수 있습니다. 패배한 스톤몬은 먹혀서 영원히 사라집니다.</div>
       {party.map((m, i) => {
         const e = eff(m);
         const genes = Object.entries(m.genes || {}).sort((a, b) => b[1] - a[1]);
         const eaten = Object.entries(m.prey || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
         const bonus = Math.round(((m.bonus?.hp || 0) + (m.bonus?.atk || 0) + (m.bonus?.def || 0) + (m.bonus?.spd || 0)) / 4 * 100);
+        const syn = synergiesOf(m);
         return (
           <div key={m.uid} style={monCard}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <img alt="" src={monDataUrl(m, {}, 2)} style={{ width: 96, height: 96, flexShrink: 0, background: '#3a2414', border: '2px solid #8a5a2a', borderRadius: 6 }} />
+              <img alt="" src={monDataUrl(m, {}, 2)} style={{ width: 96, height: 96, flexShrink: 0, background: '#3a2414', border: `2px solid ${syn.includes('pureKing') ? '#ffd23a' : '#8a5a2a'}`, borderRadius: 6, boxShadow: syn.includes('pureKing') ? '0 0 14px 3px rgba(255,210,58,0.75)' : 'none' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800 }}>{i === 0 && '👑 '}{formName(m)} <span style={{ color: '#ffd166' }}>Lv.{m.lv}</span></div>
+                <div style={{ fontWeight: 800 }}>{i === 0 && '👑 '}<VariantTag m={m} />{formName(m)} <span style={{ color: '#ffd166' }}>Lv.{m.lv}</span></div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   No.{m.sid} {SPECIES[m.sid].name} · ★{power(m)} · 변이 {m.stage}단계 · 포식 {m.devours}회 · 포식 보너스 +{bonus}%
                 </div>
@@ -637,6 +734,7 @@ const PartyPanel = ({ g }) => {
             <div style={chipRow}>
               {Object.entries(m.traits).map(([t, lv]) => <span key={t} title={TRAITS[t].desc} style={{ ...chip, borderColor: '#ffd166' }}>✨ {TRAITS[t].name} Lv{lv}</span>)}
             </div>
+            <SynergyRow m={m} />
             {genes.length > 0 && (
               <div style={{ marginTop: 6 }}>
                 {genes.map(([el, n]) => (
@@ -654,57 +752,164 @@ const PartyPanel = ({ g }) => {
               {i > 0 && <button type="button" style={smallBtn} onClick={() => g.moveMon(m, -1)}>▲ 순서 위로</button>}
               {i < party.length - 1 && <button type="button" style={smallBtn} onClick={() => g.moveMon(m, 1)}>▼ 순서 아래로</button>}
               {!prep && party.length > 1 && <button type="button" style={{ ...smallBtn, background: '#7a1a24', color: '#fff' }} onClick={() => g.feed(m)}>🍖 먹이로 바치기</button>}
+              {party.length > 1 && <button type="button" style={smallBtn} onClick={() => g.toBox(m)}>📦 보관함으로</button>}
             </div>
           </div>
         );
       })}
+      <BoxList g={g} />
     </div>
   );
 };
 
+// 유전자 시너지: 각성 뱃지 + 미각성 진행도
+const SynergyRow = ({ m }) => {
+  const on = synergiesOf(m);
+  const prog = synergyProgress(m);
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 700 }}>🧬 유전자 시너지</div>
+      <div style={chipRow}>
+        {SYNERGY_KEYS.map((k) => {
+          const Y = SYNERGIES[k];
+          const act = on.includes(k);
+          const [cur, goal] = prog[k];
+          return (
+            <span key={k} title={`${Y.need}\n→ ${Y.desc}`} style={{ ...chip, borderColor: act ? Y.color : '#5a4a3a', background: act ? '#4a2a10' : '#241a14', opacity: act ? 1 : 0.65, fontWeight: act ? 800 : 400 }}>
+              {Y.icon} {Y.name} {act ? '· 각성' : `${cur}/${goal}`}
+            </span>
+          );
+        })}
+      </div>
+      {on.length > 0 && <div style={{ fontSize: 11, opacity: 0.85, marginTop: 3 }}>{on.map((k) => `${SYNERGIES[k].name}: ${SYNERGIES[k].desc}`).join(' / ')}</div>}
+    </div>
+  );
+};
+
+// 보관함 (최대 30) — 파티와 교체 · 편성 · 방생
+const BoxList = ({ g }) => {
+  const box = g.S.box || [];
+  const party = g.S.party;
+  const [pick, setPick] = useState(null);
+  return (
+    <div style={{ ...monCard, background: '#2a1a0c' }}>
+      <div style={{ fontWeight: 800, marginBottom: 6 }}>📦 보관함 {box.length}/{BOX_MAX}</div>
+      {box.length === 0 && <div style={{ fontSize: 12, opacity: 0.7 }}>비어 있다. 파티(최대 {PARTY_MAX})가 가득 찬 상태에서 길들이거나 부화시킨 스톤몬이 여기로 온다.</div>}
+      <div style={{ display: 'grid', gap: 6 }}>
+        {box.map((m) => (
+          <div key={m.uid} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #4a3a2a', paddingBottom: 6 }}>
+            <img alt="" src={monDataUrl(m, {}, 1)} style={{ width: 48, height: 48 }} />
+            <div style={{ flex: 1, minWidth: 120, fontSize: 12 }}>
+              <b><VariantTag m={m} />{formName(m)}</b> Lv.{m.lv} ★{power(m)}<br />
+              <span style={{ opacity: 0.8 }}>{elementsOf(m).map((el) => ELEMENTS[el].icon).join('')} HP {m.hp}/{maxHp(m)} · 포식 {m.devours}회</span>
+            </div>
+            {party.length < PARTY_MAX
+              ? <button type="button" style={smallBtn} onClick={() => g.fromBox(m)}>🦖 파티 편성</button>
+              : <button type="button" style={smallBtn} onClick={() => setPick(pick === m.uid ? null : m.uid)}>🔄 교체</button>}
+            <button type="button" style={{ ...smallBtn, opacity: 0.8 }} onClick={() => g.release(m)}>방생</button>
+            {pick === m.uid && (
+              <div style={{ width: '100%', display: 'flex', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
+                누구와 바꿀까?
+                {party.map((p) => <button key={p.uid} type="button" style={smallBtn} onClick={() => { g.swapBox(m, p); setPick(null); }}>{formName(p)} Lv.{p.lv}</button>)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// 스톤 도감: 56종 실루엣/컬러 · 출현 지역 · 기본 속성 · 흡수 시 얻는 핵심 기술
+const coreSkillOf = (sp) => sp.skills.reduce((a, s) => (SKILLS[s].pow > SKILLS[a].pow ? s : a), sp.skills[0]);
 const CodexPanel = ({ g }) => {
   const { seen, eaten, owned } = g.S.codex;
   const [sel, setSel] = useState(null);
+  const [tab, setTab] = useState('all');
   const sp = sel ? SPECIES[sel] : null;
   const known = sel && (eaten[sel] || owned[sel]);
+  const doneN = new Set([...Object.keys(eaten), ...Object.keys(owned)]).size;
+  const pct = Math.round((doneN / SPECIES_COUNT) * 100);
+  const list = Object.values(SPECIES).filter((s) => tab === 'all' || (tab === 'new' ? !seen[s.id] : String(s.stage) === tab));
   return (
     <div>
-      <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
-        발견 {Object.keys(seen).length} · 포식 {Object.keys(eaten).length} · 봉인 {Object.keys(owned).length} / {SPECIES_COUNT}종 — 포식하거나 봉인하면 상세 정보가 기록됩니다.
+      <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>
+        발견 {Object.keys(seen).length} · 포식 {Object.keys(eaten).length} · 길들임 {Object.keys(owned).length} / {SPECIES_COUNT}종 — 완성도 <b style={{ color: '#ffd166' }}>{pct}%</b> (포식하거나 길들이면 상세 기록)
+      </div>
+      <div style={{ ...hpTrack, height: 6, marginBottom: 8 }}><div style={{ ...hpFill, width: `${pct}%`, background: 'linear-gradient(90deg,#7fe08a,#ffd166)' }} /></div>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+        {[['all', '전체'], ['1', 'Stage 1'], ['2', 'Stage 2'], ['3', 'Stage 3'], ['4', 'Stage 4'], ['5', 'Stage 5'], ['new', '미발견']].map(([k, l]) => (
+          <button key={k} type="button" style={{ ...smallBtn, padding: '3px 8px', background: tab === k ? '#ffd166' : '#fbf7ee' }} onClick={() => setTab(k)}>{l}</button>
+        ))}
       </div>
       {sp && (
         <div style={{ ...monCard, marginBottom: 10 }}>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <img alt="" src={monDataUrl({ sid: sp.id }, { silhouette: !seen[sp.id] }, 2)} style={{ width: 96, height: 96, background: '#3a2414', border: '2px solid #8a5a2a', borderRadius: 6 }} />
-            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>No.{sp.id} {seen[sp.id] ? sp.name : '???'}</div>
-              <div>{ELEMENTS[sp.el].icon}{ELEMENTS[sp.el].name} · {TIER_NAME[sp.tier]} · 서식지: {sp.stage ? `Stage ${sp.stage} ` : ''}{STAGES[sp.stage].name}</div>
+            <div style={{ fontSize: 12, lineHeight: 1.6, flex: 1, minWidth: 180 }}>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>No.{String(sp.id).padStart(2, '0')} {seen[sp.id] ? sp.name : '???'} {seen[sp.id] && <span style={{ fontSize: 11, opacity: 0.8 }}>· {TIER_NAME[sp.tier]}</span>}</div>
+              <div>기본 속성: {seen[sp.id] ? <b style={{ color: ELEMENTS[sp.el].color }}>{ELEMENTS[sp.el].icon}{ELEMENTS[sp.el].name}</b> : '???'}</div>
+              <div>출현 지역: {(HABITAT[sp.id] || []).join(' · ')}</div>
+              {seen[sp.id] ? (
+                <>
+                  <div>흡수 시 핵심 기술: <b>{ELEMENTS[SKILLS[coreSkillOf(sp)].el].icon} {SKILLS[coreSkillOf(sp)].name}</b> (위력 {SKILLS[coreSkillOf(sp)].pow}) · 변종 포식 시 🌟{SKILLS[RARE_SKILL[sp.el]].name}</div>
+                  <div>흡수 특성: {TRAITS[sp.trait].name} ({TRAITS[sp.trait].desc}) · 유전자: {ELEMENTS[sp.el].icon}{ELEMENTS[sp.el].name} +{1 + sp.tier}</div>
+                </>
+              ) : <div style={{ opacity: 0.7 }}>아직 만나지 못했다. 출현 지역을 탐험해 보자.</div>}
               {known ? (
                 <>
-                  <div>체력 {sp.base.hp} · 공격 {sp.base.atk} · 방어 {sp.base.def} · 스피드 {sp.base.spd}</div>
-                  <div>특성: {TRAITS[sp.trait].name} ({TRAITS[sp.trait].desc})</div>
-                  <div>기술: {sp.skills.map((s) => SKILLS[s].name).join(', ')}</div>
+                  <div>종족값 체력 {sp.base.hp} · 공격 {sp.base.atk} · 방어 {sp.base.def} · 스피드 {sp.base.spd}</div>
+                  <div>기술: {sp.skills.map((x) => SKILLS[x].name).join(', ')}</div>
                   <div style={{ marginTop: 4, opacity: 0.9 }}>{sp.desc}</div>
-                  {eaten[sp.id] && <div style={{ color: '#ff8a8a' }}>🍖 포식 {eaten[sp.id]}회</div>}
+                  {eaten[sp.id] && <span style={{ color: '#ff8a8a' }}>🍖 포식 {eaten[sp.id]}회 </span>}
+                  {owned[sp.id] && <span style={{ color: '#8ad8ff' }}>🕸️ 길들임</span>}
                 </>
-              ) : (
-                <div style={{ opacity: 0.7 }}>{seen[sp.id] ? '포식하거나 봉인하면 자세한 기록이 남는다.' : '아직 만나지 못했다.'}</div>
-              )}
+              ) : seen[sp.id] && <div style={{ opacity: 0.7 }}>포식하거나 길들이면 자세한 기록이 남는다.</div>}
             </div>
           </div>
         </div>
       )}
       <div style={codexGrid}>
-        {Object.values(SPECIES).map((s) => {
+        {list.map((s) => {
           const st = eaten[s.id] ? 'eaten' : owned[s.id] ? 'owned' : seen[s.id] ? 'seen' : 'none';
           return (
-            <div key={s.id} role="button" tabIndex={-1} onClick={() => setSel(s.id)} style={{ ...codexCell, outline: sel === s.id ? '2px solid #ffd166' : 'none' }}>
-              <div style={{ fontSize: 10, opacity: 0.7 }}>{String(s.id).padStart(2, '0')}</div>
-              {st === 'none' ? <div style={{ height: 48, display: 'grid', placeItems: 'center', opacity: 0.4 }}>?</div>
-                : <img alt="" src={monDataUrl({ sid: s.id }, { silhouette: st === 'seen' }, 1)} style={{ width: 48, height: 48 }} />}
+            <div key={s.id} role="button" tabIndex={-1} onClick={() => setSel(s.id)} style={{ ...codexCell, outline: sel === s.id ? '2px solid #ffd166' : 'none', borderColor: st === 'none' ? '#5a4a3a' : ELEMENTS[s.el].color }}>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>{String(s.id).padStart(2, '0')} {st !== 'none' ? ELEMENTS[s.el].icon : ''}</div>
+              <img alt="" src={monDataUrl({ sid: s.id }, { silhouette: st === 'none' }, 1)} style={{ width: 48, height: 48, opacity: st === 'none' ? 0.55 : 1 }} />
               <div style={{ fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {st === 'none' ? '???' : s.name}{st === 'eaten' ? ' 🍖' : st === 'owned' ? ' 🪨' : ''}
+                {st === 'none' ? '???' : s.name}{st === 'eaten' ? ' 🍖' : st === 'owned' ? ' 🕸️' : ''}
               </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// 칭호 · 업적 (영구 보너스)
+const AchievePanel = ({ g }) => {
+  const S = g.S;
+  const got = S.ach || {};
+  return (
+    <div style={{ fontSize: 13 }}>
+      <div style={{ ...monCard, marginBottom: 8, lineHeight: 1.7 }}>
+        <div>현재 칭호: <b style={{ color: '#ffd166' }}>{S.title ? `「${S.title}」` : '없음'}</b> · 달성 {Object.keys(got).length}/{ACHIEVEMENTS.length}</div>
+        <div style={{ fontSize: 12 }}>영구 보너스 합계: {Object.keys(BONUS_NAME).map((k) => `${BONUS_NAME[k]} +${Math.round(achBonus(S, k) * 100)}%`).join(' · ')}</div>
+        <div style={{ fontSize: 11, opacity: 0.75 }}>업적과 보너스는 스톤몬을 모두 잃고 다시 시작해도 유지됩니다.</div>
+      </div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {ACHIEVEMENTS.map((a) => {
+          const ok = !!got[a.id];
+          return (
+            <div key={a.id} style={{ ...monCard, display: 'flex', gap: 10, alignItems: 'center', opacity: ok ? 1 : 0.6, borderColor: ok ? '#ffd166' : '#8a5a2a' }}>
+              <div style={{ fontSize: 24 }}>{ok ? '🏆' : '🔒'}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800 }}>{a.name} <span style={{ color: '#ffd166', fontWeight: 400 }}>「{a.title}」</span></div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>{a.desc}</div>
+                <div style={{ fontSize: 11, color: '#7fe08a' }}>보너스: {bonusText(a)}{ok ? ` · ${new Date(got[a.id]).toLocaleDateString('ko-KR')} 달성` : ''}</div>
+              </div>
+              {ok && S.title !== a.title && <button type="button" style={smallBtn} onClick={() => { S.title = a.title; g.save(); g.refresh(); }}>칭호 장착</button>}
             </div>
           );
         })}
@@ -724,6 +929,12 @@ const RecordsPanel = ({ g }) => {
         <div>Stage 1 태초의 숲: {S.flags.boss1 ? '🏆 숲의 수호자 격파' : '숲의 수호자 미격파'}</div>
         <div>Stage 2 메아리의 습지: {S.flags.boss2 ? '🏆 협곡의 지배자 격파' : '협곡의 지배자 미격파'}</div>
         <div>Stage 3 작열하는 화산: {S.flags.boss3 ? '🏆 태초의 왕좌 격파 · ♾️ 무한 사냥 해금' : '태초의 왕좌 미격파'}</div>
+        <div>Stage 4 만년설의 빙하 동굴: {S.flags.boss4 ? '🏆 빙하의 군주 격파' : '빙하의 군주 미격파'}</div>
+        <div>Stage 5 태고의 하늘 신전: {S.flags.boss5 ? '🏆 고대 3대 신수 격파 · 🏟️ 원시 투기장 해금' : '고대 3대 신수 미격파'}</div>
+        <div>⚔️ 라이벌 카인: {[1, 2, 3, 4, 5].map((n) => (S.flags[`rival${n}`] ? '🏆' : '·')).join(' ')} (통산 {S.life?.rivalWins || 0}승)</div>
+        <div>🏟️ 원시 투기장 최고 기록: {S.life?.arenaBest || 0}연승</div>
+        <div style={{ fontSize: 12, opacity: 0.85 }}>통산: 포식 {S.life?.devours || 0} · 최고 연속 포식 {S.life?.bestStreak || 0} · 길들이기 {S.life?.tames || 0} · 변종 처치 {S.life?.variants || 0} · 발굴 {S.life?.digs || 0} · 부화 {S.life?.hatches || 0}</div>
+        {S.eggs?.length > 0 && <div>🥚 미확인 공룡알 {S.eggs.length}/{EGG_MAX}: {S.eggs.map((e) => `${e.left}걸음`).join(' · ')}</div>}
       </div>
       <div style={{ fontWeight: 800, margin: '10px 0 4px' }}>🪦 먹힌 스톤몬들</div>
       {S.grave.length === 0 && <div style={{ opacity: 0.7 }}>아직 아무도 먹히지 않았다.</div>}
@@ -769,13 +980,16 @@ const Controls = ({ g }) => {
 // ───────── 게임 소개 (검색/처음 방문자용) ─────────
 const GameIntro = () => (
   <section style={introBox}>
-    <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>🦖 스톤몬스터 (STONE MONSTERS) v2.0 — 포식 진화 RPG</h1>
+    <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>🦖 스톤몬스터 (STONE MONSTERS) v3.0 — 포식 진화 RPG</h1>
     <p>원시 정글 · 습지 · 화산이 뒤섞인 땅. 돌알에서 태어난 <b>스톤몬스터</b>는 싸워서 <b>레벨</b>을 올리고, 쓰러뜨린 상대를 <b>잡아먹어(포식)</b> 끝없이 변이합니다.</p>
     <ul style={{ paddingLeft: 18, margin: '8px 0' }}>
       <li><b>포식 흡수</b> — 먹은 스톤몬의 능력치 보너스·속성 유전자·특성·기술을 흡수합니다. 프테라를 먹으면 날개가, 번개 스톤몬을 먹으면 번개 가시가 돋아요.</li>
       <li><b>정직한 상성</b> — 유리 1.5배 · 천적 2배 · 불리 0.5배, 같은 속성 기술 1.2배. 독(1/16·4턴)과 화상(5%·3턴, 물리 공격 -20%)은 저절로 낫습니다.</li>
-      <li><b>Stage 1~3</b> — 태초의 숲(Lv.1~10) → 메아리의 습지 &amp; 협곡(Lv.11~22) → 작열하는 화산 &amp; 고대 유적(Lv.23~35). 최종 보스 라돈·기가노·기가를 꺾으면 <b>무한 사냥 모드</b>로 56종 도감을 완성할 수 있어요.</li>
-      <li><b>편의 기능</b> — 1x/2x/3x 배속, 기술 위치 변경, 상점 연속 구매, 자동 저장 · 모험 코드로 다른 기기에서 이어하기.</li>
+      <li><b>포식 vs 길들이기</b> — 쓰러뜨린 야생 스톤몬을 먹어 강해질지, 스톤 그물로 길들여 동료(파티 4 · 보관함 30)로 삼을지 매번 선택합니다.</li>
+      <li><b>유전자 시너지</b> — 화염+비행은 [폭염의 비룡], 대지+독은 [맹독 갑주], 한 종족 5회는 [순혈 패왕](황금 오라), 4속성은 [고대 키메라]가 각성합니다.</li>
+      <li><b>Stage 1~5</b> — 태초의 숲 → 메아리의 습지 &amp; 협곡 → 작열하는 화산 → 만년설의 빙하 동굴(Lv.36~48) → 태고의 하늘 신전(Lv.49~65). 보스 직전마다 숙명의 라이벌 <b>카인</b>이 진화한 모습으로 막아섭니다. 고대 3대 신수를 꺾으면 <b>무한의 원시 투기장</b>이 열려요.</li>
+      <li><b>파밍</b> — 5% 확률의 고대 변종(이로치)·알파 개체(먹으면 3배 흡수 + 희귀 기술), 반짝이는 화석 바위와 알 둥지, 걸어서 부화시키는 미확인 공룡알, 14종 업적과 영구 보너스.</li>
+      <li><b>편의 기능</b> — 1x/2x/3x 배속, 기술 위치 변경, 상점 연속 구매, 자동 저장 + 예비 저장, 세이브 JSON 백업/불러오기, 모험 코드로 다른 기기에서 이어하기.</li>
       <li><b>약육강식</b> — 진 스톤몬은 영원히 사라지고, 모두 잃으면 처음부터 다시 시작합니다.</li>
     </ul>
   </section>
@@ -842,6 +1056,10 @@ const skillRow = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, 
 const arrowBtn = { padding: '2px 8px', fontSize: 12, border: '2px solid #2a1608', background: '#f8ecd4', color: '#2a1608', cursor: 'pointer', fontFamily: FONT };
 const codexGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6 };
 const codexCell = { background: '#3e2814', border: '2px solid #8a5a2a', borderRadius: 4, textAlign: 'center', padding: 4, cursor: 'pointer' };
+const achToast = { position: 'absolute', top: '3%', left: '50%', transform: 'translateX(-50%)', minWidth: '62%', textAlign: 'center', background: 'linear-gradient(180deg,#6a3e18,#3a2210)', color: '#fff', border: '3px solid #ffd166', outline: '2px solid #2a1608', borderRadius: 4, padding: '0.35em 0.9em', zIndex: 10, boxShadow: '0 0 12px rgba(255,209,102,0.7)', fontSize: '0.85em', lineHeight: 1.35, pointerEvents: 'none' };
+const synBadge = { display: 'inline-block', marginLeft: 2, padding: '0 0.15em', border: '1px solid', borderRadius: 3, background: '#2a1608', fontSize: '0.8em', lineHeight: 1.2 };
+const varTag = { display: 'inline-block', marginRight: 3, padding: '0 0.3em', fontSize: '0.7em', color: '#fff', border: '1px solid #1c1424', borderRadius: 2, verticalAlign: 'middle' };
+const weatherTag = { position: 'absolute', right: '3%', top: '3%', zIndex: 4, background: 'rgba(28,20,36,0.75)', color: '#e8f8ff', border: '2px solid #9ee8ff', borderRadius: 3, padding: '0 0.5em', fontSize: '0.75em' };
 const controls = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 520, margin: '14px auto 0', padding: '0 8px', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' };
 const dpad = { display: 'grid', gridTemplateAreas: '". u ." "l . r" ". d ."', gridTemplateColumns: '48px 48px 48px', gridTemplateRows: '48px 48px 48px' };
 const dbtn = { background: '#2a1e2e', color: '#fff', border: 'none', fontSize: 18, cursor: 'pointer', touchAction: 'none' };

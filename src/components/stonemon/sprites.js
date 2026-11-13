@@ -689,6 +689,29 @@ function imgSprite(m, sp, parts, dom, tint, silhouette, white) {
   return cv;
 }
 
+// v3.0 고대 변종(이로치): 색상환을 180° 뒤집어 '색 반전' (명암·외곽선은 유지)
+function hueInvert(cv) {
+  const ctx = cv.getContext('2d');
+  let img;
+  try { img = ctx.getImageData(0, 0, cv.width, cv.height); } catch (e) { return cv; }
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 8) continue;
+    const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+    if (mx - mn < 0.06) continue; // 무채색(외곽선·흰 뼈)은 그대로
+    const dd = mx - mn;
+    const sat = l > 0.5 ? dd / (2 - mx - mn) : dd / (mx + mn);
+    let h = mx === r ? (g - b) / dd + (g < b ? 6 : 0) : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+    h = ((h / 6) + 0.5) % 1;
+    const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p2 = 2 * l - q;
+    const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p2 + (q - p2) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p2 + (q - p2) * (2 / 3 - t) * 6 : p2; };
+    d[i] = f(h + 1 / 3) * 255; d[i + 1] = f(h) * 255; d[i + 2] = f(h - 1 / 3) * 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
 // 몬스터 스프라이트 (일러스트 96x96 또는 도트 64x64 캔버스, 캐시)
 const cache = new Map();
 export function monSprite(m, { silhouette = false, white = false } = {}) {
@@ -697,7 +720,8 @@ export function monSprite(m, { silhouette = false, white = false } = {}) {
   const dom = m.genes ? dominantGene(m) : null;
   const tint = dom && dom !== sp.el ? Math.min(0.22, (m.genes[dom] || 0) / 80) : 0;
   const useImg = atlasReady && !!ATLAS[m.sid];
-  const key = `v2|${useImg ? 'img' : 'px'}|${m.sid}|${JSON.stringify(parts)}|${dom}|${tint.toFixed(2)}|${silhouette}|${white}`;
+  const shiny = !!m.shiny && !silhouette && !white;
+  const key = `v3|${useImg ? 'img' : 'px'}|${m.sid}|${JSON.stringify(parts)}|${dom}|${tint.toFixed(2)}|${silhouette}|${white}|${shiny}`;
   if (cache.has(key)) return cache.get(key);
   let cv;
   if (useImg) cv = imgSprite(m, sp, parts, dom, tint, silhouette, white);
@@ -720,6 +744,7 @@ export function monSprite(m, { silhouette = false, white = false } = {}) {
     if (white) P.recolor('#ffffff');
     cv = P.toCanvas();
   }
+  if (shiny) cv = hueInvert(cv);
   cache.set(key, cv);
   if (cache.size > 300) cache.delete(cache.keys().next().value);
   return cv;
@@ -798,6 +823,8 @@ const GROUND = {
   forest: { base: '#78c850', dk: '#5aa83c', lt: '#98e070' },
   swamp: { base: '#6a9a4a', dk: '#4a7a36', lt: '#8ab868' },
   volcano: { base: '#5a4a48', dk: '#463836', lt: '#74625e' },
+  glacier: { base: '#e4f0f8', dk: '#c4d8e8', lt: '#ffffff' },
+  sky: { base: '#d8e4f0', dk: '#b8c8dc', lt: '#f4f8ff' },
 };
 function groundBase(ctx, seed, th) {
   const G = GROUND[th] || GROUND.forest;
@@ -806,6 +833,8 @@ function groundBase(ctx, seed, th) {
   for (let i = 0; i < 6; i++) { const x = Math.floor(r() * 15), y = Math.floor(r() * 14); px(ctx, x, y, G.dk); px(ctx, x, y + 1, G.dk); }
   for (let i = 0; i < 3; i++) px(ctx, Math.floor(r() * 16), Math.floor(r() * 16), G.lt);
   if (th === 'volcano' && r() < 0.5) px(ctx, Math.floor(r() * 14), Math.floor(r() * 14), '#ff6a3d');
+  if (th === 'glacier' && r() < 0.5) px(ctx, Math.floor(r() * 14), Math.floor(r() * 14), '#9ee8ff');
+  if (th === 'sky' && r() < 0.4) px(ctx, Math.floor(r() * 14), Math.floor(r() * 14), '#ffe680');
 }
 function tufts(c, base, dark2, tip) {
   px(c, 0, 0, base, T, T);
@@ -831,9 +860,22 @@ export function tiles(th = 'forest') {
       } else tufts(c, '#4f9e3a', '#2f6e28', '#8ad868');
     }),
     dry: tileCanvas((c) => tufts(c, '#c87a4a', '#8a4a2a', '#f0b070')),
+    snow: tileCanvas((c) => { tufts(c, '#c8dcec', '#6a8aa8', '#ffffff'); px(c, 3, 2, '#9ee8ff'); px(c, 11, 10, '#9ee8ff'); }),
+    skygrass: tileCanvas((c) => { tufts(c, '#c8b45a', '#8a7a2a', '#fff2a0'); px(c, 6, 6, '#ffffff'); }),
+    crystal: on(37, (c) => {
+      px(c, 5, 2, '#1c1424', 6, 14); px(c, 6, 3, '#7ac8f0', 4, 12); px(c, 6, 3, '#d8f4ff', 2, 12);
+      px(c, 1, 7, '#1c1424', 5, 9); px(c, 2, 8, '#9ee8ff', 3, 7); px(c, 10, 6, '#1c1424', 5, 10); px(c, 11, 7, '#9ee8ff', 3, 8);
+      px(c, 7, 1, '#ffffff', 2, 2);
+    }),
+    cloud: tileCanvas((c) => {
+      px(c, 0, 0, '#7aa8d8', T, T);
+      c.fillStyle = '#ffffff';
+      for (const [x, y, r] of [[3, 4, 4], [10, 3, 5], [7, 11, 5], [14, 12, 4], [1, 13, 3]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+      px(c, 6, 9, '#dce8f8', 6, 2);
+    }),
     ash: tileCanvas((c) => tufts(c, '#4a3a3a', '#7a2a1a', '#ff8a3a')),
     path: tileCanvas((c) => {
-      const pc = th === 'volcano' ? ['#6a6264', '#4a4446'] : th === 'swamp' ? ['#c8b07a', '#a8905a'] : ['#e2cf96', '#c9b278'];
+      const pc = th === 'volcano' ? ['#6a6264', '#4a4446'] : th === 'swamp' ? ['#c8b07a', '#a8905a'] : th === 'glacier' ? ['#a8c8e0', '#88a8c8'] : th === 'sky' ? ['#e8dcc0', '#c8b890'] : ['#e2cf96', '#c9b278'];
       px(c, 0, 0, pc[0], T, T);
       const r = seeded(5);
       for (let i = 0; i < 7; i++) px(c, Math.floor(r() * 15), Math.floor(r() * 15), pc[1], 2, 1);
@@ -850,8 +892,8 @@ export function tiles(th = 'forest') {
       px(c, 2, 10, '#5a8a4a', 2, 1);
     }),
     mud: on(41, (c) => { c.fillStyle = '#6a4a2a'; c.beginPath(); c.ellipse(8, 9, 7, 4, 0, 0, Math.PI * 2); c.fill(); px(c, 5, 8, '#8a6a4a', 3, 1); }),
-    water0: tileCanvas((c) => { px(c, 0, 0, th === 'swamp' ? '#3a7a8a' : '#4a8ae8', T, T); px(c, 2, 4, '#9ccaff', 5, 1); px(c, 9, 11, '#9ccaff', 5, 1); px(c, 12, 2, '#7ab0f8', 3, 1); }),
-    water1: tileCanvas((c) => { px(c, 0, 0, th === 'swamp' ? '#3a7a8a' : '#4a8ae8', T, T); px(c, 4, 4, '#9ccaff', 5, 1); px(c, 7, 11, '#9ccaff', 5, 1); px(c, 1, 8, '#7ab0f8', 3, 1); }),
+    water0: tileCanvas((c) => { px(c, 0, 0, th === 'swamp' ? '#3a7a8a' : th === 'glacier' ? '#8ac8e8' : '#4a8ae8', T, T); px(c, 2, 4, th === 'glacier' ? '#ffffff' : '#9ccaff', 5, 1); px(c, 9, 11, '#9ccaff', 5, 1); px(c, 12, 2, '#7ab0f8', 3, 1); }),
+    water1: tileCanvas((c) => { px(c, 0, 0, th === 'swamp' ? '#3a7a8a' : th === 'glacier' ? '#8ac8e8' : '#4a8ae8', T, T); px(c, 4, 4, th === 'glacier' ? '#ffffff' : '#9ccaff', 5, 1); px(c, 7, 11, '#9ccaff', 5, 1); px(c, 1, 8, '#7ab0f8', 3, 1); }),
     fall0: tileCanvas((c) => { px(c, 0, 0, '#5aa8f0', T, T); for (let x = 1; x < 16; x += 4) px(c, x, 0, '#e8f6ff', 1, 9); px(c, 0, 13, '#ffffff', 16, 3); }),
     fall1: tileCanvas((c) => { px(c, 0, 0, '#5aa8f0', T, T); for (let x = 3; x < 16; x += 4) px(c, x, 5, '#e8f6ff', 1, 9); px(c, 0, 12, '#ffffff', 16, 4); }),
     lava0: tileCanvas((c) => { px(c, 0, 0, '#e8401a', T, T); px(c, 2, 3, '#ffb03a', 5, 2); px(c, 10, 10, '#ffd23a', 4, 2); px(c, 8, 1, '#a8200a', 3, 1); }),
@@ -882,8 +924,8 @@ export function tiles(th = 'forest') {
     }),
     rock: on(17, (c) => {
       c.fillStyle = '#1c1424'; c.beginPath(); c.ellipse(8, 9, 7, 6, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = th === 'volcano' ? '#4a3a3a' : '#8a8890'; c.beginPath(); c.ellipse(8, 9, 6, 5, 0, 0, Math.PI * 2); c.fill();
-      px(c, 4, 6, th === 'volcano' ? '#6a5a5a' : '#b8b6c0', 4, 2); px(c, 9, 11, '#6a6870', 3, 1);
+      c.fillStyle = th === 'volcano' ? '#4a3a3a' : th === 'glacier' ? '#8aa8c0' : '#8a8890'; c.beginPath(); c.ellipse(8, 9, 6, 5, 0, 0, Math.PI * 2); c.fill();
+      px(c, 4, 6, th === 'volcano' ? '#6a5a5a' : th === 'glacier' ? '#ffffff' : '#b8b6c0', 4, 2); px(c, 9, 11, '#6a6870', 3, 1);
     }),
     redrock: tileCanvas((c) => {
       const base = th === 'volcano' ? ['#2a2024', '#3a2e30', '#4a3a3a'] : ['#6a2a1a', '#a8482a', '#d8784a'];
@@ -1008,7 +1050,64 @@ export function building(type) {
     c.fillStyle = '#ff3a2a'; c.fillRect(w / 2 - 3, h - 22, 6, 6); c.fillStyle = '#ffd23a'; c.fillRect(w / 2 - 1, h - 20, 2, 2);
     c.fillStyle = '#5a8a4a'; c.fillRect(4, 10, 2, 14); c.fillRect(w - 6, 12, 2, 10); c.fillRect(30, 6, 10, 2);
   });
+  if (type === 'iceLair') cv = bcanvas(6, 3, (c, w, h) => {
+    // 빙하의 군주의 얼음 굴
+    c.fillStyle = '#1c1424'; c.beginPath(); c.moveTo(0, h); c.lineTo(6, 8); c.lineTo(26, 0); c.lineTo(62, 2); c.lineTo(88, 10); c.lineTo(w, h); c.fill();
+    c.fillStyle = '#7ac8f0'; c.beginPath(); c.moveTo(4, h); c.lineTo(10, 10); c.lineTo(28, 3); c.lineTo(60, 5); c.lineTo(84, 12); c.lineTo(w - 4, h); c.fill();
+    c.fillStyle = '#d8f4ff'; c.fillRect(18, 10, 10, 3); c.fillRect(56, 9, 14, 3); c.fillRect(30, 6, 6, 2);
+    c.fillStyle = '#0a1420'; c.beginPath(); c.ellipse(w / 2, h, 20, 26, 0, Math.PI, 0); c.fill();
+    c.fillStyle = '#e8f8ff'; for (let x = w / 2 - 16; x <= w / 2 + 12; x += 7) { c.beginPath(); c.moveTo(x, h - 24 + Math.abs(x - w / 2) / 2); c.lineTo(x + 5, h - 24 + Math.abs(x - w / 2) / 2); c.lineTo(x + 2.5, h - 14 + Math.abs(x - w / 2) / 2); c.fill(); }
+    c.fillStyle = '#9ee8ff'; c.fillRect(w / 2 - 7, h - 10, 3, 3); c.fillRect(w / 2 + 4, h - 10, 3, 3);
+  });
+  if (type === 'skyAltar') cv = bcanvas(6, 4, (c, w, h) => {
+    // 하늘 제단 (고대 3대 신수)
+    c.fillStyle = '#1c1424'; c.fillRect(0, 16, w, h - 16);
+    c.fillStyle = '#f0e8d8'; c.fillRect(2, 18, w - 4, h - 20);
+    for (let y = 22; y < h - 4; y += 7) { c.fillStyle = '#c8bca0'; c.fillRect(2, y, w - 4, 1); }
+    c.fillStyle = '#1c1424'; c.beginPath(); c.moveTo(-2, 18); c.lineTo(w / 2, 0); c.lineTo(w + 2, 18); c.fill();
+    c.fillStyle = '#ffd23a'; c.beginPath(); c.moveTo(3, 17); c.lineTo(w / 2, 3); c.lineTo(w - 3, 17); c.fill();
+    c.fillStyle = '#f8f0c0'; c.beginPath(); c.moveTo(12, 16); c.lineTo(w / 2, 7); c.lineTo(w - 12, 16); c.fill();
+    for (const x of [6, 22, w - 30, w - 14]) { c.fillStyle = '#1c1424'; c.fillRect(x, 18, 8, h - 18); c.fillStyle = '#ffffff'; c.fillRect(x + 1, 18, 5, h - 18); c.fillStyle = '#7fe0b8'; c.fillRect(x + 1, 26, 5, 2); }
+    c.fillStyle = '#120a0c'; c.fillRect(w / 2 - 10, h - 26, 20, 26);
+    for (const [x, col] of [[w / 2 - 6, '#3fa9f5'], [w / 2, '#b07b48'], [w / 2 + 6, '#ff6a3d']]) { c.fillStyle = col; c.fillRect(x - 2, h - 22, 4, 4); }
+  });
+  if (type === 'colosseum') cv = bcanvas(6, 4, (c, w, h) => {
+    // 무한의 원시 투기장 (원형 석조 경기장)
+    c.fillStyle = '#1c1424'; c.beginPath(); c.ellipse(w / 2, h / 2 + 4, w / 2, h / 2 - 4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#c8a878'; c.beginPath(); c.ellipse(w / 2, h / 2 + 4, w / 2 - 2, h / 2 - 6, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#a8885a'; for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; c.fillRect(w / 2 + Math.cos(a) * (w / 2 - 8) - 2, h / 2 + 4 + Math.sin(a) * (h / 2 - 10) - 3, 4, 6); }
+    c.fillStyle = '#e8d4a8'; c.beginPath(); c.ellipse(w / 2, h / 2 + 2, w / 2 - 16, h / 2 - 18, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#c62828'; c.fillRect(8, 2, 2, 12); c.fillRect(w - 10, 2, 2, 12); c.fillStyle = '#ffd23a'; c.fillRect(10, 2, 8, 5); c.fillRect(w - 18, 2, 8, 5);
+    c.fillStyle = '#120a0c'; c.fillRect(w / 2 - 10, h - 18, 20, 18);
+    c.fillStyle = '#8a8a8a'; for (let x = w / 2 - 9; x < w / 2 + 10; x += 4) c.fillRect(x, h - 18, 1, 18);
+  });
   BUILD[type] = cv;
+  return cv;
+}
+
+// v3.0 필드 오브젝트: 고대 화석 바위 · 수상한 알 둥지 (ready = 조사 가능 · 반짝임)
+const OBJ = {};
+export function objSprite(kind, ready) {
+  const key = kind + ready;
+  if (OBJ[key]) return OBJ[key];
+  const cv = tileCanvas((c) => {
+    if (kind === 'fossil') {
+      c.fillStyle = '#1c1424'; c.beginPath(); c.ellipse(8, 9, 8, 7, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = ready ? '#b8a890' : '#7a7468'; c.beginPath(); c.ellipse(8, 9, 7, 6, 0, 0, Math.PI * 2); c.fill();
+      px(c, 3, 5, ready ? '#d8ccb0' : '#8a8478', 5, 2);
+      // 암모나이트 · 뼈 화석 무늬
+      c.strokeStyle = ready ? '#f8f0d8' : '#a8a090'; c.lineWidth = 1;
+      c.beginPath(); c.arc(9, 10, 3, 0, Math.PI * 1.6); c.stroke();
+      px(c, 3, 11, ready ? '#f8f0d8' : '#a8a090', 4, 1); px(c, 2, 10, ready ? '#f8f0d8' : '#a8a090', 1, 3);
+    } else {
+      c.fillStyle = '#1c1424'; c.beginPath(); c.ellipse(8, 11, 8, 4.5, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#c8a050'; c.beginPath(); c.ellipse(8, 11, 7, 3.5, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#8a6a2a'; for (const x of [2, 5, 9, 12]) px(c, x, 10 + (x % 3), '#8a6a2a', 2, 1);
+      if (ready) for (const [x, col] of [[5, '#f0e8d0'], [10, '#e8f0c8']]) { c.fillStyle = '#1c1424'; c.beginPath(); c.ellipse(x, 8, 3, 3.6, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = col; c.beginPath(); c.ellipse(x, 8, 2.2, 2.8, 0, 0, Math.PI * 2); c.fill(); px(c, x - 1, 6, '#ffffff'); }
+      else { px(c, 4, 9, '#5a4a2a', 8, 2); }
+    }
+  });
+  OBJ[key] = cv;
   return cv;
 }
 
