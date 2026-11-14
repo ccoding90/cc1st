@@ -9,8 +9,11 @@ export const H = 600;
 // 도트 감성 픽셀 폰트 (ThreeJoGame.jsx에서 Galmuri 로드)
 export const FONT = '"Galmuri11", "Noto Sans KR", sans-serif';
 
-const PY = H - 72;          // 플레이어 시작 y
-const MIN_Y = H * 0.3, MAX_Y = H - 40; // 상하 이동 범위
+const PY = H - 110;         // 플레이어 시작 y
+// 🎯 탑뷰 런앤건: 화면 전체를 걸어 다니며 360° 자동 조준 사격 (상단 HUD 영역만 제외)
+const MIN_Y = 78, MAX_Y = H - 34; // 상하 이동 범위
+const AIM_TURN = 16;        // 조준 회전 속도 rad/s
+const BASE_AIM = -Math.PI / 2;
 const HIT_R = 6;            // 플레이어 피격 판정 반지름 (탄막 게임식 작은 판정)
 const GRAZE_R = 18;         // 판정 바로 바깥 '아슬아슬' 영역 두께
 const SPEED = 330;          // 좌우 이동 속도 px/s
@@ -40,7 +43,7 @@ function randomPowerup() {
 
 // 무기 10단계. 1~4단계는 3레벨씩, 5~10단계는 2레벨씩 (power 0~23)
 // 5 레이저 → 6 물(해일 물대포) → 7 불(화염방사기) → 8 풀(가시덩굴) → 9 번개(천둥 라이트닝)
-// → 10 개발자 궁극기(키보드·마우스 핵폭격, 보스 3방컷 / 조철왕 제외)
+// → 10 개발자 궁극기(키보드·마우스 핵폭격 · 화면 전체 소탕)
 // 6단계부터는 이전 원소를 물려받아 누적: 9단계는 물·불·풀·번개, 10단계는 4원소 + 키보드·마우스 + 핵
 export const WEAPON_NAMES = ['활', '조총', '대포', '기관총', '레이저 기관총', '해일 물대포', '화염방사기', '가시덩굴', '천둥 라이트닝', '개발자 궁극기'];
 export const WEAPON_ELEMENTS = ['', '', '', '', '', '💧', '🔥', '🌿', '⚡', '⌨️'];
@@ -93,17 +96,21 @@ const SCAM_LINES = ['원금 보장! 수익률 300%!', '이건 사기가 아니�
 export const STAGE_COUNT = STAGES.length;
 
 // 🔥 어려움 모드 (무한 루프): 조철왕을 쓰러뜨리면 1탄부터 다시, 회차(loop)마다 계속 강해짐
-// hp: 적·보스 체력 / spd: 적 탄속 / atk: 공격·등장 빈도 / dens: 탄막 밀도(탄 복제) / move: 적 이동 속도
-// 체력은 상한 없이 회차마다 ×1.45씩 불어나서 결국엔 버틸 수 없게 됨
+// ⚖️ v5 밸런스: '잡몹은 가볍게 쓸고, 보스전에 집중'
+//  hp: 잡몹 체력 (회차당 +30%로 완만하게) / bossHp: 보스 체력 (1회차 ×2, 이후 회차당 ×1.3 누적)
+//  spd: 적 탄속 / atk: 보스 공격 빈도 / dens: 보스 탄막 밀도(탄 복제) / move: 적 이동 속도
+//  mobAtk: 잡몹 등장·사격 빈도 (보스와 분리해서 잡몹 압박은 낮게 유지)
 export function hardK(loop) {
-  if (!loop) return { hp: 1, spd: 1, atk: 1, dens: 1, move: 1 };
+  if (!loop) return { hp: 1, bossHp: 1, spd: 1, atk: 1, dens: 1, move: 1, mobAtk: 1 };
   const n = loop - 1;
   return {
-    hp: 1.8 * Math.pow(1.45, n),
-    spd: Math.min(2.2, 1.3 + 0.18 * n),
-    atk: Math.min(2.6, 1.35 + 0.25 * n),
-    dens: Math.min(2.6, 1.25 + 0.3 * n),
-    move: Math.min(2, 1.3 + 0.15 * n),
+    hp: 1 + 0.3 * loop,
+    bossHp: 2 * Math.pow(1.3, n),
+    spd: Math.min(2, 1.2 + 0.15 * n),
+    atk: Math.min(2.4, 1.3 + 0.22 * n),
+    dens: Math.min(2.6, 1.3 + 0.3 * n),
+    move: Math.min(1.7, 1.15 + 0.1 * n),
+    mobAtk: Math.min(1.5, 1.1 + 0.1 * n),
   };
 }
 // 🦸 영웅 초월(초각성): 점수 10만 점마다 한국의 위인 → 현대의 영웅으로 변신 (최대 10단계 = 100만 점)
@@ -128,29 +135,36 @@ export const HEROES = [
 export const HERO_COUNT = HEROES.length;
 const JAMO = 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ';
 
-// ⚖️ 초각성 난이도 스케일링: 각성 1단계당 적 등장 간격 ×0.85, 체력 ×1.2, 이동·탄속 ×1.2
-// 탄속은 단계당 ×1.1(최대 ×1.6, 어려움 모드 합산 ×2.8)로 완화 · 이동 속도는 ×1.2(최대 ×2). 보스 체력은 ×1.1씩 (화력 인플레 보정)
+// ⚖️ 초각성 난이도 스케일링: 각성 1단계당 잡몹 체력 ×1.08 · 등장 간격 ×0.93 · 탄속 ×1.06(최대 ×1.4) · 이동 ×1.08(최대 ×1.6)
+// 보스 체력은 플레이어 화력(bossDps)에 맞춰 따로 계산하므로 여기선 보스 공격 템포만 단계당 +4%
 export function awakenK(lv) {
-  return { hp: Math.pow(1.2, lv), spd: Math.min(1.6, Math.pow(1.1, lv)), move: Math.min(2, Math.pow(1.2, lv)), spawn: Math.pow(0.85, lv), boss: Math.pow(1.1, lv) };
+  return { hp: Math.pow(1.08, lv), spd: Math.min(1.4, Math.pow(1.06, lv)), move: Math.min(1.6, Math.pow(1.08, lv)), spawn: Math.pow(0.93, lv), boss: 1 + 0.04 * lv };
 }
 // 어려움 모드(무한 루프) 배수 × 초각성 배수 = 곱연산
 export function makeK(loop, lv) {
   const h = hardK(loop), a = awakenK(lv);
   return {
-    hp: h.hp * a.hp, bossHp: h.hp * a.boss, spd: Math.min(2.8, h.spd * a.spd), move: Math.min(2.8, h.move * a.move),
-    atk: h.atk, dens: h.dens, spawn: a.spawn, aw: a,
+    hp: h.hp * a.hp, bossHp: h.bossHp, spd: Math.min(2.4, h.spd * a.spd), move: Math.min(2.2, h.move * a.move),
+    atk: h.atk * a.boss, dens: h.dens, spawn: a.spawn, mobAtk: h.mobAtk, aw: a,
   };
 }
+// 🎯 보스 체력 = '현재 화력으로 목표 시간만큼 싸워야 하는 양'. 무기를 키워도 보스전은 짧아지지 않음 (대신 덜 위험해짐)
+// BOSS_DPS: 헤드리스 시뮬(자동 플레이, 3개 보스 평균)로 측정한 무기 단계별 보스 상대 DPS (영웅 미각성, power 0~23, 단조 보정)
+// 초각성 보정은 실측(Lv2·5·10) 근사: base × (1 + 0.035·Lv) + (16 + 2.4·Lv)
+const BOSS_DPS = [3, 6, 8, 8, 12, 17, 17, 17, 19, 42, 49, 52, 57, 61, 79, 82, 135, 162, 172, 198, 233, 244, 414, 462];
+const bossDps = (power, heroLv) => BOSS_DPS[clampI(power, 0, BOSS_DPS.length - 1)] * (1 + 0.035 * heroLv) + (heroLv ? 16 + 2.4 * heroLv : 0);
+const clampI = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
 const MOB_CAP = 110; // 극한 탄막에서도 프레임 유지용 적 수 상한
 const RAGE_LINES = ['감히 개발자를 무시하지 마라!', '네가 감히 나를 이길 수 있을 것 같으냐?!'];
 const RAGE_SEC = 3.8;
 
+// hp: 최소 체력 / sec: 현재 화력 기준 목표 교전 시간(초, 일반 모드). 어려움 모드는 K.bossHp만큼 더 길고 패턴이 거세짐
 const BOSSES = {
-  castle: { name: '캐슬조', title: '조선 탐관오리', hp: 133, w: 72, h: 84, reward: 1000 },
-  zero: { name: '제로조', title: '개화기 군벌 장군', hp: 770, w: 74, h: 84, reward: 3000 },
-  killer: { name: '킬러조', title: '악덕 중고차 딜러', hp: 1250, w: 80, h: 92, reward: 4000 },
-  scam: { name: '믿거조', title: '100억대 경제사범', hp: 1900, w: 84, h: 90, reward: 6000 },
-  king: { name: '조철왕', title: '이 게임의 제작자', hp: 3200, w: 90, h: 92, reward: 0 },
+  castle: { name: '캐슬조', title: '조선 탐관오리', hp: 160, sec: 22, w: 72, h: 84, reward: 1500 },
+  zero: { name: '제로조', title: '개화기 군벌 장군', hp: 800, sec: 28, w: 74, h: 84, reward: 3500 },
+  killer: { name: '킬러조', title: '악덕 중고차 딜러', hp: 1300, sec: 32, w: 80, h: 92, reward: 5000 },
+  scam: { name: '믿거조', title: '100억대 경제사범', hp: 1900, sec: 36, w: 84, h: 90, reward: 7000 },
+  king: { name: '조철왕', title: '이 게임의 제작자', hp: 3200, sec: 48, w: 90, h: 92, reward: 0 },
 };
 
 // 적 탄 색: 어떤 배경(특히 청록색 판교)에서도 튀는 형광 주황·빨강 + 흰 테두리 (drawBullet)
@@ -165,7 +179,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function createGame(env) {
   const s = {
     time: 0, score: 0, stage: 0, phase: 'wave', phaseT: 0,
-    p: { x: W / 2, y: PY, hp: MAX_HP, power: 0, xp: 0, inv: 1.5, fireT: 0, beamT: 0, alive: true, deadT: 0, tilt: 0 },
+    p: { x: W / 2, y: PY, hp: MAX_HP, power: 0, xp: 0, inv: 1.5, fireT: 0, beamT: 0, alive: true, deadT: 0, tilt: 0, aim: BASE_AIM, lock: null, moving: 0, stepT: 0, muzzle: 0 },
+    scrollV: 0, hitstop: 0, dmgPops: [], killStreak: 0, killT: 0, warnEdges: [],
     bombs: 2, bombCd: 0, nova: null,
     auto: false, autoLeft: 0, autoDodgeT: 0, helps: HELP_USES, autoUsed: false, autoT: 0, autoTarget: null, autoKingLine: false,
     buffs: { shield: 0, drone: 0, magnet: 0, fire: 0, slow: 0, star: 0 }, shieldHits: 0, droneT: 0, droneA: 0,
@@ -289,58 +304,96 @@ export function createGame(env) {
     burst(p.x, p.y, 120, ['#ff5252', '#FFD166', '#fff', '#444'], [100, 380], 1.3, [2, 6]);
   }
 
+  // 🎯 자동 조준: 보스 > 엘리트 > 가까운 적 순으로 노림. 대상이 없으면 정면(위)
+  function pickTarget() {
+    const p = s.p, b = s.boss;
+    if (b && !b.entering && !b.dead && b.y > -40 && b.y < H + 40) return b;
+    let best = null, bv = Infinity;
+    for (const m of s.mobs) {
+      if (m.hp <= 0 || m.x < -10 || m.x > W + 10 || m.y < -10 || m.y > H + 10) continue;
+      const d = Math.hypot(m.x - p.x, m.y - p.y);
+      // 가까울수록 · 돌격병일수록 · 엘리트일수록 우선 (화면 위쪽 적을 살짝 선호해 '전진하는' 느낌 유지)
+      const v = d - (m.ai === 'rush' ? 90 : 0) - (m.elite ? 70 : 0) + (m.y > p.y ? 30 : 0);
+      if (v < bv) { bv = v; best = m; }
+    }
+    return best;
+  }
+  function updateAim(dt) {
+    const p = s.p;
+    const tg = pickTarget();
+    p.lock = tg;
+    const want = tg ? Math.atan2(tg.y + (tg === s.boss ? tg.h * 0.1 : 0) - p.y, tg.x - p.x) : BASE_AIM;
+    let d = want - p.aim;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    p.aim += clamp(d, -AIM_TURN * dt, AIM_TURN * dt);
+    if (p.aim > Math.PI) p.aim -= Math.PI * 2;
+    if (p.aim < -Math.PI) p.aim += Math.PI * 2;
+  }
+  // 총구 기준 좌표: f = 총구에서 앞으로, o = 옆으로 (조준 방향 기준)
+  const muzzle = (o = 0, f = 26) => {
+    const p = s.p, ux = Math.cos(p.aim), uy = Math.sin(p.aim);
+    return { x: p.x + ux * f - uy * o, y: p.y - 6 + uy * f + ux * o };
+  };
+
   function playerFire(dt) {
     const p = s.p;
     const tier = tierOf(p.power), w = WEAPONS[tier], n = shotsOf(p.power);
+    const A = p.aim;
     p.fireT -= dt * (s.fever > 0 ? 1.6 : 1);
+    p.muzzle = Math.max(0, p.muzzle - dt);
     if (s.heroLv > 0) heroFire(dt); // 초각성: 기본 사격이 영웅 전용 무기로 교체
     else if (p.fireT <= 0) {
       p.fireT += w.interval;
       if (p.fireT < 0) p.fireT = 0;
+      p.muzzle = 0.06;
       const spread = tier === 3 ? 0.035 : 0.07;
       for (let k = 0; k < n; k++) {
         const off = k - (n - 1) / 2;
-        const ang = -Math.PI / 2 + off * spread;
+        const ang = A + off * spread;
+        const m0 = muzzle(off * 16);
         s.shots.push({
-          x: p.x + off * 16, y: p.y - 26, vx: Math.cos(ang) * w.speed, vy: Math.sin(ang) * w.speed,
+          x: m0.x, y: m0.y, vx: Math.cos(ang) * w.speed, vy: Math.sin(ang) * w.speed,
           dmg: w.dmg * (s.buffs.fire > 0 ? 1.8 : 1), r: w.r, kind: w.kind, splash: w.splash || 0, hot: s.buffs.fire > 0,
         });
       }
       if (tier >= 2 && Math.random() < 0.35) play('tick');
     }
     const sub = subOf(p.power), hot = s.buffs.fire > 0 ? 1.8 : 1;
-    // 레이저 빔 (5단계+): 관통 빔, 6단계부터 원소 색으로 바뀌며 굵어짐
+    // 레이저 빔 (5단계+): 조준 방향으로 뻗는 관통 빔, 6단계부터 원소 색으로 바뀌며 굵어짐
     if (w.beam) {
       p.beamT -= dt;
       if (p.beamT <= 0) {
         p.beamT = 0.12;
         const width = lv(w.beam, sub);
         const dmg = (tier === 4 && sub === 0 ? 1.6 : 2.4) + Math.max(0, tier - 5) * 0.5 + (w.ultra ? 1.5 : 0);
-        s.beams.push({ x: p.x, w: width, life: 0.1, tier, seed: Math.random() * 1000 });
-        hitColumn(p.x, w.ultra ? width * 1.4 : width, dmg * hot);
+        const m0 = muzzle(0, 24);
+        s.beams.push({ x: m0.x, y: m0.y, a: A, w: width, life: 0.1, tier, seed: Math.random() * 1000 });
+        hitRay(m0.x, m0.y, A, w.ultra ? width * 1.4 : width, dmg * hot);
       }
     }
-    // 💧 물 (6단계+): 물방울 산탄 + 주기적으로 화면을 쓸어 올리는 해일 (적 탄 소거)
+    // 💧 물 (6단계+): 물방울 산탄 + 주기적으로 플레이어 중심에서 퍼지는 해일 충격파 (적 탄 소거)
     if (w.water) {
       p.sgT = (p.sgT || 0) - dt;
       if (p.sgT <= 0) {
         p.sgT = 0.42;
         const cnt = lv(w.water, sub);
+        const m0 = muzzle(0, 28);
         for (let i = 0; i < cnt; i++) {
-          const ang = -Math.PI / 2 + (i - (cnt - 1) / 2) * 0.1 + rand(-0.03, 0.03);
+          const ang = A + (i - (cnt - 1) / 2) * 0.1 + rand(-0.03, 0.03);
           const v = rand(620, 740);
-          s.shots.push({ x: p.x, y: p.y - 28, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, dmg: 1.6 * hot, r: 4, kind: 'water', splash: 0 });
+          s.shots.push({ x: m0.x, y: m0.y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, dmg: 1.6 * hot, r: 4, kind: 'water', splash: 0 });
         }
       }
       p.waveT = (p.waveT ?? 2) - dt;
       if (p.waveT <= 0) {
         p.waveT = w.tsunami;
-        s.waves.push({ y: p.y - 10, hits: new Set(), dmg: (w.ultra ? 12 : 8) * hot, bossDmg: (w.ultra ? 40 : 24) * hot });
+        s.waves.push({ x: p.x, y: p.y, r: 16, hits: new Set(), dmg: (w.ultra ? 12 : 8) * hot, bossDmg: (w.ultra ? 40 : 24) * hot });
         popText(p.x, p.y - 60, '🌊 해일!', '#40C4FF', 15, 0.9);
         play('splash');
       }
     }
-    // 🔥 불 (7단계+): 앞쪽 부채꼴로 퍼지는 관통 불길
+    // 🔥 불 (7단계+): 조준 방향 부채꼴로 퍼지는 관통 불길
     if (w.flame) {
       p.flameT = (p.flameT || 0) - dt;
       if (p.flameT <= 0) {
@@ -348,10 +401,11 @@ export function createGame(env) {
         const k = lv(w.flame, sub);
         const cnt = Math.round(2 + k);
         for (let i = 0; i < cnt; i++) {
-          const ang = -Math.PI / 2 + rand(-0.32, 0.32) * (w.ultra ? 1.4 : 1.2);
+          const ang = A + rand(-0.32, 0.32) * (w.ultra ? 1.4 : 1.2);
           const v = rand(430, 560);
+          const m0 = muzzle(rand(-6, 6), 30);
           s.shots.push({
-            x: p.x + rand(-6, 6), y: p.y - 30, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+            x: m0.x, y: m0.y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
             dmg: 0.55 * k * hot, r: 6, kind: 'flame', pierce: true, hits: new Set(), life: w.ultra ? 0.95 : 0.85, t: 0, ultra: !!w.ultra,
           });
         }
@@ -364,10 +418,11 @@ export function createGame(env) {
       if (p.leafT <= 0) {
         p.leafT = 0.5;
         const cnt = lv(w.leaf, sub);
+        const m0 = muzzle(0, 24);
         for (let i = 0; i < cnt; i++) {
-          const ang = -Math.PI / 2 + (i - (cnt - 1) / 2) * 0.55;
+          const ang = A + (i - (cnt - 1) / 2) * 0.55;
           s.shots.push({
-            x: p.x, y: p.y - 24, vx: Math.cos(ang) * 300, vy: Math.sin(ang) * 300, dmg: 2.4 * hot, r: 7, kind: 'leaf',
+            x: m0.x, y: m0.y, vx: Math.cos(ang) * 300, vy: Math.sin(ang) * 300, dmg: 2.4 * hot, r: 7, kind: 'leaf',
             pierce: true, maxHits: 3, hits: new Set(), homing: true, life: 2.4, t: 0, spin: rand(0, 6), trailT: 99,
           });
         }
@@ -459,9 +514,10 @@ export function createGame(env) {
         p.missileT = 0.3;
         const cnt = lv(w.keys, sub);
         for (let i = 0; i < cnt; i++) {
-          const side = i % 2 ? 1 : -1, ang = -Math.PI / 2 + side * (0.5 + Math.floor(i / 2) * 0.35);
+          const side = i % 2 ? 1 : -1, ang = A + side * (0.5 + Math.floor(i / 2) * 0.35);
+          const m0 = muzzle(side * 14, 18);
           s.shots.push({
-            x: p.x + side * 14, y: p.y - 18, vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260,
+            x: m0.x, y: m0.y, vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260,
             dmg: 5 * hot, r: 8, kind: 'key', label: pick(KEYCAPS), spin: rand(-0.4, 0.4), splash: 34, homing: true, life: 3, t: 0, trailT: 99,
           });
         }
@@ -501,14 +557,15 @@ export function createGame(env) {
     s.clicks = s.clicks.filter((c) => c.t < 0.5);
   }
 
-  // 엔터키 핵미사일 (10단계): 일정 주기로 발사 → 적에 닿거나 화면 위쪽에서 기폭
-  // 기폭 시 화면 전체 적에게 큰 피해 + 적 탄 전부 소거. 보스는 3방이면 끝 (조철왕만 예외)
+  // 엔터키 핵미사일 (10단계): 조준 방향으로 일정 주기 발사 → 적에 닿거나 0.7초 뒤 기폭
+  // 기폭 시 화면 전체 적에게 큰 피해 + 적 탄 전부 소거. 보스에겐 최대 체력 2% (조철왕 1.5%)
   function fireUltimate(dt) {
     const p = s.p;
     p.ultT = (p.ultT ?? 1.2) - dt;
     if (p.ultT > 0) return;
     p.ultT = 4;
-    s.shots.push({ x: p.x, y: p.y - 40, vx: 0, vy: -480, dmg: 40, r: 16, kind: 'ult', ult: true, life: 3, t: 0 });
+    const m0 = muzzle(0, 40);
+    s.shots.push({ x: m0.x, y: m0.y, vx: Math.cos(p.aim) * 480, vy: Math.sin(p.aim) * 480, dmg: 40, r: 16, kind: 'ult', ult: true, life: 3, t: 0 });
     popText(p.x, p.y - 70, pick(['Ctrl+Alt+NUKE!', 'git push --force ☢️', 'sudo rm -rf 탐관오리/*', 'Enter ↵ 핵발사!']), '#FFD166', 13, 1);
     s.shake = Math.max(s.shake, 5);
     play('explosion');
@@ -532,29 +589,28 @@ export function createGame(env) {
   }
   function ultHitBoss(b, sh) {
     if (b.entering || b.dead) return;
+    // ⚖️ v5: 보스 3방컷 폐지 → 최대 체력의 2%(조철왕 1.5%) 고정 피해. 보스전은 패턴을 파훼하는 싸움으로
     if (b.key === 'king') {
-      // 조철왕은 제작자라 3방컷이 통하지 않음 (큰 피해만 주고, 원래대로 체력 1 고정 규칙 적용)
-      damageBoss(b, 90, sh.x, sh.y);
-      popText(b.x, b.y + 56, pick(['조철왕: "내 키보드로 날 쳐?"', '조철왕: "3방컷? 나한텐 안 통해~"', '제작자 면역!']), '#18FFFF', 12, 1);
+      damageBoss(b, b.max * 0.015, sh.x, sh.y);
+      popText(b.x, b.y + 56, pick(['조철왕: "내 키보드로 날 쳐?"', '조철왕: "핵? 나한텐 안 통해~"', '제작자 면역!']), '#18FFFF', 12, 1);
     } else {
-      b.ultHits = (b.ultHits || 0) + 1;
-      const left = 3 - b.ultHits;
-      damageBoss(b, left <= 0 ? b.hp + 1 : b.max / 3, b.x, b.y);
-      popText(b.x, b.y + 56, left > 0 ? `☢️ 핵폭격 명중! ${b.ultHits}/3` : '💥 3방컷!', '#FFD166', 16, 1);
+      damageBoss(b, b.max * 0.02, b.x, b.y);
+      popText(b.x, b.y + 56, pick(['☢️ 핵폭격 명중!', '☢️ 보스 장갑 손상!']), '#FFD166', 15, 1);
     }
     burst(b.x, b.y, 40, ['#FFD166', '#fff', '#E040FB', '#18FFFF'], [80, 320], 0.7, [2, 5]);
   }
 
-  // 해일: 화면 전체 폭으로 위로 쓸려 올라가며 적에게 한 번씩 피해 + 적 탄 소거
+  // 해일: 플레이어 중심에서 원형으로 퍼지는 물결 충격파. 닿는 적에게 한 번씩 피해 + 적 탄 소거
   function updateWaves(dt) {
     for (const wv of s.waves) {
-      wv.y -= 520 * dt;
-      for (const m of s.mobs) if (m.hp > 0 && !wv.hits.has(m) && Math.abs(m.y - wv.y) < 22 + m.r) { wv.hits.add(m); m.hp -= wv.dmg; m.flashT = 0.08; }
-      for (const bl of s.bullets) if (Math.abs(bl.y - wv.y) < 20) bl.dead = true;
+      wv.r += 480 * dt;
+      const ring = (x, y, pad) => Math.abs(Math.hypot(x - wv.x, y - wv.y) - wv.r) < pad;
+      for (const m of s.mobs) if (m.hp > 0 && !wv.hits.has(m) && ring(m.x, m.y, 22 + m.r)) { wv.hits.add(m); m.hp -= wv.dmg; m.flashT = 0.08; }
+      for (const bl of s.bullets) if (ring(bl.x, bl.y, 18)) bl.dead = true;
       const b = s.boss;
-      if (b && !wv.hits.has(b) && !b.entering && !b.dead && Math.abs(b.y - wv.y) < b.h / 2) { wv.hits.add(b); damageBoss(b, wv.bossDmg, b.x, wv.y); burst(b.x, wv.y, 16, ['#40C4FF', '#fff'], [60, 200], 0.4); }
+      if (b && !wv.hits.has(b) && !b.entering && !b.dead && ring(b.x, b.y, b.h / 2)) { wv.hits.add(b); damageBoss(b, wv.bossDmg, b.x, b.y); burst(b.x, b.y + b.h / 3, 16, ['#40C4FF', '#fff'], [60, 200], 0.4); }
     }
-    s.waves = s.waves.filter((wv) => wv.y > -40);
+    s.waves = s.waves.filter((wv) => wv.r < 760);
   }
 
   // 유도탄 조향 · 화염 수명 · 핵 기폭 고도
@@ -563,7 +619,7 @@ export function createGame(env) {
       if (!sh.life) continue;
       sh.t += dt;
       if (sh.t > sh.life) { sh.dead = true; continue; }
-      if (sh.ult) { if (sh.y < 130) detonate(sh); continue; }
+      if (sh.ult) { if (sh.t > 0.7 || sh.y < 90 || sh.y > H - 30 || sh.x < 20 || sh.x > W - 20) detonate(sh); continue; }
       if (sh.kind === 'leaf' || sh.kind === 'gear' || sh.kind === 'shuri') sh.spin += dt * 16;
       if (sh.kind === 'flame') {
         sh.vx *= 1 - dt * 1.2; sh.vy *= 1 - dt * 1.2;
@@ -609,7 +665,10 @@ export function createGame(env) {
   const homingShot = (o) => heroShot({ homing: true, life: 2.4, t: 0, trailT: 99, ...o });
   function heroFire(dt) {
     const p = s.p, h = HEROES[s.heroLv - 1], dps = heroPower();
-    const up = -Math.PI / 2, x = p.x, y = p.y - 26;
+    // 조준 방향 기준: up = 조준각, (x, y) = 총구. 옆으로 벌어지는 탄은 xo()/yo()로 조준 수직 방향에 배치
+    const up = p.aim, m0 = muzzle(0, 26), x = m0.x, y = m0.y;
+    const nx = -Math.sin(up), ny = Math.cos(up);
+    const side = (o) => ({ x: x + nx * o, y: y + ny * o });
     // 진양철: 사방으로 쏟아지는 돈다발·반도체 칩 (전방위 유도)
     if (h.key === 'jin') {
       p.ringT = (p.ringT ?? 0.3) - dt;
@@ -624,13 +683,13 @@ export function createGame(env) {
     switch (h.key) {
       case 'yi': { // 신기전: 7갈래 부채꼴 불화살
         const d = (go(0.14) * 1.4) / 7;
-        for (let i = 0; i < 7; i++) heroShot({ x: x + (i - 3) * 3, y, ...vel(up + (i - 3) * 0.17, 620), dmg: d, kind: 'singi', r: 4, splash: i % 3 === 0 ? 20 : 0 });
+        for (let i = 0; i < 7; i++) heroShot({ ...side((i - 3) * 3), ...vel(up + (i - 3) * 0.17, 620), dmg: d, kind: 'singi', r: 4, splash: i % 3 === 0 ? 20 : 0 });
         break;
       }
       case 'kang': { // 별똥별: 유도 별 2 + 직진 별 2
         const d = (go(0.16) * 1.2) / 4;
-        for (const k of [-1, 1]) homingShot({ x: x + k * 10, y, ...vel(up + k * 0.6, 340), dmg: d, r: 6, kind: 'hstar', spin: 0 });
-        for (const k of [-1, 1]) heroShot({ x: x + k * 5, y, ...vel(up + k * 0.05, 700), dmg: d, r: 5, kind: 'hstar' });
+        for (const k of [-1, 1]) homingShot({ ...side(k * 10), ...vel(up + k * 0.6, 340), dmg: d, r: 6, kind: 'hstar', spin: 0 });
+        for (const k of [-1, 1]) heroShot({ ...side(k * 5), ...vel(up + k * 0.05, 700), dmg: d, r: 5, kind: 'hstar' });
         break;
       }
       case 'sejong': { // 훈민정음 자모가 유도탄처럼
@@ -645,32 +704,32 @@ export function createGame(env) {
       }
       case 'heo': { // 침술 속사: 아주 빠른 3연침
         const d = go(0.05) / 3;
-        for (let i = 0; i < 3; i++) heroShot({ x: x + (i - 1) * 5, y, ...vel(up + (i - 1) * 0.035, 1050), dmg: d, r: 3, kind: 'needle' });
+        for (let i = 0; i < 3; i++) heroShot({ ...side((i - 1) * 5), ...vel(up + (i - 1) * 0.035, 1050), dmg: d, r: 3, kind: 'needle' });
         break;
       }
       case 'gungye': { // 관심법 눈빛: 금빛 관통 광선
         const d = (go(0.12) * 0.8) / 2;
-        for (const k of [-1, 1]) heroShot({ x: x + k * 9, y, ...vel(up, 950), dmg: d, r: 6, kind: 'eye', pierce: true, maxHits: 5, hits: new Set(), life: 1.2, t: 0 });
+        for (const k of [-1, 1]) heroShot({ ...side(k * 9), ...vel(up, 950), dmg: d, r: 6, kind: 'eye', pierce: true, maxHits: 5, hits: new Set(), life: 1.2, t: 0 });
         break;
       }
       case 'hong': { // 분신술: 본체 + 좌우 분신이 함께 유도 표창
         const d = (go(0.14) * 1.1) / 3;
-        for (const ox of [0, -40, 40]) homingShot({ x: x + ox, y: y + (ox ? 14 : 0), ...vel(up + ox * 0.006, 420), dmg: d, r: 6, kind: 'shuri', spin: rand(0, 6), life: 2.2 });
+        for (const ox of [0, -40, 40]) homingShot({ x: p.x + ox, y: p.y - 12 + (ox ? 14 : 0), ...vel(up + ox * 0.006, 420), dmg: d, r: 6, kind: 'shuri', spin: rand(0, 6), life: 2.2 });
         break;
       }
       case 'kim': { // 주먹(가끔 오렌지 주스) 초고속 연사
         const d = go(0.055) / 2;
-        for (const k of [-1, 1]) heroShot({ x: x + k * 7, y, ...vel(up + rand(-0.07, 0.07), 780), dmg: d, r: 7, kind: 'fist', label: Math.random() < 0.22 ? '🧃' : '👊' });
+        for (const k of [-1, 1]) heroShot({ ...side(k * 7), ...vel(up + rand(-0.07, 0.07), 780), dmg: d, r: 7, kind: 'fist', label: Math.random() < 0.22 ? '🧃' : '👊' });
         break;
       }
       case 'ahn': { // 프로펠러 기관총: 5갈래 예광탄
         const d = go(0.08) / 5;
-        for (let i = 0; i < 5; i++) heroShot({ x: x + (i - 2) * 5, y, ...vel(up + (i - 2) * 0.1, 900), dmg: d, r: 3, kind: 'prop' });
+        for (let i = 0; i < 5; i++) heroShot({ ...side((i - 2) * 5), ...vel(up + (i - 2) * 0.1, 900), dmg: d, r: 3, kind: 'prop' });
         break;
       }
       default: { // 진양철: 정면 돈다발
         const d = (go(0.1) * 0.55) / 2;
-        for (const k of [-1, 1]) heroShot({ x: x + k * 8, y, ...vel(up + k * 0.04, 700), dmg: d, r: 7, kind: 'money' });
+        for (const k of [-1, 1]) heroShot({ ...side(k * 8), ...vel(up + k * 0.04, 700), dmg: d, r: 7, kind: 'money' });
       }
     }
     if (Math.random() < 0.2) play('tick');
@@ -828,55 +887,112 @@ export function createGame(env) {
     heroChanged();
   }
 
-  // ---------- 적 ----------
+  // ---------- 적 (지상군) ----------
+  // ai: 'walk' 보병 = 플레이어 주변 '교전 거리'를 잡고 옆걸음치며 사격
+  //     'rush' 돌격병 = 짧게 멈칫(!) 후 플레이어에게 돌진 (회전이 둔해서 옆으로 비키면 피할 수 있음)
+  //     'drive' 차량 = 화면을 가로질러 직진 (격파하면 보급품)
   function spawnMob(x, y, kind, o = {}) {
     const st = STAGES[s.stage];
     const heavy = kind === 'heavy';
-    if (s.mobs.length >= MOB_CAP) return;
+    if (s.mobs.length >= MOB_CAP) return null;
     const base = heavy ? st.heavy : st.mob;
-    // 👹 엘리트 몹 (1단계 각성 이후): 붉은 오라 · 크기 1.5배 · 체력 10배 · 플레이어 유도탄 · 잠시 머물며 사격
-    const elite = !heavy && s.heroLv > 0 && Math.random() < Math.min(0.12, 0.04 + 0.008 * s.heroLv) && s.mobs.filter((m) => m.elite).length < 3;
-    const hp = mobHp(base.hp, heavy) * (elite ? (s.loop ? 3 : 10) : 1);
-    s.mobs.push({
-      x, y, x0: x, kind, name: elite ? `엘리트 ${base.name}` : base.name, hp, max: hp, r: heavy ? 22 : elite ? 21 : 14,
-      vy: (o.vy ?? (heavy ? 45 : st.mob.speed)) * s.K.move * (elite ? 0.8 : 1), vx: (o.vx || 0) * s.K.move, zig: o.zig || 0, t: rand(0, 3),
-      fireT: elite ? rand(1.2, 2) : rand(1.2, 2.6), hover: o.hover || (elite ? rand(90, 200) : 0), stage: s.stage, look: lookOf(s.stage), flashT: 0, elite,
-    });
+    // 👹 엘리트 몹 (1단계 각성 이후): 붉은 오라 · 크기 1.5배 · 체력 6배 · 플레이어 유도탄 · 멀찍이서 사격
+    const elite = !heavy && !o.ai && s.heroLv > 0 && Math.random() < Math.min(0.12, 0.04 + 0.008 * s.heroLv) && s.mobs.filter((m) => m.elite).length < 3;
+    const hp = mobHp(base.hp, heavy) * (elite ? (s.loop ? 4 : 6) : 1);
+    const ai = o.ai || (heavy ? 'drive' : 'walk');
+    const m = {
+      x, y, x0: x, kind, ai, name: elite ? `엘리트 ${base.name}` : ai === 'rush' ? `돌격 ${base.name}` : base.name, hp, max: hp, r: heavy ? 22 : elite ? 21 : 14,
+      vy: (o.vy ?? (heavy ? 45 : 0)) * s.K.move, vx: (o.vx || 0) * s.K.move, zig: o.zig || 0, t: rand(0, 0.5),
+      spd: base.speed ? base.speed * (ai === 'rush' ? 1.55 : 0.75) * s.K.move * (elite ? 0.8 : 1) : 0,
+      fireT: elite ? rand(1.2, 2) : rand(1.4, 2.8), stage: s.stage, look: lookOf(s.stage), flashT: 0, elite,
+      ax: x, ay: y, anchorT: 0, wind: ai === 'rush' ? 0.55 : 0, head: Math.atan2(s.p.y - y, s.p.x - x), face: 1,
+    };
+    if (ai === 'walk') pickAnchor(m);
+    s.mobs.push(m);
+    return m;
   }
-  // ⚖️ 어려움 모드 밸런스: 1~3탄을 다시 돌아도 잡몹 체력은 판교급 이상 + 무기 단계가 높을수록 더 단단하게
-  // (10단계 무기의 핵·해일·낙뢰 한 번에 화면이 비지 않도록. 1회차 10단계 무기 기준 잡몹 ≈ 핵 1.3발)
+  // 교전 위치: 플레이어를 중심으로 일정 거리 (플레이어가 아래쪽에 있으면 주로 위쪽 반원에서 압박)
+  function pickAnchor(m) {
+    const p = s.p;
+    const a = p.y > 260 ? BASE_AIM + rand(-1.35, 1.35) : rand(0, Math.PI * 2);
+    const r = m.elite ? rand(200, 260) : rand(140, 230);
+    m.ax = clamp(p.x + Math.cos(a) * r, 24, W - 24);
+    m.ay = clamp(p.y + Math.sin(a) * r, 40, H - 50);
+    m.anchorT = rand(2.2, 3.6);
+  }
+  // 적 이동 1스텝 (자동 플레이 AI의 미래 예측에도 그대로 사용)
+  function stepMob(m, dt, px, py) {
+    m.t += dt;
+    if (m.rootT > 0) return;
+    if (m.ai === 'drive') {
+      m.y += m.vy * dt;
+      m.x += m.vx * dt;
+      if (m.zig) m.x = m.x0 + Math.sin(m.t * 2.4) * m.zig;
+      return;
+    }
+    if (m.ai === 'rush') {
+      if (m.wind > 0) { m.wind -= dt; m.head = Math.atan2(py - m.y, px - m.x); return; }
+      if (m.t < 5) {
+        let d = Math.atan2(py - m.y, px - m.x) - m.head;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        m.head += clamp(d, -2.4 * dt, 2.4 * dt);
+      }
+      m.x += Math.cos(m.head) * m.spd * dt;
+      m.y += Math.sin(m.head) * m.spd * dt;
+      return;
+    }
+    // walk: 교전 위치로 이동 → 도착하면 좌우로 게걸음 / 오래 버티면 퇴각
+    const tx = m.retreat ? m.ex : m.ax, ty = m.retreat ? m.ey : m.ay;
+    const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy);
+    if (d > 3) { const st = Math.min(d, m.spd * dt); m.x += (dx / d) * st; m.y += (dy / d) * st; }
+    else m.x += Math.sin(m.t * 1.7) * 26 * dt;
+  }
+  // ⚖️ v5: 잡몹은 '쓸어버리는 맛'. 어려움 모드도 회차당 +30%만 (무기 단계 배수 폐지)
   function mobHp(base, heavy) {
-    if (!s.loop) return base * s.K.hp;
-    const floor = heavy ? 24 : 8;
-    const weaponK = 1 + 0.9 * tierOf(s.p.power);
-    return Math.max(base, floor) * s.K.hp * weaponK;
+    return base * (heavy ? 0.9 : 0.75) * s.K.hp;
   }
+  // 측면·후방 기습 예고: 화면 가장자리에 깜빡이는 화살표
+  const warnEdge = (side, pos) => s.warnEdges.push({ side, pos, t: 0, dur: 1.1 });
   function spawnFormation() {
     spawnFormationOnce();
-    // 어려움 모드: 편대가 겹쳐서 몰려옴 (회차가 오를수록 확률 ↑)
-    if (s.loop && Math.random() < Math.min(0.7, 0.25 + 0.12 * s.loop)) later(rand(0.3, 0.8), spawnFormationOnce);
+    // 어려움 모드: 가끔 분대가 겹쳐서 옴 (잡몹 압박은 낮게 유지해 보스전에 집중)
+    if (s.loop && Math.random() < Math.min(0.4, 0.15 + 0.08 * s.loop)) later(rand(0.6, 1.2), spawnFormationOnce);
   }
   function spawnFormationOnce() {
-    const st = lookOf(s.stage), more = s.loop ? Math.min(3, s.loop + 1) : 0;
-    const f = pick(st === 0 ? ['line', 'v', 'rain'] : ['line', 'v', 'sweep', 'zig', 'rain']);
-    if (f === 'line') {
-      const n = (st === 0 ? 4 : 5) + more;
-      for (let i = 0; i < n; i++) spawnMob(40 + (i * (W - 80)) / (n - 1), -20);
-    } else if (f === 'v') {
-      const cx = rand(110, W - 110);
-      for (let i = -2; i <= 2; i++) spawnMob(cx + i * 34, -20 - Math.abs(i) * 26);
-    } else if (f === 'rain') {
-      for (let i = 0; i < 5 + more * 2; i++) later(i * 0.25, () => spawnMob(rand(30, W - 30), -20));
-    } else if (f === 'sweep') {
-      const left = Math.random() < 0.5;
-      for (let i = 0; i < 5 + more; i++) later(i * 0.3, () => spawnMob(left ? -20 : W + 20, 60 + i * 6, 'mob', { vx: left ? 120 : -120, vy: 34 }));
-    } else if (f === 'zig') {
-      const cx = rand(120, W - 120);
-      for (let i = 0; i < 4; i++) later(i * 0.35, () => spawnMob(cx, -20, 'mob', { zig: 70 }));
-    }
-    if (st === 3) {
-      // 드론은 내려와 잠시 머물며 사격
-      s.mobs.forEach((m) => { if (m.look === 3 && !m.hover && m.kind === 'mob') m.hover = rand(80, 220); });
+    const look = lookOf(s.stage), more = s.loop ? Math.min(2, s.loop) : 0;
+    const pool = look === 0 ? ['top', 'top', 'flank', 'rush'] : ['top', 'flank', 'pincer', 'rush', 'top'];
+    if (s.loop || s.stage >= 3) pool.push('behind');
+    const f = pick(pool);
+    if (f === 'top') {
+      const n = (look === 0 ? 4 : 5) + more;
+      const x0 = rand(30, 90), span = W - 60 - x0;
+      for (let i = 0; i < n; i++) later(i * 0.12, () => spawnMob(x0 + (i * span) / Math.max(1, n - 1), -20));
+    } else if (f === 'flank' || f === 'pincer') {
+      const sides = f === 'pincer' ? [-1, 1] : [Math.random() < 0.5 ? -1 : 1];
+      const n = (f === 'pincer' ? 3 : 4) + more;
+      for (const sd of sides) {
+        const y0 = rand(110, H * 0.5);
+        warnEdge(sd < 0 ? 'l' : 'r', y0 + n * 9);
+        for (let i = 0; i < n; i++) later(0.6 + i * 0.25, () => spawnMob(sd < 0 ? -18 : W + 18, y0 + i * 18));
+      }
+    } else if (f === 'rush') {
+      // 돌격조: 짧은 예고 후 몸통 박치기 (조준은 자동이니 '피하면서 쏘는' 재미)
+      const n = 3 + Math.min(2, more);
+      const fromSide = look > 0 && Math.random() < 0.4, sd = Math.random() < 0.5 ? -1 : 1;
+      const y0 = rand(120, H * 0.45);
+      if (fromSide) warnEdge(sd < 0 ? 'l' : 'r', y0 + 20); else warnEdge('t', s.p.x);
+      popText(fromSide ? (sd < 0 ? 60 : W - 60) : clamp(s.p.x, 60, W - 60), fromSide ? y0 : 96, pick(['돌격!!', '잡아라!', '와아아!']), '#FF5252', 14, 1);
+      for (let i = 0; i < n; i++) {
+        later(0.5 + i * 0.2, () => fromSide
+          ? spawnMob(sd < 0 ? -18 : W + 18, y0 + i * 22, 'mob', { ai: 'rush' })
+          : spawnMob(clamp(s.p.x + (i - (n - 1) / 2) * 46, 20, W - 20), -20, 'mob', { ai: 'rush' }));
+      }
+    } else {
+      // 후방 기습: 아래에서 올라오는 분대
+      const n = 3 + more, x0 = rand(60, W - 60);
+      warnEdge('b', x0);
+      for (let i = 0; i < n; i++) later(0.8 + i * 0.22, () => spawnMob(clamp(x0 + (i - (n - 1) / 2) * 40, 20, W - 20), H + 18));
     }
   }
   function mobShoot(m) {
@@ -905,8 +1021,14 @@ export function createGame(env) {
   }
   function killMob(m) {
     const heavy = m.kind === 'heavy' || m.elite;
+    s.killStreak++;
+    s.killT = 1.8;
+    if ([10, 20, 30, 50, 75, 100].includes(s.killStreak)) {
+      popText(s.p.x, s.p.y - 70, `${s.killStreak} 연속 처치!`, s.killStreak >= 50 ? '#FF5252' : '#FFD166', s.killStreak >= 50 ? 17 : 14, 1);
+      addScore(s.killStreak * 10);
+    }
     addScore((m.elite ? 150 : heavy ? 60 : 15) * (m.stage + 1));
-    if (m.elite) { popText(m.x, m.y - 26, '엘리트 격파!', '#FF5252', 13, 0.9); burst(m.x, m.y, 30, ['#FF1744', '#FF8A80', '#fff'], [80, 260], 0.7); }
+    if (m.elite) { s.hitstop = Math.max(s.hitstop, 0.05); popText(m.x, m.y - 26, '엘리트 격파!', '#FF5252', 13, 0.9); burst(m.x, m.y, 30, ['#FF1744', '#FF8A80', '#fff'], [80, 260], 0.7); }
     burst(m.x, m.y, heavy ? 36 : 14, m.look === 3 ? ['#00E5FF', '#fff', '#90A4AE'] : m.look === 4 ? ['#FFD600', '#69F0AE', '#fff'] : ['#FFD166', '#ff7043', '#fff'], [60, 220], 0.6);
     play(heavy ? 'crack' : 'whoosh');
     if (heavy) {
@@ -928,8 +1050,10 @@ export function createGame(env) {
   // ---------- 보스 ----------
   function spawnBoss(key) {
     const d = BOSSES[key];
+    // ⚖️ v5: 보스 체력 = max(기본 체력, 현재 화력 × 목표 교전 시간) × 어려움 모드 배수
+    const hp = Math.max(d.hp, bossDps(s.p.power, s.heroLv) * d.sec) * s.K.bossHp;
     s.boss = {
-      key, ...d, hp: d.hp * s.K.bossHp, max: d.hp * s.K.bossHp, x: W / 2, y: -100, ty: key === 'king' ? 135 : 128, t: 0, entering: true,
+      key, ...d, hp, max: hp, x: W / 2, y: -100, ty: key === 'king' ? 135 : 128, t: 0, entering: true, desperate: false, despT: 0, dashCount: 0,
       atkT: 2, moveT: key === 'scam' ? 4 : 0, tx: W / 2, rage: false, mode: 'normal', modeT: 0, shield: 0, floorT: 0, flashT: 0,
       deathT: 0, dead: false, lastAtk: '', dash: null, smokeT: 0, loopRage: s.loop > 0,
       reso: s.heroLv, resoT: 2.5, // 🔥 각성 공명: 초각성한 플레이어를 만나면 보스도 강해짐
@@ -947,8 +1071,17 @@ export function createGame(env) {
   function bossAttack(b) {
     const src = b.name;
     if (b.key === 'castle') {
-      const atk = pick(['fan', 'aimed', 'tax'].filter((a) => a !== b.lastAtk));
+      const pool = ['fan', 'aimed', 'tax'];
+      if (s.loop || b.desperate) pool.push('cross');
+      const atk = pick(pool.filter((a) => a !== b.lastAtk));
       b.lastAtk = atk;
+      if (atk === 'cross') {
+        // 어려움 전용: 회전하는 십자 곤장 탄막
+        popText(b.x, b.y + 50, '곤장 백 대!', '#FF5252', 14);
+        const base = Math.random() * Math.PI;
+        for (let i = 0; i < 18; i++) later(i * 0.08, () => { for (let k = 0; k < 4; k++) fire(b.x, b.y + 20, base + i * 0.13 + (k * Math.PI) / 2, 135, { src, kind: 'rice', color: E_ORANGE }); });
+        return 2;
+      }
       if (atk === 'fan') {
         for (let i = 0; i < 7; i++) fire(b.x, b.y + 30, Math.PI / 2 + (i - 3) * 0.15, 140, { src, kind: 'orb', color: E_RED, r: 6 });
       } else if (atk === 'aimed') {
@@ -961,8 +1094,22 @@ export function createGame(env) {
     }
     if (b.key === 'zero') {
       const k = b.rage ? 1.15 : 1;
-      const atk = pick(['spiral', 'shotgun', 'wall', 'sweep'].filter((a) => a !== b.lastAtk));
+      const pool = ['spiral', 'shotgun', 'wall', 'sweep'];
+      if (s.loop || b.desperate) pool.push('barrage');
+      const atk = pick(pool.filter((a) => a !== b.lastAtk));
       b.lastAtk = atk;
+      if (atk === 'barrage') {
+        // 어려움 전용: 개틀링 예측 사격 (플레이어 이동 방향을 앞질러 쏨)
+        popText(b.x, b.y + 56, '개틀링 난사!', '#FF5252', 14);
+        let lx = s.p.x, ly = s.p.y;
+        for (let i = 0; i < 14; i++) later(i * 0.07, () => {
+          const vx = (s.p.x - lx) / 0.07, vy = (s.p.y - ly) / 0.07;
+          lx = s.p.x; ly = s.p.y;
+          const d = Math.hypot(s.p.x - b.x, s.p.y - b.y), tt = d / (240 * k * STAGES[s.stage].bulletK * s.K.spd);
+          fire(b.x, b.y + 40, Math.atan2(s.p.y + vy * tt * 0.6 - b.y - 40, s.p.x + vx * tt * 0.6 - b.x) + rand(-0.05, 0.05), 240 * k, { src, kind: 'orb', color: E_RED, r: 4 });
+        });
+        return 1.9;
+      }
       if (atk === 'spiral') {
         const base = Math.random() * Math.PI;
         for (let i = 0; i < 26; i++) {
@@ -1060,9 +1207,20 @@ export function createGame(env) {
     const k = b.rage ? 1.15 : 1;
     const pool = ['goldrain', 'billfan', 'ponzi', 'fakebag'];
     if (b.rage) pool.push('spiral', 'spiral');
+    if (s.loop || b.desperate) pool.push('margin');
     const atk = pick(pool.filter((a) => a !== b.lastAtk));
     b.lastAtk = atk;
     if (Math.random() < 0.6) popText(b.x, b.y + 58, pick(SCAM_LINES), '#FFD600', 12, 1.1);
+    if (atk === 'margin') {
+      // 어려움 전용: 마진콜 - 좌우 벽에서 금화 장벽이 밀려옴 (세로 틈 하나)
+      popText(b.x, b.y + 74, '📉 마진콜!!', '#FF1744', 15);
+      play('alarm');
+      for (let r = 0; r < 3; r++) later(r * 0.75, () => {
+        const gy = clamp(s.p.y + rand(-70, 70), MIN_Y + 30, H - 70);
+        for (const sd of [-1, 1]) for (let y = 90; y < H - 10; y += 26) if (Math.abs(y - gy) > 40) fire(sd < 0 ? -8 : W + 8, y, sd < 0 ? 0 : Math.PI, 120, { src, kind: 'goldcoin', color: '#FFC400', r: 5 }, false);
+      });
+      return 2.6;
+    }
     if (atk === 'goldrain') {
       popText(b.x, b.y + 74, '금괴 투하!', '#FFC400', 14);
       const n = b.rage ? 18 : 13;
@@ -1130,7 +1288,8 @@ export function createGame(env) {
     }
     // 돌진: 예고선 → 고장 난 차를 몰고 화면 아래까지 급발진 → 위에서 다시 등장
     // 어려움 모드: 예고는 짧아지고(최소 0.55초) 급발진 속도는 어마어마하게
-    b.dash = { st: 'warn', t: 0, x: clamp(s.p.x, 50, W - 50), warn: Math.max(0.55, (b.rage ? 0.95 : 1.15) / Math.sqrt(s.K.atk)), vy: 0, trailT: 0 };
+    b.dash = { st: 'warn', t: 0, x: clamp(s.p.x, 50, W - 50), warn: Math.max(0.6, (b.rage ? 0.95 : 1.15) / Math.sqrt(s.K.atk)), vy: 0, trailT: 0 };
+    b.dashCount = s.loop ? (b.desperate ? 3 : 2) : b.desperate ? 2 : 1;
     if (s.loop) popText(b.x, b.y + 74, `${s.loop}회차 터보 엔진!!`, '#FF1744', 13, 1.2);
     popText(b.x, b.y + 56, '급발진 돌진!!', '#FF5252', 15, 1.2);
     play('alarm');
@@ -1156,7 +1315,17 @@ export function createGame(env) {
       if (b.y > H + 90) { d.st = 'back'; d.t = 0; b.x = rand(80, W - 80); b.y = -110; }
     } else {
       b.y += (b.ty - b.y) * Math.min(1, dt * 2.2);
-      if (Math.abs(b.y - b.ty) < 3) { b.dash = null; b.atkT = 0.9; }
+      if (Math.abs(b.y - b.ty) < 3) {
+        b.dash = null;
+        b.atkT = 0.9;
+        // 어려움 모드: 연속 급발진
+        if (b.dashCount > 1) {
+          b.dashCount--;
+          b.dash = { st: 'warn', t: 0, x: clamp(s.p.x, 50, W - 50), warn: Math.max(0.6, 0.9 / Math.sqrt(s.K.atk)), vy: 0, trailT: 0 };
+          popText(b.x, b.y + 56, '한 번 더!!', '#FF5252', 15, 1);
+          play('alarm');
+        }
+      }
     }
   }
 
@@ -1183,6 +1352,7 @@ export function createGame(env) {
     }
     b.hp -= dmg;
     b.flashT = 0.06;
+    b.dmgAcc = (b.dmgAcc || 0) + dmg;
     addScore(dmg);
     if (b.key === 'king') {
       if (b.mode === 'normal' && b.hp <= b.max * 0.15) {
@@ -1204,13 +1374,38 @@ export function createGame(env) {
     if (!b.rage && b.hp <= b.max * 0.5) {
       b.rage = true;
       s.shake = 14;
-      banner(`💢 ${b.name} 분노!`, b.key === 'zero' ? '움직임이 빨라진다' : b.key === 'killer' ? '엔진 과열! 돌진이 빨라진다' : b.key === 'scam' ? '"100억을 사기치면… 경제사범이라 불리지!"' : '공격이 거세진다', 1.6);
+      s.hitstop = Math.max(s.hitstop, 0.08);
+      banner(`💢 ${b.name} 분노!`, b.key === 'zero' ? '움직임이 빨라진다 · 호위병 소집!' : b.key === 'killer' ? '엔진 과열! 돌진이 빨라진다' : b.key === 'scam' ? '"100억을 사기치면… 경제사범이라 불리지!"' : '공격이 거세진다 · 호위병 소집!', 1.6);
+      summonGuards(b, 2 + Math.min(2, s.loop));
+    }
+    if (!b.desperate && b.hp > 0 && b.hp <= b.max * 0.25) {
+      // ☠️ 최후의 발악: 공격 템포 ↑ + 주기적 원형 탄막 + 호위병
+      b.desperate = true;
+      b.despT = 1.2;
+      s.shake = 18;
+      s.hitstop = Math.max(s.hitstop, 0.1);
+      s.flash = Math.max(s.flash, 0.3);
+      play('doom');
+      banner(`☠️ ${b.name} 최후의 발악!`, s.loop ? `${s.loop}회차 · 원형 탄막 + 돌격대` : '원형 탄막 + 호위병 · 조금만 더!', 1.8);
+      summonGuards(b, 3 + Math.min(3, s.loop), s.loop > 0);
     }
     if (b.hp <= 0) bossDown(b);
     return true;
   }
+  // 보스 호위병 소집: 보스 양옆에서 보병(어려움 모드는 돌격병 섞임)이 튀어나옴
+  function summonGuards(b, n, rush = false) {
+    for (let i = 0; i < n; i++) {
+      later(0.15 + i * 0.18, () => {
+        if (!s.boss || s.boss.dead) return;
+        const sd = i % 2 ? 1 : -1;
+        const m = spawnMob(clamp(b.x + sd * (b.w / 2 + 10 + Math.floor(i / 2) * 22), 20, W - 20), b.y + 20, 'mob', rush && i % 2 ? { ai: 'rush' } : {});
+        if (m) burst(m.x, m.y, 10, ['#fff', '#FFD166'], [40, 140], 0.35);
+      });
+    }
+  }
   function bossDown(b) {
     b.dead = true;
+    s.hitstop = 0.18;
     b.deathT = 0;
     s.bosses++;
     s.bullets.length = 0;
@@ -1233,10 +1428,16 @@ export function createGame(env) {
       dropItem(b.x + 15, b.y + 10, 'shield');
     });
   }
-  function hitColumn(x, w, dmg) {
-    for (const m of s.mobs) if (Math.abs(m.x - x) < w + m.r && m.y > 0) { m.hp -= dmg; m.flashT = 0.05; }
+  // 관통 빔 판정: (ox, oy)에서 각도 a로 뻗는 폭 w의 광선
+  function hitRay(ox, oy, a, w, dmg) {
+    const ux = Math.cos(a), uy = Math.sin(a);
+    const onRay = (x, y, r) => {
+      const dx = x - ox, dy = y - oy, along = dx * ux + dy * uy;
+      return along > -r && Math.abs(-dx * uy + dy * ux) < w + r;
+    };
+    for (const m of s.mobs) if (m.hp > 0 && m.y > -10 && onRay(m.x, m.y, m.r)) { m.hp -= dmg; m.flashT = 0.05; }
     const b = s.boss;
-    if (b && Math.abs(b.x - x) < b.w / 2 + w) damageBoss(b, dmg, x, b.y + b.h / 2);
+    if (b && onRay(b.x, b.y, Math.min(b.w, b.h) / 2)) damageBoss(b, dmg, b.x, b.y + b.h / 4);
   }
 
   function updateBoss(b, dt) {
@@ -1307,8 +1508,32 @@ export function createGame(env) {
         for (let i = 0; i < n; i++) fire(b.x + rand(-b.w / 3, b.w / 3), b.y + rand(0, b.h / 3), rand(0, Math.PI * 2), rand(95, 150), { src: b.name, kind: Math.random() < 0.5 ? 'orb' : 'rice', color: Math.random() < 0.5 ? E_HOT : E_ORANGE, r: 5 });
       }
     }
+    // 💥 피해 숫자
+    b.dmgT = (b.dmgT || 0) - dt;
+    if (b.dmgT <= 0 && b.dmgAcc >= 1) {
+      popText(b.x + rand(-b.w / 2, b.w / 2), b.y - b.h / 2 + rand(-4, 8), Math.round(b.dmgAcc).toLocaleString('ko-KR'), b.dmgAcc > b.max * 0.03 ? '#FFD166' : '#FFF8E1', b.dmgAcc > b.max * 0.03 ? 14 : 10, 0.5);
+      b.dmgAcc = 0;
+      b.dmgT = 0.2;
+    }
+    // ☠️ 최후의 발악: 틈 하나가 열린 원형 탄막을 주기적으로 (틈은 플레이어 쪽에서 살짝 비껴 있음)
+    if (b.desperate && s.p.alive && !(b.dash && b.dash.st === 'go')) {
+      b.despT -= dt;
+      if (b.despT <= 0) {
+        b.despT = Math.max(1.6, 3.2 / Math.sqrt(s.K.atk));
+        const n = 20 + Math.min(12, s.loop * 4), gapA = aim(b.x, b.y) + rand(-0.9, 0.9);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          let d = a - gapA;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          if (Math.abs(d) < 0.32) continue;
+          fire(b.x, b.y + 10, a, 115, { src: b.name, kind: 'orb', color: E_HOT, r: 6 }, false);
+        }
+        burst(b.x, b.y, 18, ['#FF1744', '#fff'], [60, 200], 0.4);
+      }
+    }
     b.atkT -= dt;
-    if (b.atkT <= 0 && s.p.alive && b.mode !== 'rage' && !b.dash) b.atkT = bossAttack(b) * (b.key === 'zero' && b.rage ? 0.8 : 1) * STAGES[s.stage].bossK / s.K.atk;
+    if (b.atkT <= 0 && s.p.alive && b.mode !== 'rage' && !b.dash) b.atkT = bossAttack(b) * (b.key === 'zero' && b.rage ? 0.8 : 1) * (b.desperate ? 0.82 : 1) * STAGES[s.stage].bossK / s.K.atk;
     // 보스 몸통 충돌
     if (Math.abs(b.x - s.p.x) < b.w / 2 && Math.abs(b.y - s.p.y) < b.h / 2 + 10) hurtOrBlock(b.name);
   }
@@ -1393,8 +1618,13 @@ export function createGame(env) {
   function update(dt, input = {}) {
     if (s.cine) { s.time += dt; updateCine(dt); return; } // 분노 연출 중엔 게임 정지
     if (s.awake) { s.time += dt; updateAwake(dt); return; } // 초각성 순간 시간 정지
+    // ⏸ 히트스톱: 큰 타격 순간 아주 잠깐 멈춰서 손맛 강조
+    if (s.hitstop > 0) { s.hitstop -= dt; s.time += dt; return; }
     s.time += dt;
-    s.scroll += dt * [60, 90, 140, 120, 110][lookOf(s.stage)];
+    // 🚶 행군 스크롤: 웨이브 중엔 천천히 전진, 보스전은 제자리 아레나 (보스 격파 후 다시 전진)
+    const wantV = s.phase === 'boss' || s.phase === 'warn' ? 0 : [34, 48, 70, 62, 56][lookOf(s.stage)];
+    s.scrollV += (wantV - s.scrollV) * Math.min(1, dt * 1.5);
+    s.scroll += dt * s.scrollV;
     const p = s.p;
 
     // 타이머
@@ -1426,7 +1656,16 @@ export function createGame(env) {
       p.x = clamp(p.x, 16, W - 16);
       p.y = clamp(p.y, MIN_Y, MAX_Y);
       p.tilt += ((p.x - ox) / Math.max(dt, 0.001) / SPEED * 0.25 - p.tilt) * Math.min(1, dt * 10);
+      // 걸음 애니메이션 · 발자국 먼지
+      const moved = Math.hypot(p.x - ox, p.y - (p.py ?? p.y));
+      p.py = p.y;
+      p.moving += ((moved > 0.3 ? 1 : 0) - p.moving) * Math.min(1, dt * 12);
+      if (moved > 0.3) {
+        p.stepT -= dt;
+        if (p.stepT <= 0) { p.stepT = 0.16; s.parts.push({ x: p.x + rand(-5, 5), y: p.y + 20, vx: rand(-20, 20), vy: rand(-10, 5), life: 0.35, max: 0.35, c: 'rgba(120,100,80,0.55)', size: rand(3, 5) }); }
+      }
       p.inv = Math.max(0, p.inv - dt);
+      updateAim(dt);
       playerFire(dt);
     } else {
       p.deadT += dt;
@@ -1453,7 +1692,8 @@ export function createGame(env) {
       p.restoreT = (p.restoreT ?? 0) - dt;
       if (p.restoreT <= 0 && !s.items.some((it) => it.kind === 'restore')) {
         p.restoreT = 4;
-        s.items.push({ x: clamp(p.x + rand(-70, 70), 30, W - 30), y: -16, vx: 0, vy: 40, kind: 'restore', t: 0 });
+        // 낙하산 보급: 플레이어 근처 땅으로 떨어짐 (z = 공중 높이)
+        s.items.push({ x: clamp(p.x + rand(-80, 80), 30, W - 30), y: clamp(p.y + rand(-90, -30), MIN_Y + 10, MAX_Y - 10), vx: 0, vy: 0, z: 140, kind: 'restore', t: 0 });
         popText(W / 2, 110, '🔧 무기 복구 상자 투하!', '#69F0AE', 13, 1.2);
       }
     } else if (p.restorePower && p.power >= p.restorePower) p.restorePower = 0;
@@ -1463,10 +1703,11 @@ export function createGame(env) {
     const st = STAGES[s.stage];
     if (s.phase === 'wave') {
       s.spawnT -= dt;
-      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = Math.max(0.22, rand(1.5, 2.3) * st.spawnK / Math.sqrt(s.K.atk) * s.K.spawn * (s.loop ? 0.7 : 1)); }
+      if (s.spawnT <= 0) { spawnFormation(); s.spawnT = Math.max(0.7, rand(1.7, 2.5) * st.spawnK / s.K.mobAtk * s.K.spawn); }
       s.heavyT -= dt;
-      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = Math.max(1.2, st.heavyT / Math.sqrt(s.K.atk) * s.K.spawn * (s.loop ? 0.65 : 1)); }
-      if (s.phaseT > st.wave) { s.phase = 'warn'; s.phaseT = 0; banner('⚠️ WARNING', `${BOSSES[st.boss].name} 접근 중`, 2); play('alarm'); }
+      if (s.heavyT <= 0) { spawnMob(rand(50, W - 50), -30, 'heavy'); s.heavyT = Math.max(2.5, st.heavyT / s.K.mobAtk * s.K.spawn); }
+      // 어려움 모드: 행군 구간 30% 단축 → 보스를 더 자주 만남
+      if (s.phaseT > st.wave * (s.loop ? 0.7 : 1)) { s.phase = 'warn'; s.phaseT = 0; banner('⚠️ WARNING', `${BOSSES[st.boss].name} 접근 중`, 2); play('alarm'); }
     } else if (s.phase === 'warn') {
       if (s.phaseT > 2.4) { s.phase = 'boss'; s.phaseT = 0; spawnBoss(st.boss); }
     }
@@ -1485,26 +1726,30 @@ export function createGame(env) {
 
     // 잡몹
     for (const m of s.mobs) {
-      m.t += dt;
       m.flashT = Math.max(0, m.flashT - dt);
+      const ox = m.x;
       if (m.rootT > 0) {
         // 🌿 가시덩굴에 묶임: 이동 정지 + 지속 피해
         m.rootT -= dt;
         m.hp -= m.rootDps * dt;
         m.fireT = Math.max(m.fireT, 0.3);
-      } else if (m.hover && m.y >= m.hover) {
-        m.x += Math.sin(m.t * 1.5) * 60 * dt;
-        if (m.t > (m.elite ? 6 : 7)) m.hover = 0; // 머물다 퇴장
+        m.t += dt;
       } else {
-        m.y += m.vy * dt;
+        if (m.ai === 'walk' && !m.retreat) {
+          m.anchorT -= dt;
+          if (m.anchorT <= 0) pickAnchor(m);
+          // 오래 버틴 보병은 퇴각 (화면이 적으로 꽉 차지 않게)
+          if (m.t > (m.elite ? 18 : 14)) { m.retreat = true; m.ex = m.x < W / 2 ? -90 : W + 90; m.ey = m.y; }
+        }
+        stepMob(m, dt, p.x, p.y);
       }
-      m.x += m.vx * dt;
-      if (m.zig) m.x = m.x0 + Math.sin(m.t * 2.4) * m.zig;
+      if (m.x !== ox) m.face = m.x > ox ? 1 : -1;
       m.fireT -= dt;
-      if (m.fireT <= 0 && m.y > 20 && m.y < p.y - 100 && p.alive) {
-        m.fireT = m.kind === 'heavy' ? 99 : m.elite ? rand(2.6, 3.4) : rand(1.8, 3.2) * STAGES[m.stage].fireK / Math.sqrt(s.K.atk);
+      const onScreen = m.x > 8 && m.x < W - 8 && m.y > 8 && m.y < H - 8;
+      if (m.fireT <= 0 && onScreen && p.alive && m.ai !== 'rush' && Math.hypot(m.x - p.x, m.y - p.y) > 90) {
+        m.fireT = m.kind === 'heavy' ? 99 : m.elite ? rand(2.6, 3.4) : rand(2, 3.4) * STAGES[m.stage].fireK / s.K.mobAtk;
         if (m.elite) mobShoot(m);
-        else if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.6 : m.look === 0 ? 0.5 : m.look < 3 ? 0.7 : 0.8)) mobShoot(m);
+        else if (m.kind !== 'heavy' && Math.random() < (s.loop ? 0.5 : m.look === 0 ? 0.45 : m.look < 3 ? 0.6 : 0.7)) mobShoot(m);
       }
       if (p.alive && m.hp > 0 && Math.hypot(m.x - p.x, m.y - p.y) < m.r + HIT_R + 4) {
         // 무적 별·방어막으로 부딪히면 적만 격파
@@ -1547,7 +1792,21 @@ export function createGame(env) {
     }
     s.shots = s.shots.filter((sh) => !sh.dead);
     for (const m of s.mobs) if (m.hp <= 0 && !m.gone) { m.gone = true; if (!m.crashed) killMob(m); }
-    s.mobs = s.mobs.filter((m) => !m.gone && m.y < H + 40 && m.x > -60 && m.x < W + 60);
+    s.mobs = s.mobs.filter((m) => !m.gone && m.y < H + 50 && m.y > -80 && m.x > -60 && m.x < W + 60 && !(m.ai === 'rush' && m.t > 5 && (m.y < -10 || m.y > H + 10 || m.x < -10 || m.x > W + 10)));
+    // 보병끼리 겹치지 않게 살짝 밀어냄
+    for (let i = 0; i < s.mobs.length; i++) {
+      const a = s.mobs[i];
+      if (a.ai !== 'walk') continue;
+      for (let j = i + 1; j < s.mobs.length; j++) {
+        const c = s.mobs[j];
+        if (c.ai !== 'walk') continue;
+        const dx = c.x - a.x, dy = c.y - a.y, d2 = dx * dx + dy * dy, min = a.r + c.r;
+        if (d2 > 0.01 && d2 < min * min) {
+          const d = Math.sqrt(d2), push = ((min - d) / d) * 0.5;
+          a.x -= dx * push; a.y -= dy * push; c.x += dx * push; c.y += dy * push;
+        }
+      }
+    }
 
     // 보스
     if (s.boss) updateBoss(s.boss, dt);
@@ -1610,14 +1869,20 @@ export function createGame(env) {
     s.lasers = s.lasers.filter((lz) => lz.t < lz.warn + lz.fire + 0.05);
 
     // 아이템
+    // 아이템: 땅에 떨어져 머무름 (지형과 함께 스크롤) · 시간이 지나면 깜빡이다 사라짐 · 가까이 가면 빨려 옴
     for (const it of s.items) {
       it.t += dt;
+      if (it.z > 0) { it.z = Math.max(0, it.z - 150 * dt); continue; } // 낙하산 보급 낙하 중
       const dx = p.x - it.x, dy = p.y - it.y, d = Math.hypot(dx, dy) || 1;
-      if (p.alive && (d < 70 || s.buffs.magnet > 0) && it.t > 0.4) { it.vx += (dx / d) * 900 * dt; it.vy += (dy / d) * 900 * dt; } // 자석
-      else { it.vy = Math.min(it.vy + 220 * dt, 130); it.vx *= Math.pow(0.3, dt); }
+      const pull = it.kind === 'coin' ? 95 : 70;
+      if (p.alive && (d < pull || s.buffs.magnet > 0) && it.t > 0.35) { it.vx += (dx / d) * 1100 * dt; it.vy += (dy / d) * 1100 * dt; } // 자석
+      else { const f = Math.pow(0.02, dt); it.vx *= f; it.vy *= f; it.y += s.scrollV * dt; }
       it.x += it.vx * dt;
       it.y += it.vy * dt;
-      if (p.alive && d < 22) {
+      it.x = clamp(it.x, 10, W - 10);
+      if (it.y < MIN_Y - 20) it.y += (MIN_Y - 20 - it.y) * Math.min(1, dt * 4); // 손 닿는 곳으로
+      if (it.t > (it.kind === 'restore' ? 14 : it.kind === 'coin' ? 9 : 12)) it.dead = true;
+      if (p.alive && d < 24) {
         it.dead = true;
         if (it.kind === 'coin') { gainXp(1); addScore(5); play('tick'); }
         else if (it.kind === 'box') { powerUp(); addScore(50); }
@@ -1643,6 +1908,9 @@ export function createGame(env) {
     for (const tx of s.texts) { tx.y -= 28 * dt; tx.life -= dt; }
     s.texts = s.texts.filter((tx) => tx.life > 0);
     if (s.banner && (s.banner.t += dt) > s.banner.dur) s.banner = null;
+    for (const e of s.warnEdges) e.t += dt;
+    s.warnEdges = s.warnEdges.filter((e) => e.t < e.dur);
+    if ((s.killT -= dt) <= 0) s.killStreak = 0;
     s.shake *= Math.pow(0.02, dt);
     s.flash = Math.max(0, s.flash - dt * 1.5);
     checkAwaken();
@@ -1744,16 +2012,13 @@ export function createGame(env) {
     }
     const mobs = s.mobs.filter((m) => m.hp > 0).map((m) => {
       const xs = new Float32Array(AI_STEPS), ys = new Float32Array(AI_STEPS);
-      let x = m.x, y = m.y, t = m.t;
+      // 엔진과 같은 이동 규칙(stepMob)으로 복제본을 굴려서 예측 (돌격병은 현재 위치를 쫓는다고 가정)
+      const sim = { ...m };
       for (let k = 0; k < AI_STEPS; k++) {
-        t += AI_DT;
-        if (m.rootT > 0) { /* 묶여서 정지 */ } else if (m.hover && y >= m.hover) x += Math.sin(t * 1.5) * 60 * AI_DT;
-        else y += m.vy * AI_DT;
-        x += m.vx * AI_DT;
-        if (m.zig) x = m.x0 + Math.sin(t * 2.4) * m.zig;
-        xs[k] = x; ys[k] = y;
+        stepMob(sim, AI_DT, p.x, p.y);
+        xs[k] = sim.x; ys[k] = sim.y;
       }
-      return { xs, ys, rr: m.r + HIT_R + 10 };
+      return { xs, ys, rr: m.r + HIT_R + (m.ai === 'rush' ? 18 : 10) };
     });
     const boss = s.boss && !s.boss.dead && !s.boss.entering ? s.boss : null;
     const lasers = s.lasers.filter((lz) => lz.t < lz.warn + lz.fire).map((lz) => ({
@@ -1809,15 +2074,9 @@ export function createGame(env) {
       return { hit, clear, soft, x, y };
     };
 
-    // --- 공격 목표: 보스 우선, 없으면 가장 위협적인(가까운) 적 ---
-    let aimX = null;
-    if (boss) aimX = boss.dash ? null : boss.x;
-    else {
-      let bestM = null;
-      for (const m of s.mobs) if (m.hp > 0 && m.y > -10 && m.y < p.y - 60 && (!bestM || m.y > bestM.y)) bestM = m;
-      if (bestM) aimX = bestM.x;
-    }
-    const homeY = clamp(H - 130, MIN_Y + 40, MAX_Y);
+    // --- 포지셔닝: 조준은 자동이므로 보스와는 적정 거리(약 230), 평소엔 화면 아래쪽 가운데 근처 ---
+    const homeY = clamp(H - 140, MIN_Y + 40, MAX_Y);
+    const keep = boss && !boss.dash ? { x: boss.x, y: boss.y, r: 230 } : null;
 
     // --- 후보 생성 ---
     const cands = [[p.x, p.y]];
@@ -1825,7 +2084,8 @@ export function createGame(env) {
       const a = (i / 16) * Math.PI * 2;
       for (const r of [24, 60, 120, 200]) cands.push([p.x + Math.cos(a) * r, p.y + Math.sin(a) * r]);
     }
-    if (aimX != null) for (const y of [p.y, homeY, homeY - 80]) cands.push([aimX, y]);
+    if (keep) for (const a of [-0.5, 0, 0.5]) cands.push([keep.x + Math.sin(a) * keep.r, keep.y + Math.cos(a) * keep.r]);
+    else cands.push([W / 2, homeY]);
     for (const it of s.items) if (it.y > MIN_Y - 40) cands.push([it.x, Math.max(it.y + 30, MIN_Y)]);
     if (lasers.length) for (const lz of s.lasers) if (lz.gap) cands.push([(lz.gap[0] + lz.gap[1]) / 2, p.y]);
 
@@ -1838,9 +2098,9 @@ export function createGame(env) {
       if (safeNow) v = 0;
       // 2순위: 탄과의 여유 거리
       v += r.soft * 2.5 - Math.min(r.clear, 30) * 3;
-      // 3순위: 공격 자리 (적·보스 바로 아래) + 화면 아래쪽 대기
-      if (aimX != null) v += Math.min(Math.abs(r.x - aimX), 200) * 1.6;
-      v += Math.abs(r.y - homeY) * 0.12;
+      // 3순위: 보스와 적정 거리 · 평소엔 화면 아래쪽 가운데 (사방이 트인 곳)
+      if (keep) v += Math.min(Math.abs(Math.hypot(r.x - keep.x, r.y - keep.y) - keep.r), 200) * 0.9;
+      else v += Math.abs(r.y - homeY) * 0.12 + Math.abs(r.x - W / 2) * 0.08;
       // 아이템 줍기
       for (const it of s.items) {
         const d = Math.hypot(it.x - r.x, it.y - r.y);
@@ -1909,9 +2169,10 @@ export function createGame(env) {
     if (s.droneT <= 0) {
       s.droneT = 0.22;
       const dmg = WEAPONS[Math.min(3, tierOf(s.p.power))].dmg * 0.8 * (tierOf(s.p.power) >= 6 ? 1.5 : 1);
+      const ax = Math.cos(s.p.aim) * 680, ay = Math.sin(s.p.aim) * 680;
       for (const k of [0, 1]) {
         const d = dronePos(k);
-        s.shots.push({ x: d.x, y: d.y - 8, vx: 0, vy: -680, dmg, r: 3, kind: 'drone', splash: 0 });
+        s.shots.push({ x: d.x, y: d.y - 8, vx: ax, vy: ay, dmg, r: 3, kind: 'drone', splash: 0 });
       }
     }
   }
@@ -1978,15 +2239,22 @@ export function createGame(env) {
     ctx.save();
     if (s.shake > 0.5) ctx.translate((Math.random() - 0.5) * s.shake, (Math.random() - 0.5) * s.shake);
     drawBackground(ctx, lookOf(s.stage), s.scroll, t);
+    // 🌑 지상전 느낌: 모든 유닛 발밑 그림자
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    for (const it of s.items) shadow(ctx, it.x, it.y + 10, 9, 3.5);
+    for (const m of s.mobs) shadow(ctx, m.x, m.y + (m.kind === 'heavy' ? 24 : m.elite ? 28 : 19), m.kind === 'heavy' ? 22 : m.elite ? 17 : 12, m.kind === 'heavy' ? 7 : 4.5);
+    if (s.boss && !s.boss.dead) shadow(ctx, s.boss.x, s.boss.y + s.boss.h / 2 + 2, s.boss.w * 0.42, 9);
+    if (s.p.alive) shadow(ctx, s.p.x, s.p.y + 22, 14, 5);
     for (const it of s.items) drawItem(ctx, it, t);
+    if (s.p.alive && s.p.lock) drawAimLine(ctx, s.p, t);
     for (const m of s.mobs) drawMob(ctx, m, t);
     if (s.boss && s.boss.dash && s.boss.dash.st === 'warn') drawDashWarn(ctx, s.boss, t);
     if (s.boss) drawBoss(ctx, s.boss, t);
     for (const lz of s.lasers) drawLaser(ctx, lz, t, s.p.y);
     for (const m of s.mobs) if (m.rootT > 0) (m.frozen ? drawFrozen : drawVine)(ctx, m.x, m.y + m.r * 0.4, m.r * 2.2, Math.min(1, m.rootT * 2), t);
     for (const v of s.vineFx) drawVine(ctx, v.x, v.y, v.w, v.life / v.max, t);
-    for (const bm of s.beams) drawBeam(ctx, bm, s.p.power >= 13, s.p.y);
-    for (const sh of s.shots) drawShot(ctx, sh, t);
+    for (const bm of s.beams) drawBeam(ctx, bm, s.p.power >= 13);
+    for (const sh of s.shots) drawShotOriented(ctx, sh, t);
     for (const bo of s.bolts) drawBolt(ctx, bo);
     for (const wv of s.waves) drawWave(ctx, wv, t);
     for (const c of s.clicks) drawClick(ctx, c);
@@ -2019,12 +2287,23 @@ export function createGame(env) {
     if (!s.p.alive) {
       ctx.fillStyle = `rgba(80,0,0,${Math.min(0.45, s.p.deadT * 0.3)})`;
       ctx.fillRect(0, 0, W, H);
+    } else if (s.p.hp === 1 && !s.auto) {
+      // ❤️ 체력 1: 가장자리가 붉게 맥동
+      const a = 0.18 + Math.sin(t * 6) * 0.1;
+      const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.7);
+      g.addColorStop(0, 'rgba(183,28,28,0)');
+      g.addColorStop(1, `rgba(183,28,28,${a})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
     }
   }
 
   // UI 레이어: 도트로 뭉개지면 안 되는 글자·아이콘은 원해상도로 그림
   function drawUi(ctx, t) {
     for (const it of s.items) drawItemIcon(ctx, it);
+    if (s.p.alive && s.p.lock) drawLock(ctx, s.p.lock, t, s.p.lock === s.boss);
+    for (const m of s.mobs) if (m.ai === 'rush' && m.wind > 0) drawExclaim(ctx, m.x, m.y - 26, t);
+    for (const e of s.warnEdges) drawEdgeWarn(ctx, e, t);
     for (const sh of s.shots) if (sh.label) drawShotLabel(ctx, sh);
     for (const fx of s.ultFx) drawUltUi(ctx, fx, t);
     for (const lz of s.lasers) drawLaserLabel(ctx, lz, s.p.y);
@@ -2141,6 +2420,92 @@ function circle(ctx, x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, Math.max(0.1, r), 0, Math.PI * 2);
   ctx.fill();
+}
+function shadow(ctx, x, y, rx, ry) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 🎯 조준선: 총구에서 목표까지 옅은 레이저 사이트
+function drawAimLine(ctx, p, t) {
+  const tg = p.lock, ux = Math.cos(p.aim), uy = Math.sin(p.aim);
+  const d = Math.min(420, Math.hypot(tg.x - p.x, tg.y - p.y));
+  ctx.strokeStyle = 'rgba(255,82,82,0.32)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 7]);
+  ctx.lineDashOffset = -t * 40;
+  ctx.beginPath();
+  ctx.moveTo(p.x + ux * 30, p.y - 6 + uy * 30);
+  ctx.lineTo(p.x + ux * d, p.y - 6 + uy * d);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+}
+// 락온 표시: 목표 주위를 도는 모서리 괄호 (보스는 크게, 금색)
+function drawLock(ctx, tg, t, boss) {
+  const r = boss ? Math.max(tg.w, tg.h) * 0.62 : (tg.r || 14) + 9;
+  const k = 1 + Math.sin(t * 10) * 0.06, rr2 = r * k, len = boss ? 12 : 6;
+  const cy = boss ? tg.y + 4 : tg.y;
+  ctx.save();
+  ctx.translate(tg.x, cy);
+  ctx.rotate(boss ? 0 : t * 1.5);
+  ctx.strokeStyle = boss ? 'rgba(255,214,0,0.9)' : 'rgba(255,82,82,0.9)';
+  ctx.lineWidth = boss ? 2.5 : 2;
+  for (let i = 0; i < 4; i++) {
+    ctx.rotate(Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(rr2 - len, -rr2);
+    ctx.lineTo(rr2, -rr2);
+    ctx.lineTo(rr2, -rr2 + len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// 돌격병 예고 '!'
+function drawExclaim(ctx, x, y, t) {
+  ctx.font = `700 16px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+  const yy = y - Math.abs(Math.sin(t * 14)) * 3;
+  ctx.strokeText('!', x, yy);
+  ctx.fillStyle = '#FF1744';
+  ctx.fillText('!', x, yy);
+}
+// 측면·후방 기습 경고: 화면 가장자리 붉은 화살표
+function drawEdgeWarn(ctx, e, t) {
+  if (Math.floor(t * 8) % 2) return;
+  const a = Math.min(1, (e.dur - e.t) * 3);
+  ctx.save();
+  ctx.globalAlpha = a;
+  let x, y, rot;
+  if (e.side === 'l') { x = 14; y = clamp(e.pos, 90, H - 40); rot = Math.PI; }
+  else if (e.side === 'r') { x = W - 14; y = clamp(e.pos, 90, H - 40); rot = 0; }
+  else if (e.side === 't') { x = clamp(e.pos, 20, W - 20); y = 84; rot = -Math.PI / 2; }
+  else { x = clamp(e.pos, 20, W - 20); y = H - 40; rot = Math.PI / 2; }
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.fillStyle = 'rgba(255,23,68,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(-6, -11);
+  ctx.lineTo(-6, 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  ctx.font = `700 11px ${FONT}`;
+  ctx.textAlign = e.side === 'l' ? 'left' : e.side === 'r' ? 'right' : 'center';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+  const lx = e.side === 'l' ? 28 : e.side === 'r' ? W - 28 : x, ly = e.side === 't' ? y + 22 : e.side === 'b' ? y - 16 : y + 4;
+  const txt = e.side === 'b' ? '후방 기습!' : e.side === 't' ? '돌격!' : '측면 기습!';
+  ctx.strokeText(txt, lx, ly);
+  ctx.fillStyle = '#FF8A80';
+  ctx.fillText(txt, lx, ly);
 }
 
 // 도트 격자 사각형
@@ -2344,7 +2709,7 @@ function drawPlayer(ctx, s, t) {
   }
   // 엄호 병사 (군대 규모): 같은 흰 머리띠 의병이 양옆 뒤로
   const sp = heroSprite(tier);
-  const step = Math.floor(t * 8) % 2 ? U : 0; // 2프레임 걸음 들썩임
+  const step = p.moving > 0.3 && Math.floor(t * 10) % 2 ? U : 0; // 걸을 때만 2프레임 걸음 들썩임
   for (let k = n - 2; k >= 0; k--) {
     const side = k % 2 ? 1 : -1, row = Math.floor(k / 2) + 1;
     drawSprite(ctx, sp, p.x + side * (30 + (row - 1) * 26), PY + 10 + row * 8 - (k % 2 ? step : U - step), false, 0.92);
@@ -2366,6 +2731,29 @@ function drawPlayer(ctx, s, t) {
     }
     drawSprite(ctx, hs || sp, p.x, PY - step);
   } else drawSprite(ctx, sp, p.x, PY - step);
+  // 🔫 조준 방향 총구 + 발사 섬광 (360° 런앤건)
+  {
+    const ux = Math.cos(p.aim), uy = Math.sin(p.aim), gx = p.x + ux * 10, gy = PY - 6 + uy * 10;
+    ctx.strokeStyle = '#263238';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + ux * 14, gy + uy * 14);
+    ctx.stroke();
+    ctx.strokeStyle = tier >= 5 ? '#B3E5FC' : '#8D6E63';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + ux * 13, gy + uy * 13);
+    ctx.stroke();
+    if (p.muzzle > 0 || tier >= 4) {
+      const fx = gx + ux * 18, fy = gy + uy * 18, f = 4 + Math.random() * 3;
+      ctx.fillStyle = 'rgba(255,214,0,0.85)';
+      circle(ctx, fx, fy, f);
+      ctx.fillStyle = '#fff';
+      circle(ctx, fx, fy, f * 0.45);
+    }
+  }
   // 피격 판정 점 (탄막 게임식)
   ctx.fillStyle = '#fff';
   circle(ctx, p.x, PY, HIT_R - 2);
@@ -2539,6 +2927,19 @@ function drawFrozen(ctx, x, y, w, a) {
   ctx.restore();
 }
 
+// 위를 향하게 그려진 탄(화살·총알·침·예광탄 등)은 실제 진행 방향으로 회전해서 그림
+const ORIENTED = new Set(['arrow', 'ball', 'mg', 'drone', 'needle', 'eye', 'prop', 'ult', 'fist']);
+function drawShotOriented(ctx, sh, t) {
+  if (!ORIENTED.has(sh.kind) || (Math.abs(sh.vx) < 1 && sh.vy < 0)) { drawShot(ctx, sh, t); return; }
+  const ox = sh.x, oy = sh.y;
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.rotate(Math.atan2(sh.vy, sh.vx) + Math.PI / 2);
+  sh.x = 0; sh.y = 0;
+  drawShot(ctx, sh, t);
+  sh.x = ox; sh.y = oy;
+  ctx.restore();
+}
 function drawShot(ctx, sh, t) {
   if (drawHeroShot(ctx, sh, t)) return;
   if (sh.kind === 'flame') {
@@ -2671,17 +3072,26 @@ function drawShot(ctx, sh, t) {
 }
 
 function drawWave(ctx, wv, t) {
-  // 해일: 화면 폭 전체의 물결 띠
-  ctx.fillStyle = 'rgba(0,145,234,0.45)';
-  ctx.fillRect(0, wv.y - 6, W, 30);
-  ctx.fillStyle = 'rgba(64,196,255,0.8)';
+  // 해일: 플레이어 중심에서 퍼지는 물결 고리 + 물보라
+  const a = Math.max(0, 1 - wv.r / 760);
+  ctx.strokeStyle = `rgba(0,145,234,${0.5 * a})`;
+  ctx.lineWidth = 26;
   ctx.beginPath();
-  ctx.moveTo(0, wv.y + 6);
-  for (let x = 0; x <= W; x += 10) ctx.lineTo(x, wv.y - 6 + Math.sin(x / 22 + t * 10) * 6);
-  ctx.lineTo(W, wv.y + 6);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  for (let x = 6; x < W; x += 22) circle(ctx, x, wv.y - 8 + Math.sin(x / 22 + t * 10) * 6, 2.5);
+  ctx.arc(wv.x, wv.y, wv.r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(64,196,255,${0.9 * a})`;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  for (let i = 0; i <= 64; i++) {
+    const an = (i / 64) * Math.PI * 2, rr2 = wv.r + Math.sin(an * 9 + t * 10) * 5;
+    ctx[i ? 'lineTo' : 'moveTo'](wv.x + Math.cos(an) * rr2, wv.y + Math.sin(an) * rr2);
+  }
+  ctx.stroke();
+  ctx.fillStyle = `rgba(255,255,255,${0.9 * a})`;
+  for (let i = 0; i < 24; i++) {
+    const an = (i / 24) * Math.PI * 2 + t;
+    circle(ctx, wv.x + Math.cos(an) * (wv.r - 10), wv.y + Math.sin(an) * (wv.r - 10), 2.5);
+  }
 }
 
 // 🌿 가시덩굴: 묶인 적 발밑에서 솟아오르는 덩굴 + 가시
@@ -2789,56 +3199,67 @@ function drawBolt(ctx, bo) {
   }
 }
 
-function drawBeam(ctx, bm, big, PY) {
+const BEAM_LEN = 900;
+function drawBeam(ctx, bm, big) {
+  // 총구(bm.x, bm.y)에서 조준각 bm.a로 뻗는 빔. 로컬 좌표: x = 빔 폭 방향, -y = 진행 방향
+  ctx.save();
+  ctx.translate(bm.x, bm.y);
+  ctx.rotate(bm.a + Math.PI / 2);
+  const L = BEAM_LEN, now = performance.now();
   if (bm.tier >= 9) {
     // 궁극: 화면을 가르는 무지개빛 개발자 에네르기파
-    const w = bm.w * 1.6, wob = Math.sin(bm.seed + performance.now() / 40) * 3;
-    const hue = (performance.now() / 6) % 360;
-    const g = ctx.createLinearGradient(bm.x - w, 0, bm.x + w, 0);
+    const w = bm.w * 1.6, wob = Math.sin(bm.seed + now / 40) * 3;
+    const hue = (now / 6) % 360;
+    const g = ctx.createLinearGradient(-w, 0, w, 0);
     g.addColorStop(0, `hsla(${hue},100%,60%,0)`);
     g.addColorStop(0.3, `hsla(${hue},100%,60%,0.55)`);
     g.addColorStop(0.5, 'rgba(255,255,255,0.95)');
     g.addColorStop(0.7, `hsla(${(hue + 120) % 360},100%,60%,0.55)`);
     g.addColorStop(1, `hsla(${(hue + 120) % 360},100%,60%,0)`);
     ctx.fillStyle = g;
-    ctx.fillRect(bm.x - w - wob, 0, (w + wob) * 2, PY - 30);
+    ctx.fillRect(-w - wob, -L, (w + wob) * 2, L);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    circle(ctx, bm.x, PY - 34, w * 0.9);
+    circle(ctx, 0, -4, w * 0.9);
     ctx.fillStyle = '#fff';
-    circle(ctx, bm.x, PY - 34, w * 0.45);
+    circle(ctx, 0, -4, w * 0.45);
+    ctx.restore();
     return;
   }
   if (bm.tier >= 5) {
     // 원소 빔: 6 물(파랑) · 7 불(주황) · 8 풀(초록) · 9 번개(노랑 + 지그재그 전격)
     const col = { 5: '0,145,234', 6: '255,109,0', 7: '100,221,23', 8: '255,234,0' }[bm.tier];
-    const g = ctx.createLinearGradient(bm.x - bm.w, 0, bm.x + bm.w, 0);
+    const g = ctx.createLinearGradient(-bm.w, 0, bm.w, 0);
     g.addColorStop(0, `rgba(${col},0)`);
     g.addColorStop(0.5, `rgba(${col},0.8)`);
     g.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = g;
-    ctx.fillRect(bm.x - bm.w, 0, bm.w * 2, PY - 30);
+    ctx.fillRect(-bm.w, -L, bm.w * 2, L);
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillRect(bm.x - bm.w * 0.18, 0, bm.w * 0.36, PY - 30);
+    ctx.fillRect(-bm.w * 0.18, -L, bm.w * 0.36, L);
+    ctx.fillStyle = `rgba(${col},0.6)`;
+    circle(ctx, 0, -2, bm.w * 0.7);
     if (bm.tier === 8) {
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2.5;
       for (let s2 = 0; s2 < 2; s2++) {
         ctx.beginPath();
-        ctx.moveTo(bm.x, PY - 30);
-        for (let y = PY - 30; y > 0; y -= 22) ctx.lineTo(bm.x + (Math.random() - 0.5) * bm.w * 1.1, y);
+        ctx.moveTo(0, 0);
+        for (let y = 0; y > -L; y -= 22) ctx.lineTo((Math.random() - 0.5) * bm.w * 1.1, y);
         ctx.stroke();
       }
     }
+    ctx.restore();
     return;
   }
-  const g = ctx.createLinearGradient(bm.x - bm.w, 0, bm.x + bm.w, 0);
+  const g = ctx.createLinearGradient(-bm.w, 0, bm.w, 0);
   g.addColorStop(0, 'rgba(0,229,255,0)');
   g.addColorStop(0.5, big ? 'rgba(224,64,251,0.9)' : 'rgba(0,229,255,0.85)');
   g.addColorStop(1, 'rgba(0,229,255,0)');
   ctx.fillStyle = g;
-  ctx.fillRect(bm.x - bm.w, 0, bm.w * 2, PY - 30);
+  ctx.fillRect(-bm.w, -L, bm.w * 2, L);
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.fillRect(bm.x - 1.5, 0, 3, PY - 30);
+  ctx.fillRect(-1.5, -L, 3, L);
+  ctx.restore();
 }
 
 // 적 탄: 형광 주황·빨강 몸체 + 굵은 흰 테두리 → 어떤 배경에서도 분리돼 보이게
@@ -2986,8 +3407,31 @@ function drawBullet(ctx, bl, t) {
   }
 }
 
+const itemLife = (it) => (it.kind === 'restore' ? 14 : it.kind === 'coin' ? 9 : 12);
 function drawItem(ctx, it, t) {
-  const bob = Math.sin(it.t * 6) * 2;
+  if (itemLife(it) - it.t < 2.2 && Math.floor(it.t * 10) % 2) return; // 곧 사라짐: 깜빡임
+  if (it.z > 0) {
+    // 🪂 낙하산 보급: 공중에서 내려오는 중 (그림자는 착지 지점)
+    ctx.save();
+    ctx.translate(0, -it.z);
+    ctx.fillStyle = '#ECEFF1';
+    ctx.beginPath();
+    ctx.arc(it.x, it.y - 30, 22, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#E53935';
+    for (let i = 0; i < 4; i += 2) { ctx.beginPath(); ctx.moveTo(it.x, it.y - 30); ctx.arc(it.x, it.y - 30, 22, Math.PI + (i * Math.PI) / 4, Math.PI + ((i + 1) * Math.PI) / 4); ctx.fill(); }
+    ctx.strokeStyle = '#5D4037';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const sx of [-21, -8, 8, 21]) { ctx.moveTo(it.x + sx, it.y - 30); ctx.lineTo(it.x, it.y - 8); }
+    ctx.stroke();
+    drawItemBody(ctx, it, t, 0);
+    ctx.restore();
+    return;
+  }
+  drawItemBody(ctx, it, t, Math.sin(it.t * 6) * 2);
+}
+function drawItemBody(ctx, it, t, bob) {
   // ✅ 먹는 아이템 공통 표시: 초록 링 (엽전은 얇게, 나머지는 회전 점선 링)
   ctx.strokeStyle = '#00E676';
   if (it.kind === 'coin') {
@@ -3083,7 +3527,9 @@ function drawItem(ctx, it, t) {
 }
 
 function drawItemIcon(ctx, it) {
+  if (itemLife(it) - it.t < 2.2 && Math.floor(it.t * 10) % 2) return;
   if (it.kind === 'restore') {
+    if (it.z > 0) return;
     ctx.font = `700 10px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
@@ -3125,7 +3571,24 @@ function drawMob(ctx, m, t) {
     return;
   }
   if (m.kind !== 'heavy') {
-    const bob = Math.floor(m.t * 6) % 2 ? U : 0;
+    if (m.ai === 'rush') {
+      // 🏃 돌격병: 붉은 오라 + 달릴 때 뒤로 남는 속도선
+      ctx.fillStyle = `rgba(255,23,68,${0.22 + Math.sin(t * 16) * 0.08})`;
+      circle(ctx, m.x, m.y, m.r + 6);
+      if (m.wind <= 0) {
+        const bx = -Math.cos(m.head), by = -Math.sin(m.head);
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (const o of [-8, 0, 8]) {
+          const sx = m.x + by * o + bx * 16, sy = m.y - bx * o + by * 16;
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + bx * 14, sy + by * 14);
+        }
+        ctx.stroke();
+      }
+    }
+    const bob = Math.floor(m.t * (m.ai === 'rush' && m.wind <= 0 ? 12 : 6)) % 2 ? U : 0;
     drawSprite(ctx, mobSprite(m.look), m.x, m.y + bob, m.flashT > 0);
     if (m.max > 3 && m.hp < m.max) drawMobHp(ctx, m);
     return;
