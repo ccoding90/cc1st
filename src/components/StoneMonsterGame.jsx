@@ -156,7 +156,7 @@ const StoneMonsterGame = () => {
         <button type="button" style={topBtn} onClick={toggleFullscreen}>{isFs ? '⤢ 전체화면 종료' : '⛶ 전체화면'}</button>
       </div>
 
-      <div style={isFs ? fsStageWrap : stageWrap}>
+      <div style={stageWrapStyle(isFs)}>
         <div style={stage} onPointerDown={() => unlockAudio()}>
           <canvas ref={canvasRef} width={SW} height={SH} style={canvasStyle} />
 
@@ -176,14 +176,13 @@ const StoneMonsterGame = () => {
 
       {!isFs && (
         <div style={helpText}>
-          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · Q = 배속(1x/2x/3x) · 진행은 자동 저장 · 메뉴 → ⚙️ 설정에서 세이브 백업(JSON)
+          방향키/WASD 이동 · B(X) 누른 채 이동 = 달리기 · Z/Space = A(조사·결정) · X/Esc = B(취소) · Enter = 메뉴 · Q = 배속(1x/2x/3x) · 진행은 자동 저장 · 메뉴 → 💾 저장에서 모험 코드 발급
         </div>
       )}
 
       {ui.choice && ui.choice.wide && <WideChoice c={ui.choice} />}
       {ui.card && <ResultCard card={ui.card} />}
       {ui.panel && <Panel kind={ui.panel.kind} g={g} />}
-      {ui.backup && <BackupModal b={ui.backup} g={g} />}
       {codeOpen && <CodeLoad g={g} onClose={() => setCodeOpen(false)} onLoaded={() => { setCodeOpen(false); refresh(); }} />}
       </div>
 
@@ -245,14 +244,18 @@ const CodeLoad = ({ g, onClose, onLoaded }) => {
       <div style={{ ...modalBox, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <div style={modalTitle}>🔑 코드로 이어하기</div>
         <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
-          게임 메뉴 → <b>💾 저장 · 이어하기 코드</b>에서 받은 <b>10자리 모험 코드</b> 또는 <b>백업 문자열(SM1:…)</b>을 입력하세요.
+          게임 메뉴(MENU) → <b>💾 저장 · 모험 코드</b>에서 받은 <b>10자리 모험 코드</b>를 입력하세요.
         </div>
-        <textarea
+        <input
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => { if (e.key === 'Enter') load(); }}
           placeholder="예) K7QX2M9PTA"
-          rows={code.length > 20 ? 4 : 1}
-          style={{ ...nameInputStyle, width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+          maxLength={14}
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          style={{ ...nameInputStyle, width: '100%', boxSizing: 'border-box', textAlign: 'center', letterSpacing: '0.12em' }}
         />
         {msg && <div style={{ marginTop: 8, fontSize: 13, color: msg.includes('불러왔') ? '#7fe08a' : '#ff8a8a' }}>{msg}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -301,68 +304,6 @@ const AchToast = ({ a }) => (
     <div style={{ fontSize: '0.72em', opacity: 0.9 }}>영구 보너스: {bonusText(a)}</div>
   </div>
 );
-
-// ───────── 세이브 백업 (JSON 복사 / 불러오기) ─────────
-const BackupModal = ({ b, g }) => {
-  const [text, setText] = useState(b.mode === 'export' ? b.text : '');
-  const [msg, setMsg] = useState('');
-  const [ok, setOk] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); setMsg('클립보드에 복사했습니다! 메모장 등에 붙여넣어 보관하세요.'); setOk(true); }
-    catch (e) { setMsg('자동 복사가 막혀 있습니다. 아래 텍스트를 전부 선택(Ctrl+A)해서 복사해 주세요.'); }
-  };
-  const download = () => {
-    try {
-      const blob = new Blob([text], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `stonemon-save-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    } catch (e) { setMsg('파일 저장에 실패했습니다. 복사 버튼을 이용해 주세요.'); }
-  };
-  const doImport = () => {
-    if (!text.trim()) return;
-    if (!window.confirm('현재 진행 중인 모험이 불러온 세이브로 바뀝니다. (현재 진행은 예비 저장에 보관됩니다)\n계속할까요?')) return;
-    const r = g.importBackup(text);
-    setMsg(r.msg); setOk(r.ok);
-    if (r.ok) setTimeout(() => g.closeBackup(r), 900);
-  };
-  const exp = b.mode === 'export';
-  return (
-    <div style={modalBack}>
-      <div style={{ ...modalBox, maxWidth: 520 }}>
-        <div style={modalTitle}>{exp ? '📋 세이브 데이터 백업 (JSON)' : '📥 세이브 데이터 불러오기'}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-          {exp
-            ? '아래 JSON이 지금까지의 모든 진행(스톤몬 · 보관함 · 도감 · 업적)입니다. 업데이트나 브라우저 데이터 삭제에 대비해 따로 보관하세요.'
-            : '백업해 둔 JSON 전체(또는 SM1:로 시작하는 백업 문자열)를 붙여넣고 불러오기를 누르세요.'}
-        </div>
-        <textarea
-          value={text}
-          readOnly={exp}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={(e) => exp && e.target.select()}
-          rows={8}
-          placeholder={exp ? '' : '{"v":3,"name":…}'}
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, marginTop: 8, fontFamily: 'monospace' }}
-        />
-        {msg && <div style={{ marginTop: 6, fontSize: 13, color: ok ? '#7fe08a' : '#ff8a8a' }}>{msg}</div>}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          {exp ? (
-            <>
-              <button type="button" style={{ ...titleBtn, flex: 1 }} onClick={copy}>📋 복사</button>
-              <button type="button" style={{ ...titleBtn, flex: 1, background: '#2a3a5a' }} onClick={download}>💾 파일로 저장</button>
-            </>
-          ) : (
-            <button type="button" style={{ ...titleBtn, flex: 1 }} onClick={doImport}>불러오기</button>
-          )}
-          <button type="button" style={smallBtn} onClick={() => g.closeBackup(null)}>닫기</button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ───────── 대화창 ─────────
 const DialogBox = ({ d, onTap }) => (
@@ -657,18 +598,9 @@ const CodeCard = ({ card }) => (
   <div style={modalBack} onClick={card.close}>
     <div style={{ ...modalBox, maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
       <div style={modalTitle}>💾 이어하기</div>
-      {card.code ? (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>다른 기기(또는 브라우저)의 타이틀 화면 → <b>🔑 코드로 이어하기</b>에 아래 코드를 입력하세요. 집에서 쉴 때마다 자동으로 갱신됩니다.</div>
-          <div style={codeText}>{card.code}</div>
-          <div style={{ fontSize: 12, opacity: 0.75 }}>코드를 아는 사람은 이 모험을 불러올 수 있으니 혼자만 보관하세요.</div>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>{card.copied ? '백업 문자열을 클립보드에 복사했습니다.' : '아래 문자열을 전부 복사해 보관하세요.'} 타이틀 → <b>🔑 코드로 이어하기</b>에 붙여넣으면 복원됩니다.</div>
-          <textarea readOnly value={card.backup} rows={5} style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, marginTop: 8 }} onFocus={(e) => e.target.select()} />
-        </>
-      )}
+      <div style={{ fontSize: 13, lineHeight: 1.6 }}>다른 기기(또는 브라우저)의 타이틀 화면 → <b>🔑 코드로 이어하기</b>에 아래 코드를 입력하세요. 집에서 쉴 때마다 자동으로 갱신됩니다.</div>
+      <div style={codeText}>{card.code}</div>
+      <div style={{ fontSize: 12, opacity: 0.75 }}>코드를 아는 사람은 이 모험을 불러올 수 있으니 혼자만 보관하세요.</div>
       <button type="button" style={{ ...titleBtn, width: '100%', marginTop: 12 }} onClick={card.close}>확인 (A)</button>
     </div>
   </div>
@@ -1013,14 +945,15 @@ const GameIntro = () => (
       <li><b>유전자 시너지</b> — 화염+비행은 [폭염의 비룡], 대지+독은 [맹독 갑주], 한 종족 5회는 [순혈 패왕](황금 오라), 4속성은 [고대 키메라]가 각성합니다.</li>
       <li><b>Stage 1~5</b> — 태초의 숲 → 메아리의 습지 &amp; 협곡 → 작열하는 화산 → 만년설의 빙하 동굴(Lv.36~48) → 태고의 하늘 신전(Lv.49~65). 보스 직전마다 숙명의 라이벌 <b>카인</b>이 진화한 모습으로 막아섭니다. 고대 3대 신수를 꺾으면 <b>무한의 원시 투기장</b>이 열려요.</li>
       <li><b>파밍</b> — 5% 확률의 고대 변종(이로치)·알파 개체(먹으면 3배 흡수 + 희귀 기술), 반짝이는 화석 바위와 알 둥지, 걸어서 부화시키는 미확인 공룡알, 14종 업적과 영구 보너스.</li>
-      <li><b>편의 기능</b> — 1x/2x/3x 배속, 기술 위치 변경, 상점 연속 구매, 자동 저장 + 예비 저장, 세이브 JSON 백업/불러오기, 모험 코드로 다른 기기에서 이어하기.</li>
+      <li><b>편의 기능</b> — 1x/2x/3x 배속, 기술 위치 변경, 상점 연속 구매, 자동 저장 + 예비 저장, 모험 코드로 다른 기기에서 이어하기.</li>
       <li><b>약육강식</b> — 진 스톤몬은 영원히 사라지고, 모두 잃으면 처음부터 다시 시작합니다.</li>
     </ul>
   </section>
 );
 
 // ───────── 스타일 ─────────
-const page = { maxWidth: 760, margin: '0 auto', padding: '12px 10px 30px', fontFamily: FONT, color: '#2a1e2e' };
+// 사이트 공통 레이아웃(.main-content 600px)을 벗어나 화면 폭을 넓게 사용
+const page = { width: 'min(calc(100vw - 24px), 1400px)', marginLeft: 'calc(50% - min(50vw - 12px, 700px))', boxSizing: 'border-box', padding: '0 0 30px', fontFamily: FONT, color: '#2a1e2e' };
 const topBar = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 };
 const topLink = { fontSize: 13, color: '#5a3a4a', textDecoration: 'none', fontWeight: 700 };
 const topBtn = { padding: '6px 10px', fontSize: 12, border: '2px solid #2a1e2e', background: '#fff', cursor: 'pointer', fontFamily: FONT };
@@ -1029,13 +962,17 @@ const pseudoFsShell = {
   ...fsShell, position: 'fixed', inset: 0, zIndex: 9000, height: '100dvh', overscrollBehavior: 'contain',
   padding: 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))',
 };
-const fsStageWrap = { width: `min(calc(100vw - 16px), 960px, calc((100dvh - 210px) * ${SW / SH}))`, minWidth: 260, margin: '0 auto' };
 const codeText = { fontSize: 28, fontWeight: 900, letterSpacing: '0.12em', textAlign: 'center', margin: '12px 0', padding: 10, background: '#fbf7ee', color: '#1c1424', userSelect: 'all', WebkitUserSelect: 'all' };
-const stageWrap = { width: `min(100%, 720px, calc((100dvh - 250px) * ${SW / SH}))`, minWidth: 280, margin: '0 auto' };
+// 게임 화면 크기: 가로 · 세로 중 먼저 닿는 쪽에 맞춰 최대한 크게 (세로 여유 = 상단 바 + 패드)
+const stageWrapStyle = (fs) => {
+  const reserve = fs ? 190 : 300; // 사이트 헤더 · 상단 바 · 아래 패드 높이
+  const maxW = fs ? 'calc(100vw - 16px)' : '100%';
+  return { width: `min(${maxW}, 1400px, calc((100dvh - ${reserve}px) * ${SW / SH}))`, minWidth: 260, margin: '0 auto' };
+};
 const stage = {
   position: 'relative', width: '100%', aspectRatio: `${SW} / ${SH}`, background: '#000', overflow: 'hidden',
   border: '6px solid #8a5a2a', outline: '3px solid #2a1608', borderRadius: 6, boxShadow: '6px 6px 0 #a1887f', containerType: 'inline-size', userSelect: 'none', WebkitUserSelect: 'none',
-  fontSize: 'clamp(10px, 3.1cqw, 17px)', lineHeight: 1.5, touchAction: 'manipulation',
+  fontSize: 'clamp(10px, 3.1cqw, 26px)', lineHeight: 1.5, touchAction: 'manipulation',
 };
 const canvasStyle = { width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' };
 // 도트가 흐려지지 않도록 (브라우저 확대 시 최근접 보간)
@@ -1091,6 +1028,6 @@ const dbtn = { background: '#2a1e2e', color: '#fff', border: 'none', fontSize: 1
 const abtn = { width: 62, height: 62, borderRadius: '50%', background: '#c62828', color: '#fff', border: '3px solid #2a1e2e', fontSize: 22, fontWeight: 900, cursor: 'pointer', fontFamily: FONT, touchAction: 'none', boxShadow: '3px 3px 0 #2a1e2e' };
 const startBtn = { padding: '6px 12px', fontSize: 12, background: '#5a4a6a', color: '#fff', border: '2px solid #2a1e2e', borderRadius: 12, cursor: 'pointer', fontFamily: FONT, alignSelf: 'flex-end', touchAction: 'none' };
 const helpText = { textAlign: 'center', fontSize: 11, color: '#7a6a7a', marginTop: 10 };
-const introBox = { marginTop: 22, padding: 16, background: '#fbf7ee', border: '2px solid #2a1e2e', fontSize: 14, lineHeight: 1.7, fontFamily: "'Noto Sans KR', sans-serif" };
+const introBox = { maxWidth: 760, margin: '22px auto 0', padding: 16, background: '#fbf7ee', border: '2px solid #2a1e2e', fontSize: 14, lineHeight: 1.7, fontFamily: "'Noto Sans KR', sans-serif" };
 
 export default StoneMonsterGame;

@@ -157,22 +157,6 @@ function loadSave() {
   }
   return s;
 }
-// 백업 텍스트 해석: JSON 원문 · 'SM1:' base64 둘 다 지원
-export function parseBackup(text) {
-  const t = String(text || '').trim();
-  if (t.startsWith('{')) { try { return normalizeSave(JSON.parse(t)); } catch (e) { return null; } }
-  return decodeBackup(t);
-}
-
-// 백업 문자열: 'SM1:' + base64(JSON)
-export function encodeBackup(S) {
-  return 'SM1:' + btoa(unescape(encodeURIComponent(JSON.stringify(S))));
-}
-function decodeBackup(str) {
-  const t = String(str).trim();
-  if (!t.startsWith('SM1:')) return null;
-  try { return normalizeSave(JSON.parse(decodeURIComponent(escape(atob(t.slice(4)))))); } catch (e) { return null; }
-}
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const makeCode = () => Array.from({ length: 10 }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join('');
 
@@ -180,7 +164,7 @@ export class Game {
   constructor(refresh) {
     this.refresh = refresh;
     this.S = loadSave();
-    this.ui = { title: true, dialog: null, choice: null, cmd: null, panel: null, card: null, nameInput: null, hud: null, toast: null, ach: null, backup: null };
+    this.ui = { title: true, dialog: null, choice: null, cmd: null, panel: null, card: null, nameInput: null, hud: null, toast: null, ach: null };
     this._achQ = [];
     this.v = { mode: 'title', map: 'village', x: 4, y: 18, dir: 'down', mv: null, walk: 0, fx: {}, flash: 0, t: 0, battle: null, scene: null, banner: null };
     this.held = [];
@@ -287,13 +271,10 @@ export class Game {
   async loadFromCode(input) {
     const t = String(input || '').trim();
     let data = null;
-    if (t.startsWith('SM1:') || t.startsWith('{')) data = parseBackup(t);
-    else {
-      const code = t.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (code.length !== 10) return { ok: false, msg: '모험 코드는 10자리입니다.' };
-      try { const raw = await downloadCloudSave(code); data = raw && normalizeSave(raw); if (data) data.cloudCode = code; }
-      catch (e) { return { ok: false, msg: '서버에 연결하지 못했습니다. 백업 문자열로 시도해 보세요.' }; }
-    }
+    const code = t.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length !== 10) return { ok: false, msg: '모험 코드는 10자리입니다.' };
+    try { const raw = await downloadCloudSave(code); data = raw && normalizeSave(raw); if (data) data.cloudCode = code; }
+    catch (e) { return { ok: false, msg: '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.' }; }
     if (!data) return { ok: false, msg: '저장 데이터를 찾지 못했습니다. 코드를 다시 확인해 주세요.' };
     this.S = data;
     this.save();
@@ -323,26 +304,6 @@ export class Game {
     this._achT = setTimeout(() => this._nextAch(), 3400);
   }
   bonus(kind) { return achBonus(this.S, kind); }
-  // ───────── 세이브 백업 (JSON 복사 / 불러오기) ─────────
-  openBackup(mode) {
-    return new Promise((res) => {
-      const text = mode === 'export' ? JSON.stringify(this.S) : '';
-      this.setUi({ backup: { mode, text, msg: '', done: res } });
-    });
-  }
-  closeBackup(result = null) {
-    const b = this.ui.backup;
-    this.setUi({ backup: null });
-    b?.done?.(result);
-  }
-  importBackup(text) {
-    const data = parseBackup(text);
-    if (!data) return { ok: false, msg: '세이브 데이터를 읽지 못했습니다. 복사한 내용 전체를 붙여넣었는지 확인해 주세요.' };
-    try { if (this.S) localStorage.setItem(BACKUP_KEY, JSON.stringify(this.S)); } catch (e) { /* ignore */ }
-    this.S = data;
-    this.save();
-    return { ok: true, msg: `${data.name || '모험가'}의 모험(${data.runs}번째 생 · 동료 ${data.party.length})을 불러왔습니다!` };
-  }
 
   say(text, opts = {}) {
     return new Promise((res) => {
@@ -412,7 +373,7 @@ export class Game {
   press(k) {
     const u = this.ui;
     if (k === 'speed') { this.cycleSpeed(); return; }
-    if (u.nameInput || u.backup) return;
+    if (u.nameInput) return;
     if (u.card) { if (k === 'a' || k === 'b' || k === 'start') u.card.close(); return; }
     if (u.choice) {
       const c = u.choice, n = c.options.length;
@@ -544,7 +505,7 @@ export class Game {
       }
       return;
     }
-    if (this.busy || this.ui.dialog || this.ui.choice || this.ui.panel || this.ui.card || this.ui.title || this.ui.backup) return;
+    if (this.busy || this.ui.dialog || this.ui.choice || this.ui.panel || this.ui.card || this.ui.title) return;
     const dir = this.held[this.held.length - 1];
     if (!dir) return;
     v.dir = dir;
@@ -1892,7 +1853,7 @@ export class Game {
       { label: '🏆 칭호 · 업적', sub: `${Object.keys(S.ach || {}).length}개 달성${S.title ? ` · 「${S.title}」` : ''}` },
       { label: '🪦 기록 · 무덤', sub: `${S.runs}번째 생 · 먹힌 스톤몬 ${S.grave.length}` },
       { label: `⏩ 게임 속도: ${this.speed}x`, sub: '1x → 2x → 3x (이동 · 텍스트 · 전투 연출)' },
-      { label: '⚙️ 설정 · 저장 · 백업', sub: '세이브 백업(JSON 복사) / 불러오기 · 모험 코드' },
+      { label: '💾 저장 · 모험 코드', sub: '자동 저장 · 다른 기기에서 이어할 코드 발급' },
       { label: '🏠 타이틀로', sub: '진행은 자동 저장됩니다' },
       '닫기',
     ], { cancel: true });
@@ -1908,30 +1869,16 @@ export class Game {
   async saveMenu() {
     this.save();
     sfx.ding();
-    await this.say('기기에 자동 저장되었다! (LocalStorage · 5분마다 예비 저장 갱신)', { auto: 0 });
-    const i = await this.choose('설정 · 저장', [
-      { label: '📋 세이브 데이터 백업 (JSON 복사)', sub: '전체 저장 데이터를 텍스트로 복사 · 메모장 등에 보관' },
-      { label: '📥 세이브 데이터 불러오기', sub: '백업해 둔 JSON(또는 SM1: 백업 문자열)을 붙여넣어 복원' },
-      { label: '🔑 모험 코드 발급/갱신', sub: '서버에 저장 · 다른 기기 타이틀에서 코드 입력' },
+    await this.say('이 기기에 자동 저장되었다!', { auto: 0 });
+    const i = await this.choose('저장 · 모험 코드', [
+      { label: '🔑 모험 코드 발급/갱신', sub: '서버에 저장 → 다른 기기 타이틀의 「코드로 이어하기」에 입력' },
       '닫기',
     ], { cancel: true });
     if (i === 0) {
-      let copied = false;
-      try { await navigator.clipboard.writeText(JSON.stringify(this.S)); copied = true; } catch (e) { /* ignore */ }
-      if (copied) this.toast('📋 세이브 JSON을 클립보드에 복사했다!');
-      await this.openBackup('export');
-    } else if (i === 1) {
-      const r = await this.openBackup('import');
-      if (r?.ok) {
-        // 불러온 모험으로 갈아끼우고 타이틀에서 이어하기
-        this.v.mode = 'title'; this.v.battle = null; this.v.fx = {};
-        this.setUi({ title: true, hud: null, panel: null });
-      }
-    } else if (i === 2) {
       await this.say('제단의 돌판에 모험을 새기는 중…', { auto: 400 });
       const ok = await this.cloudSync(true);
       if (ok) await this.showCard({ kind: 'code', code: this.S.cloudCode });
-      else await this.say('서버에 저장하지 못했다… \'세이브 데이터 백업\'을 이용해 주세요.');
+      else await this.say('서버에 저장하지 못했다… 인터넷 연결을 확인하고 다시 시도해 주세요.');
     }
   }
   // ───────── 보관함 (파티 4 · 보관함 30) ─────────
