@@ -1,6 +1,7 @@
 // ⚔️ 스톤몬 턴제 배틀 계산 (순수 로직). 연출은 StoneMonsterGame.jsx 가 이벤트를 받아 재생한다.
 import { SKILLS, SPECIES, TYPE_CHART, ELEMENTS } from './data';
 import { eff, tl, maxHp, elementsOf, josa, formName, usableSkills } from './monster';
+import { ELEMENT_UNLOCK } from './data';
 import { hasSyn, SYNERGIES, BLAZE_CHANCE, VENOM_REFLECT, CHIMERA_FLOOR } from './synergy';
 
 export const STATUS = {
@@ -17,11 +18,11 @@ export function fighter(m, side) {
 export const nameOf = (f) => formName(f.m);
 const stageMul = (s) => (s >= 0 ? (2 + s) / 2 : 2 / (2 - s));
 
-// 상성 배율: 유리 1.5 ~ 천적 2.0 / 보통 1.0 / 불리 0.5 (흡수해 보유한 속성은 추가 내성 ×0.85)
+// 상성 배율: 유리 1.5 ~ 천적 2.0 / 보통 1.0 / 불리 0.5 (v4: 누적 10회 포식으로 습득한 속성은 추가 내성 ×0.85)
 export function typeMult(el, defM) {
   const core = SPECIES[defM.sid].el;
   let m = TYPE_CHART[el]?.[core] ?? 1;
-  if (el !== core && (defM.genes?.[el] || 0) >= 3) m *= 0.85;
+  if (el !== core && (defM.elFed?.[el] || 0) >= ELEMENT_UNLOCK) m *= 0.85;
   return m;
 }
 // 공격자 시너지까지 반영한 실전 상성 배율 (고대 키메라: 불리 ×0.5 → ×0.8)
@@ -83,7 +84,7 @@ const STAT_NAME = { atk: '공격', def: '방어', spd: '스피드' };
 export const BLIZZARD_CHILL = 0.1;
 export function blizzardRoll(f) {
   if (f.m.hp <= 0 || f.status === 'frz' || f.chill) return [];
-  if (SPECIES[f.m.sid].el === 'ice' || (f.m.genes?.ice || 0) >= 8) return [];
+  if (elementsOf(f.m).includes('ice')) return [];
   if (Math.random() >= BLIZZARD_CHILL) return [];
   f.chill = true;
   return [{ t: 'chill', side: f.side }, { t: 'msg', text: `❄️ 눈보라! ${josa(nameOf(f), '은/는')} 몸이 얼어붙었다! (1턴 행동 불가)`, emph: 'ice' }];

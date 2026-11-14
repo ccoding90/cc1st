@@ -1,6 +1,6 @@
 // 🗺️ 스톤몬스터 v3.0 월드 - 스테이지 1~5 맵 · 건물 · NPC · 트레이너 · 보스 · 라이벌 · 투기장 · 필드 오브젝트 · 야생 출현표
-import { createMonster, randomMutate, rand, pick, maxHp } from './monster';
-import { SPECIES, SKILLS, STARTERS } from './data';
+import { createMonster, wildBoost, rand, pick, maxHp, STAT_KEYS } from './monster';
+import { SPECIES, SKILLS, STARTERS, baseForm, ELEMENT_KEYS } from './data';
 
 export const MAP_W = 30, MAP_H = 26;
 export const VIEW_W = 15, VIEW_H = 11; // 화면에 보이는 타일 수 (240x176 도트)
@@ -313,17 +313,17 @@ export const mapOf = (id) => MAPS[id] || MAPS.village;
 
 // 야생 출현표 [번호, 가중치]
 export const WILD_TABLES = {
-  s1: [[13, 10], [20, 9], [18, 9], [31, 9], [37, 8], [22, 8], [19, 7], [5, 10], [1, 9], [50, 5]],
-  s2a: [[30, 9], [14, 10], [9, 8], [24, 7], [11, 6], [33, 9], [38, 8], [15, 6], [10, 7]],
-  s2b: [[16, 9], [34, 9], [41, 8], [40, 3], [44, 9], [24, 6], [14, 6], [9, 6], [15, 5]],
-  s3a: [[17, 8], [25, 9], [21, 5], [36, 9], [43, 6], [45, 9], [54, 9], [23, 5]],
-  s3b: [[47, 7], [51, 4], [52, 8], [55, 9], [23, 7], [36, 6], [17, 7], [43, 6], [54, 5], [45, 5]],
+  s1: [[20, 10], [22, 9], [25, 9], [30, 9], [18, 8], [28, 8], [46, 7], [13, 10], [10, 9], [27, 5]],
+  s2a: [[39, 6], [41, 6], [59, 5], [35, 9], [47, 10], [49, 8], [43, 7], [33, 6], [58, 9], [53, 8], [63, 6], [51, 7]],
+  s2b: [[59, 4], [66, 9], [55, 9], [45, 8], [37, 3], [68, 9], [43, 6], [47, 6], [49, 6], [63, 5]],
+  s3a: [[75, 5], [62, 8], [57, 9], [76, 5], [79, 9], [70, 6], [71, 9], [83, 9], [84, 5]],
+  s3b: [[41, 4], [82, 7], [91, 4], [85, 8], [81, 9], [84, 7], [79, 6], [62, 7], [70, 6], [83, 5], [71, 5]],
   // v3.0 Stage 4 만년설의 빙하 동굴
-  s4a: [[15, 12], [53, 8], [42, 8], [39, 9], [56, 8], [32, 7]],
-  s4b: [[15, 8], [32, 9], [40, 7], [51, 5], [53, 6], [42, 5], [56, 5], [39, 5]],
+  s4a: [[63, 12], [56, 8], [72, 8], [65, 9], [78, 8], [69, 7]],
+  s4b: [[14, 4], [63, 8], [69, 9], [37, 7], [91, 5], [56, 6], [72, 5], [78, 5], [65, 5]],
   // v3.0 Stage 5 태고의 하늘 신전
-  s5a: [[27, 10], [35, 9], [55, 9], [46, 8], [49, 6], [48, 6]],
-  s5b: [[46, 8], [48, 6], [49, 6], [55, 7], [35, 6], [27, 6], [26, 2], [29, 2], [28, 2]],
+  s5a: [[86, 5], [80, 10], [77, 9], [81, 9], [88, 8], [93, 6], [94, 6]],
+  s5b: [[86, 5], [73, 4], [88, 8], [94, 6], [93, 6], [81, 7], [77, 6], [80, 6], [61, 2], [89, 2], [90, 2]],
 };
 export const TABLE_REGION = {
   s1: '태초의 숲', s2a: '메아리의 습지', s2b: '붉은 바위 협곡', s3a: '작열하는 화산', s3b: '고대 유적',
@@ -366,21 +366,21 @@ export const TRAINERS = {
   // Stage 1
   dolsoe: {
     name: '꼬마 사냥꾼 돌쇠', look: 'hunter', reward: 60, map: 'village',
-    party: [{ sid: 1, lv: 4 }],
+    party: [{ sid: 10, lv: 4 }],
     intro: ['너 그 스톤몬 처음 보는 놈이네!', '내 랩텅이가 먹어 주지! 덤벼!'],
     win: ['으아앙! 내 랩텅이가… 먹혀버렸어…', '…다음엔 더 센 놈을 잡아 올 거야!'],
     after: ['숲 깊은 곳(북쪽 구석)엔 레벨 높은 녀석들이 산대. 조심해…'],
   },
   nuri: {
     name: '채집꾼 누리', look: 'gatherer', reward: 90, map: 'village',
-    party: [{ sid: 5, lv: 5 }, { sid: 10, lv: 6 }],
+    party: [{ sid: 13, lv: 5 }, { sid: 51, lv: 6 }],
     intro: ['열매 따러 왔다가 너 같은 사냥감을 만났네?', '내 아이들, 배고프대!'],
     win: ['…둘 다 먹혔어. 이게 숲의 법이지.'],
     after: ['화상은 3턴, 독은 4턴이면 저절로 나아. 너무 겁먹지 마!', '같은 속성만 먹으면 그 속성 몬스터한테 강해져. 섞어 먹으면 이것저것 다 돋아나고!'],
   },
   bawi: {
     name: '사냥꾼 바위', look: 'brute', reward: 140, map: 'village',
-    party: [{ sid: 20, lv: 7, genes: { earth: 3 } }, { sid: 18, lv: 8, genes: { primal: 3 } }],
+    party: [{ sid: 22, lv: 7, genes: { earth: 3 } }, { sid: 25, lv: 8, genes: { primal: 3 } }],
     intro: ['사당에 가려는 놈은 다 나를 거쳐야 한다.', '숲의 수호자 앞에 서기 전에, 여기서 먹혀라!'],
     win: ['크윽… 내 사냥감이 나를 먹다니.', '좋다. 사당으로 가라. 넌 자격이 있다.'],
     after: ['숲의 수호자 파키파와 가르고는 다섯 번 이상 포식한 놈만 상대해 준다.'],
@@ -388,8 +388,8 @@ export const TRAINERS = {
   guardian: {
     name: '숲의 수호자', look: 'chief', reward: 400, boss: true, map: 'village',
     party: [
-      { sid: 8, lv: 10, genes: { earth: 5 }, traits: { hide: 1 } },
-      { sid: 6, lv: 11, genes: { earth: 6, grass: 3 }, traits: { sturdy: 1 } },
+      { sid: 16, lv: 10, genes: { earth: 5 }, traits: { hide: 1 } },
+      { sid: 48, lv: 11, genes: { earth: 6, grass: 3 }, traits: { sturdy: 1 } },
     ],
     intro: ['사당 깊은 곳에서 땅울림이 들려온다…', '무지개 골판의 파키파와 돌기 갑옷의 가르고 ─ 태초의 숲을 지키는 두 수호자가 깨어났다!'],
     win: ['수호자들이 쓰러지자 숲이 조용해졌다…', '동쪽 숲길 너머 「메아리의 습지」로 가는 길이 열렸다!'],
@@ -398,21 +398,21 @@ export const TRAINERS = {
   // Stage 2
   gaegol: {
     name: '늪지 사냥꾼 개골', look: 'swamper', reward: 180, map: 'swamp',
-    party: [{ sid: 33, lv: 13 }, { sid: 24, lv: 14, genes: { poison: 4 } }],
+    party: [{ sid: 58, lv: 13 }, { sid: 43, lv: 14, genes: { poison: 4 } }],
     intro: ['개굴! 습지에 처음 온 얼굴이군.', '내 딜로의 독맛 좀 볼래?'],
     win: ['개구울… 독도 안 통하다니.'],
     after: ['독은 최대 체력의 1/16씩, 4턴이면 빠져. 해독제 하나면 바로 낫고.'],
   },
   mir: {
     name: '독술사 미르', look: 'witch', reward: 220, map: 'swamp',
-    party: [{ sid: 10, lv: 15, genes: { poison: 4, fire: 3 } }, { sid: 24, lv: 16, genes: { poison: 6 } }, { sid: 9, lv: 16, genes: { fire: 4 } }],
+    party: [{ sid: 51, lv: 15, genes: { poison: 4, fire: 3 } }, { sid: 43, lv: 16, genes: { poison: 6 } }, { sid: 49, lv: 16, genes: { fire: 4 } }],
     intro: ['후후… 독과 불꽃, 둘 다 맛보게 해 주지.', '도깨비불에 타고, 독에 녹아라!'],
     win: ['내 저주가… 상성으로 정면 돌파당하다니!'],
     after: ['화상은 물리 공격력을 20% 깎아. 특수기(물대포·화염방사 같은)는 영향이 없지.'],
   },
   barami: {
     name: '협곡 등반가 바람이', look: 'climber', reward: 260, map: 'swamp',
-    party: [{ sid: 39, lv: 17, genes: { wind: 4 } }, { sid: 44, lv: 18 }, { sid: 35, lv: 19, genes: { primal: 4 } }],
+    party: [{ sid: 65, lv: 17, genes: { wind: 4 } }, { sid: 68, lv: 18 }, { sid: 77, lv: 19, genes: { primal: 4 } }],
     intro: ['협곡 꼭대기까지 오르려면 날 넘어야 해!', '바람처럼 빠른 내 아이들을 따라올 수 있을까?'],
     win: ['헉헉… 너, 진짜 지배자한테 도전할 셈이야?'],
     after: ['협곡의 지배자 스피노와 알로는 북쪽 동굴에 있어. 물과 원시 속성이라는 걸 기억해.'],
@@ -420,8 +420,8 @@ export const TRAINERS = {
   canyonBoss: {
     name: '협곡의 지배자', look: 'chief', reward: 900, boss: true, map: 'swamp',
     party: [
-      { sid: 7, lv: 21, genes: { water: 7, primal: 4 }, traits: { jaw: 1 }, bonus: 0.12 },
-      { sid: 12, lv: 22, genes: { primal: 7, earth: 4 }, traits: { rage: 1, intimidate: 1 }, bonus: 0.12 },
+      { sid: 31, lv: 21, genes: { water: 7, primal: 4 }, traits: { jaw: 1 }, bonus: 0.12 },
+      { sid: 73, lv: 22, genes: { primal: 7, earth: 4 }, traits: { rage: 1, intimidate: 1 }, bonus: 0.12 },
     ],
     intro: ['동굴 안에 뼈가 산처럼 쌓여 있다…', '주황 돛의 스피노, 그리고 남색 비늘의 알로 ─ 협곡의 지배자들이 이빨을 드러낸다!'],
     win: ['지배자들이 쓰러졌다! 협곡에 메아리가 울려 퍼진다.', '북쪽 끝 협곡 길 너머 「작열하는 화산」으로 가는 길이 열렸다!'],
@@ -430,7 +430,7 @@ export const TRAINERS = {
   // Stage 3
   bulmoe: {
     name: '화산 대장장이 불뫼', look: 'smith', reward: 380, map: 'volcano', elite: true,
-    party: [{ sid: 25, lv: 25, genes: { fire: 6 }, traits: { hide: 2 }, bonus: 0.14 }, { sid: 17, lv: 26, genes: { fire: 6, primal: 3 }, traits: { jaw: 2 }, bonus: 0.14 }],
+    party: [{ sid: 57, lv: 25, genes: { fire: 6 }, traits: { hide: 2 }, bonus: 0.14 }, { sid: 62, lv: 26, genes: { fire: 6, primal: 3 }, traits: { jaw: 2 }, bonus: 0.14 }],
     intro: ['용암으로 벼린 내 아이들이다.', '포식으로 단련한 네 녀석이 진짜 강철인지 시험해 주마!'],
     win: ['크핫! 좋은 담금질이었다!'],
     after: ['정예 셋을 모두 꺾어야 유적의 왕좌가 열린다.'],
@@ -438,9 +438,9 @@ export const TRAINERS = {
   gomun: {
     name: '유적 학자 고문', look: 'scholar', reward: 420, map: 'volcano', elite: true,
     party: [
-      { sid: 53, lv: 27, genes: { poison: 6, earth: 3 }, traits: { regen: 2 }, bonus: 0.16 },
-      { sid: 56, lv: 28, genes: { grass: 6 }, traits: { giant: 2 }, bonus: 0.16 },
-      { sid: 27, lv: 28, genes: { thunder: 6, wind: 3 }, traits: { swift: 2 }, bonus: 0.16 },
+      { sid: 56, lv: 27, genes: { poison: 6, earth: 3 }, traits: { regen: 2 }, bonus: 0.16 },
+      { sid: 78, lv: 28, genes: { grass: 6 }, traits: { giant: 2 }, bonus: 0.16 },
+      { sid: 80, lv: 28, genes: { thunder: 6, wind: 3 }, traits: { swift: 2 }, bonus: 0.16 },
     ],
     intro: ['유적의 비문에 따르면… 왕좌의 세 괴물은 모든 걸 먹어 치웠다고 하지.', '자네의 스톤몬이 그 기록에 남을 자격이 있는지 보세!'],
     win: ['흥미롭군… 자네의 아이는 정말 여러 특성을 품고 있어.'],
@@ -449,9 +449,9 @@ export const TRAINERS = {
   krom: {
     name: '정예 사냥왕 크롬', look: 'elite', reward: 500, map: 'volcano', elite: true,
     party: [
-      { sid: 49, lv: 30, genes: { wind: 8, fire: 4 }, traits: { crit: 2, flight: 1 }, bonus: 0.18 },
-      { sid: 48, lv: 31, genes: { water: 8, poison: 4 }, traits: { jaw: 2, drain: 2 }, bonus: 0.18 },
-      { sid: 23, lv: 32, genes: { grass: 8, wind: 4 }, traits: { crit: 2, sturdy: 2 }, bonus: 0.18 },
+      { sid: 93, lv: 30, genes: { wind: 8, fire: 4 }, traits: { crit: 2, flight: 1 }, bonus: 0.18 },
+      { sid: 94, lv: 31, genes: { water: 8, poison: 4 }, traits: { jaw: 2, drain: 2 }, bonus: 0.18 },
+      { sid: 84, lv: 32, genes: { grass: 8, wind: 4 }, traits: { crit: 2, sturdy: 2 }, bonus: 0.18 },
     ],
     intro: ['수백 마리를 먹어 치운 내 사냥단이다.', '왕좌 앞의 마지막 문. 먹거나, 먹히거나!'],
     win: ['…인정하지. 왕좌로 가라, 포식자여.'],
@@ -460,9 +460,9 @@ export const TRAINERS = {
   finalBoss: {
     name: '태초의 왕좌', look: 'chief', reward: 2000, boss: true, map: 'volcano',
     party: [
-      { sid: 26, lv: 34, genes: { fire: 10, wind: 6 }, traits: { flameBody: 2, swift: 1 }, bonus: 0.12 },
-      { sid: 29, lv: 35, genes: { primal: 10, earth: 4, fire: 3 }, traits: { jaw: 2, crit: 1 }, bonus: 0.12 },
-      { sid: 28, lv: 36, genes: { water: 12, earth: 5 }, traits: { sturdy: 2, regen: 1 }, bonus: 0.12 },
+      { sid: 61, lv: 34, genes: { fire: 10, wind: 6 }, traits: { flameBody: 2, swift: 1 }, bonus: 0.12 },
+      { sid: 89, lv: 35, genes: { primal: 10, earth: 4, fire: 3 }, traits: { jaw: 2, crit: 1 }, bonus: 0.12 },
+      { sid: 90, lv: 36, genes: { water: 12, earth: 5 }, traits: { sturdy: 2, regen: 1 }, bonus: 0.12 },
     ],
     intro: [
       '유적의 왕좌에 피처럼 붉은 빛이 번진다…',
@@ -476,9 +476,9 @@ export const TRAINERS = {
   harang: {
     name: '설원 사냥꾼 하람', look: 'iceHunter', reward: 650, map: 'glacier',
     party: [
-      { sid: 15, lv: 38, genes: { ice: 8 }, traits: { giant: 2 }, bonus: 0.18 },
-      { sid: 44, lv: 39, genes: { ice: 8, primal: 4 }, traits: { first: 2 }, bonus: 0.18 },
-      { sid: 39, lv: 40, genes: { earth: 8, ice: 4 }, bonus: 0.18 },
+      { sid: 63, lv: 38, genes: { ice: 8 }, traits: { giant: 2 }, bonus: 0.18 },
+      { sid: 68, lv: 39, genes: { ice: 8, primal: 4 }, traits: { first: 2 }, bonus: 0.18 },
+      { sid: 65, lv: 40, genes: { earth: 8, ice: 4 }, bonus: 0.18 },
     ],
     intro: ['눈보라 속에서 살아남는 법을 아나?', '…먼저 먹는 거다. 덤벼라!'],
     win: ['크윽… 눈보라도 네 기세를 못 막는군.'],
@@ -487,9 +487,9 @@ export const TRAINERS = {
   seori: {
     name: '빙결술사 서리', look: 'frostMage', reward: 720, map: 'glacier',
     party: [
-      { sid: 33, lv: 42, genes: { ice: 10 }, traits: { frostBody: 2 }, bonus: 0.2, skills: ['iceBreath', 'iceFang', 'blizzard', 'iceArmor'] },
-      { sid: 53, lv: 43, genes: { poison: 8, ice: 6 }, traits: { regen: 2 }, bonus: 0.2 },
-      { sid: 40, lv: 44, genes: { water: 8, ice: 6 }, traits: { jaw: 2 }, bonus: 0.2 },
+      { sid: 58, lv: 42, genes: { ice: 10 }, traits: { frostBody: 2 }, bonus: 0.2, skills: ['iceBreath', 'iceFang', 'blizzard', 'iceArmor'] },
+      { sid: 56, lv: 43, genes: { poison: 8, ice: 6 }, traits: { regen: 2 }, bonus: 0.2 },
+      { sid: 37, lv: 44, genes: { water: 8, ice: 6 }, traits: { jaw: 2 }, bonus: 0.2 },
     ],
     intro: ['만년설은 모든 것을 멈춘다. 네 심장도.', '얼어붙어라!'],
     win: ['…녹아내린 건 내 쪽이었나.'],
@@ -498,8 +498,8 @@ export const TRAINERS = {
   glacierBoss: {
     name: '빙하의 군주', look: 'chief', reward: 2600, boss: true, map: 'glacier',
     party: [
-      { sid: 15, lv: 47, genes: { ice: 16, earth: 6 }, traits: { giant: 3, armor: 2 }, bonus: 0.2, skills: ['iceAge', 'stomp', 'iceArmor', 'quake'], alpha: true },
-      { sid: 32, lv: 48, genes: { ice: 14, poison: 10 }, traits: { frostBody: 2, poisonPoint: 2, regen: 1 }, bonus: 0.22, skills: ['glacialLance', 'plague', 'toxic', 'iceFang'] },
+      { sid: 63, lv: 47, genes: { ice: 16, earth: 6 }, traits: { giant: 3, armor: 2 }, bonus: 0.2, skills: ['iceAge', 'stomp', 'iceArmor', 'quake'], alpha: true },
+      { sid: 69, lv: 48, genes: { ice: 14, poison: 10 }, traits: { frostBody: 2, poisonPoint: 2, regen: 1 }, bonus: 0.22, skills: ['glacialLance', 'plague', 'toxic', 'iceFang'] },
     ],
     intro: [
       '얼음 굴 깊은 곳에서 빙하가 갈라지는 소리가 울린다…',
@@ -512,9 +512,9 @@ export const TRAINERS = {
   un: {
     name: '하늘 수도승 운', look: 'monk', reward: 900, map: 'sky',
     party: [
-      { sid: 27, lv: 52, genes: { wind: 12 }, traits: { swift: 3 }, bonus: 0.22, skills: ['gust', 'dive', 'storm', 'tailwind'] },
-      { sid: 35, lv: 53, genes: { thunder: 12 }, traits: { intimidate: 2 }, bonus: 0.22, skills: ['thunderFang', 'volt', 'lightning', 'charge2'] },
-      { sid: 55, lv: 54, genes: { wind: 10, thunder: 6 }, traits: { flight: 3 }, bonus: 0.22 },
+      { sid: 80, lv: 52, genes: { wind: 12 }, traits: { swift: 3 }, bonus: 0.22, skills: ['gust', 'dive', 'storm', 'tailwind'] },
+      { sid: 77, lv: 53, genes: { thunder: 12 }, traits: { intimidate: 2 }, bonus: 0.22, skills: ['thunderFang', 'volt', 'lightning', 'charge2'] },
+      { sid: 81, lv: 54, genes: { wind: 10, thunder: 6 }, traits: { flight: 3 }, bonus: 0.22 },
     ],
     intro: ['구름 위에선 바람이 법이다.', '그대의 포식이 하늘에 닿는지 보겠다!'],
     win: ['…바람이 그대 편이군.'],
@@ -523,9 +523,9 @@ export const TRAINERS = {
   ara: {
     name: '신전 무녀장 아라', look: 'oracle', reward: 1000, map: 'sky',
     party: [
-      { sid: 49, lv: 56, genes: { water: 12, earth: 6 }, traits: { jaw: 3 }, bonus: 0.24 },
-      { sid: 48, lv: 57, genes: { grass: 12, water: 6 }, traits: { giant: 3, regen: 2 }, bonus: 0.24, skills: ['gigaDrain', 'leafBlade', 'woodHammer', 'synthesis'] },
-      { sid: 46, lv: 58, genes: { fire: 12, primal: 6 }, traits: { rage: 3 }, bonus: 0.24, skills: ['fireFang', 'flamethrower', 'heatUp', 'eruption'] },
+      { sid: 93, lv: 56, genes: { water: 12, earth: 6 }, traits: { jaw: 3 }, bonus: 0.24 },
+      { sid: 94, lv: 57, genes: { grass: 12, water: 6 }, traits: { giant: 3, regen: 2 }, bonus: 0.24, skills: ['gigaDrain', 'leafBlade', 'woodHammer', 'synthesis'] },
+      { sid: 88, lv: 58, genes: { fire: 12, primal: 6 }, traits: { rage: 3 }, bonus: 0.24, skills: ['fireFang', 'flamethrower', 'heatUp', 'eruption'] },
     ],
     intro: ['신수들은 3천 년 동안 이 제단을 지켜 왔습니다.', '그 앞에 설 자격이 있는지… 제가 확인하겠습니다.'],
     win: ['…신수께서 그대를 기다리고 계십니다.'],
@@ -534,9 +534,9 @@ export const TRAINERS = {
   skyBoss: {
     name: '고대 3대 신수', look: 'chief', reward: 6000, boss: true, map: 'sky',
     party: [
-      { sid: 48, lv: 62, genes: { water: 18, grass: 12, poison: 6 }, traits: { giant: 4, regen: 2, drain: 2 }, bonus: 0.28, skills: ['abyss', 'gigaDrain', 'woodHammer', 'synthesis'], alpha: true },
-      { sid: 49, lv: 63, genes: { earth: 18, water: 10 }, traits: { jaw: 4, armor: 2, sturdy: 2 }, bonus: 0.3, skills: ['crush', 'abyss', 'fang', 'quake'], alpha: true },
-      { sid: 46, lv: 65, genes: { fire: 20, primal: 14, wind: 6 }, traits: { rage: 4, jaw: 3, first: 2 }, bonus: 0.32, skills: ['eruption', 'devourBite', 'flamethrower', 'heatUp'], alpha: true },
+      { sid: 94, lv: 62, genes: { water: 18, grass: 12, poison: 6 }, traits: { giant: 4, regen: 2, drain: 2 }, bonus: 0.28, skills: ['abyss', 'gigaDrain', 'woodHammer', 'synthesis'], alpha: true },
+      { sid: 93, lv: 63, genes: { earth: 18, water: 10 }, traits: { jaw: 4, armor: 2, sturdy: 2 }, bonus: 0.3, skills: ['crush', 'abyss', 'fang', 'quake'], alpha: true },
+      { sid: 88, lv: 65, genes: { fire: 20, primal: 14, wind: 6 }, traits: { rage: 4, jaw: 3, first: 2 }, bonus: 0.32, skills: ['eruption', 'devourBite', 'flamethrower', 'heatUp'], alpha: true },
     ],
     intro: [
       '하늘 제단의 봉인이 풀리며 구름이 소용돌이친다…',
@@ -566,13 +566,17 @@ export function zoneAt(mapId, x, y) {
 // 희귀 개체: 풀숲/동굴 전투의 5% → 고대 변종(이로치: 색 반전) 또는 알파 개체(붉은 오라). 둘 다 1.3배 크기
 export const VARIANT_RATE = 0.05;
 export function makeVariant(m, kind) {
-  if (kind === 'alpha') { m.alpha = true; m.lv = Math.min(100, m.lv + 3); randomMutate(m, 6); }
-  else { m.shiny = true; m.lv = Math.min(100, m.lv + 1); randomMutate(m, 3); }
+  // v4.0: 알파는 무작위 속성 하나를 '습득한' 개체로 등장 (속성 포인트 컬러 + 입자 오라)
+  if (kind === 'alpha') {
+    m.alpha = true; m.lv = Math.min(100, m.lv + 3); wildBoost(m, 6);
+    const el = pick(ELEMENT_KEYS.filter((k) => k !== SPECIES[m.sid].el));
+    m.elFed[el] = Math.max(m.elFed[el] || 0, 10);
+  } else { m.shiny = true; m.lv = Math.min(100, m.lv + 1); wildBoost(m, 3); }
   m.hp = maxHp(m);
   return m;
 }
 
-// 야생 개체: 지역 레벨대에서 출현. 5% 확률로 변종. 무한 사냥 모드면 56종 전부 출현
+// 야생 개체: 지역 레벨대에서 출현(레벨이 진화 레벨 이상이면 진화형). 5% 확률로 변종. 무한 사냥 모드면 100종 전부 출현
 export function rollWild(mapId, x, y, { leadLv = 5, devours = 0, endless = false, codex = null, variantRate = VARIANT_RATE } = {}) {
   const z = zoneAt(mapId, x, y);
   let sid = rollTable(WILD_TABLES[z.table]);
@@ -585,9 +589,9 @@ export function rollWild(mapId, x, y, { leadLv = 5, devours = 0, endless = false
   }
   lv = Math.max(1, Math.min(80, lv));
   const m = createMonster(sid, { lv });
-  randomMutate(m, Math.floor(Math.random() * (2 + lv / 3)));
-  // 지역 특유 유전자 (빙하 동굴: 설원종 · 하늘 신전: 천공종)
-  if (z.gene) { m.genes[z.gene] = (m.genes[z.gene] || 0) + 2 + Math.floor(Math.random() * 4); randomMutate(m, 0); }
+  wildBoost(m, Math.floor(Math.random() * (2 + lv / 6)));
+  // 지역 특유 속성 기운 (빙하 동굴: 설원종 · 하늘 신전: 천공종) — 일정 확률로 그 속성을 습득한 개체
+  if (z.gene && z.gene !== SPECIES[m.sid].el && Math.random() < 0.3) m.elFed[z.gene] = 10;
   m.alpha = false;
   if (devours >= 1 && Math.random() < variantRate) makeVariant(m, Math.random() < 0.5 ? 'shiny' : 'alpha');
   return m;
@@ -596,6 +600,8 @@ export function rollWild(mapId, x, y, { leadLv = 5, devours = 0, endless = false
 // 트레이너 · 보스 파티 (skills: 기술 지정, alpha: 거대 개체)
 function build({ sid, lv, genes, traits, bonus, skills, alpha, prey }) {
   const m = createMonster(sid, { lv, genes, extraTraits: traits, jitter: false, bonus: bonus || 0 });
+  // v4.0: 트레이너 데이터의 genes 는 '속성 누적 포식'. 습득 속성은 가장 많은 2개까지만 (나머지는 9로)
+  Object.entries(m.elFed).sort((x, y) => y[1] - x[1]).forEach(([el, n], i) => { if (i >= 2) m.elFed[el] = Math.min(9, n); });
   if (skills) m.skills = skills.filter((s) => SKILLS[s]).slice(0, 4);
   if (prey) { m.prey = { ...prey }; m.devours = Object.values(prey).reduce((a, b) => a + b, 0); }
   if (alpha) m.alpha = true;
@@ -608,19 +614,19 @@ export function trainerParty(id) {
 
 // ───────── 숙명의 라이벌 카인 ─────────
 // 주인공이 고르지 않은, 주인공에게 상성 우위인 스타팅을 데려간다 (불→물, 풀→불, 물→풀)
-export const RIVAL_OF = { 2: 4, 3: 2, 4: 3 };
+export const RIVAL_OF = { 1: 7, 4: 1, 7: 4 };
 export function rivalStarter(S) {
   if (S.rival?.sid) return S.rival.sid;
-  const mine = S.starter || S.party?.find((m) => STARTERS.includes(m.sid))?.sid || STARTERS.find((id) => S.codex?.owned?.[id]);
-  return RIVAL_OF[mine] || pick(STARTERS);
+  const mine = S.starter || S.party?.map((m) => baseForm(m.sid)).find((id) => STARTERS.includes(id)) || STARTERS.find((id) => S.codex?.owned?.[id]);
+  return RIVAL_OF[baseForm(mine)] || pick(STARTERS);
 }
-// 스테이지가 지날수록 카인의 스톤몬도 다른 스톤몬을 포식해 기괴하게 진화한다
+// 스테이지가 지날수록 카인의 스톤몬도 레벨업으로 진화하고, 포식으로 속성을 습득해 강해진다
 const RIVAL_STAGES = {
-  1: { lv: 10, genes: {}, prey: { 5: 1, 1: 2 }, bonus: 0.06, allies: [] },
-  2: { lv: 21, genes: { wind: 6, primal: 4 }, prey: { 5: 3, 1: 2, 24: 1 }, bonus: 0.12, traits: { flight: 1, crit: 1 }, allies: [{ sid: 44, lv: 19, genes: { ice: 4 } }] },
-  3: { lv: 33, genes: { wind: 8, poison: 8, earth: 4 }, prey: { 5: 4, 24: 3, 14: 2, 1: 2 }, bonus: 0.2, traits: { flight: 2, poisonPoint: 2, crit: 1 }, allies: [{ sid: 36, lv: 31, genes: { thunder: 6 }, bonus: 0.15 }, { sid: 47, lv: 32, genes: { fire: 6, wind: 4 }, bonus: 0.15 }] },
-  4: { lv: 46, genes: { wind: 10, poison: 12, earth: 8, ice: 8 }, prey: { 5: 5, 24: 4, 14: 3, 15: 2, 1: 2 }, bonus: 0.26, traits: { flight: 2, poisonPoint: 3, crit: 2, giant: 2 }, allies: [{ sid: 33, lv: 44, genes: { ice: 10 }, bonus: 0.2 }, { sid: 47, lv: 45, genes: { fire: 10, wind: 6 }, bonus: 0.2 }] },
-  5: { lv: 62, genes: { wind: 14, poison: 14, earth: 12, ice: 10, primal: 10 }, prey: { 5: 6, 24: 5, 14: 3, 15: 3, 29: 1, 1: 2 }, bonus: 0.32, traits: { flight: 3, poisonPoint: 3, crit: 3, giant: 3, jaw: 2 }, allies: [{ sid: 12, lv: 60, genes: { primal: 14 }, bonus: 0.26, traits: { crit: 2 } }, { sid: 47, lv: 60, genes: { fire: 14, wind: 8 }, bonus: 0.26 }, { sid: 52, lv: 61, genes: { water: 12, wind: 6 }, bonus: 0.26 }] },
+  1: { lv: 10, genes: {}, prey: { 13: 1, 10: 2 }, bonus: 0.06, allies: [] },
+  2: { lv: 21, genes: { wind: 6, primal: 4 }, prey: { 13: 3, 10: 2, 43: 1 }, bonus: 0.12, traits: { flight: 1, crit: 1 }, allies: [{ sid: 68, lv: 19, genes: { ice: 4 } }] },
+  3: { lv: 33, genes: { wind: 8, poison: 8, earth: 4 }, prey: { 13: 4, 43: 3, 47: 2, 10: 2 }, bonus: 0.2, traits: { flight: 2, poisonPoint: 2, crit: 1 }, allies: [{ sid: 79, lv: 31, genes: { thunder: 6 }, bonus: 0.15 }, { sid: 82, lv: 32, genes: { fire: 6, wind: 4 }, bonus: 0.15 }] },
+  4: { lv: 46, genes: { wind: 10, poison: 12, earth: 8, ice: 8 }, prey: { 13: 5, 43: 4, 47: 3, 63: 2, 10: 2 }, bonus: 0.26, traits: { flight: 2, poisonPoint: 3, crit: 2, giant: 2 }, allies: [{ sid: 58, lv: 44, genes: { ice: 10 }, bonus: 0.2 }, { sid: 82, lv: 45, genes: { fire: 10, wind: 6 }, bonus: 0.2 }] },
+  5: { lv: 62, genes: { wind: 14, poison: 14, earth: 12, ice: 10, primal: 10 }, prey: { 13: 6, 43: 5, 47: 3, 63: 3, 89: 1, 10: 2 }, bonus: 0.32, traits: { flight: 3, poisonPoint: 3, crit: 3, giant: 3, jaw: 2 }, allies: [{ sid: 73, lv: 60, genes: { primal: 14 }, bonus: 0.26, traits: { crit: 2 } }, { sid: 82, lv: 60, genes: { fire: 14, wind: 8 }, bonus: 0.26 }, { sid: 85, lv: 61, genes: { water: 12, wind: 6 }, bonus: 0.26 }] },
 };
 export const RIVAL_REWARD = { 1: 200, 2: 500, 3: 900, 4: 1500, 5: 2500 };
 export function rivalParty(stage, sid) {
@@ -640,7 +646,11 @@ export function arenaEnemy(streak, leadLv) {
   const sid = streak >= 10 && Math.random() < 0.25 ? pick(all.filter((id) => SPECIES[id].tier >= 3)) : pick(pool);
   const lv = Math.min(100, Math.max(50, leadLv - 2) + Math.floor(streak * 1.2));
   const m = createMonster(sid, { lv, bonus: Math.min(0.5, 0.12 + streak * 0.012) });
-  randomMutate(m, 8 + streak * 2);
+  wildBoost(m, 8 + streak * 2);
+  // v4.0: 플레이어의 포식 스탯은 무한히 오르므로 투기장 상대도 연승마다 포식 누적치를 쌓는다
+  const sp = SPECIES[m.sid];
+  for (const k of STAT_KEYS) m.fed[k] = sp.base[k] * (k === 'hp' ? 5 : 1) * streak * 0.6;
+  if (streak >= 8) { const el = pick(ELEMENT_KEYS.filter((k) => k !== sp.el)); m.elFed[el] = 10; }
   const traitKeys = ['jaw', 'hide', 'giant', 'swift', 'crit', 'regen', 'armor', 'sturdy', 'rage', 'drain'];
   for (let i = 0; i < Math.floor(streak / 3); i++) { const t = pick(traitKeys); m.traits[t] = Math.min(5, (m.traits[t] || 0) + 1); }
   const boss = (streak + 1) % 5 === 0;

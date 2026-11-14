@@ -3,7 +3,7 @@
 // 그림자가 먹히면 제단에서 사라지고, 그림자가 이기면 주인에게 방어 보상이 돌아간다.
 import { db } from '../../firebase';
 import { collection, addDoc, getDocs, query, orderBy, limit, where, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
-import { pack, unpack, createMonster, randomMutate, power, pick, rand } from './monster';
+import { pack, unpack, createMonster, wildBoost, power, pick, rand } from './monster';
 import { SPECIES } from './data';
 
 const ARENA = 'stonemon_arena';
@@ -67,7 +67,7 @@ function makeWanderer(myLv, i) {
   const sid = pick(pool);
   const lv = Math.max(2, myLv + [-2, 0, 1, 3][i % 4]);
   const m = createMonster(sid, { lv });
-  randomMutate(m, 3 + Math.floor(Math.random() * 10));
+  wildBoost(m, 3 + Math.floor(Math.random() * 10));
   m.devours = Math.floor(rand(2, 12));
   return { id: 'npc-' + Math.random().toString(36).slice(2), nick: pick(WANDERERS), mon: m, power: power(m), real: false };
 }

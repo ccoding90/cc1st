@@ -1,10 +1,12 @@
-// 🎮 스톤몬스터 v3.0 게임 진행기: 상태 · 저장 · 맵 이동(스테이지 1~5) · 스토리 · 배틀 흐름 · 레벨/포식
+// 🎮 스톤몬스터 v4.0 게임 진행기: 상태 · 저장 · 맵 이동(스테이지 1~5) · 스토리 · 배틀 흐름 · 레벨/포식
+//  v4.0: 레벨업 진화 · 포식 = 스탯 무한 누적 · 속성 습득(10회) · 스탯 임계치 각성 · 100종 도감
 //  v3.0: 포식 vs 길들이기 · 유전자 시너지 · 타격감 · 라이벌 카인 · Stage 4~5 · 원시 투기장 · 변종 · 화석/알 · 업적 · 세이브 백업
 // React 화면(StoneMonsterGame.jsx)은 game.ui 를 그리고, 입력은 game.press()/hold() 로 넘긴다.
-import { SPECIES, SKILLS, TRAITS, ELEMENTS, ELEMENT_KEYS, STARTERS, SPECIES_COUNT, TIER_NAME, FALLBACK_SKILL } from './data';
+import { SPECIES, SKILLS, TRAITS, ELEMENTS, ELEMENT_KEYS, STARTERS, SPECIES_COUNT, TIER_NAME, FALLBACK_SKILL, LEGACY_SID, AWAKEN_INFO, ELEMENT_UNLOCK, elementSkillFor } from './data';
 import {
-  createMonster, maxHp, power, formName, absorb, elementsOf, josa, pick, rand, eff, geneTotal, stageThreshold,
-  ppLeft, usePP, restorePP, gainExp, expYield, expNext, normalizeMon, applyGenes, isVariant,
+  createMonster, maxHp, power, formName, absorb, elementsOf, josa, pick, rand, eff,
+  ppLeft, usePP, restorePP, gainExp, expYield, expNext, normalizeMon, applyEssence, isVariant,
+  battleSkills, evolutionReady, evolveMon, awakenTiers, awakenDiff, acquiredElements, nextElementGoal, lookOf,
 } from './monster';
 import { fighter, act, order, endTurn, chooseSkill, intimidate, spdVal, STATUS, blizzardRoll } from './battle';
 import {
@@ -20,7 +22,8 @@ import { checkAchievements, achBonus } from './achievements';
 const SAVE_KEY = 'stonemon_save_v1';
 const BACKUP_KEY = 'stonemon_save_backup'; // 5분마다 갱신되는 예비 저장 (본 저장이 깨졌을 때 복구)
 const PRE_V3_KEY = 'stonemon_save_pre_v3'; // v3.0 업데이트 직전 저장 원본 (1회 보관)
-const SAVE_VER = 3;
+const SAVE_VER = 4;
+const PRE_V4_KEY = 'stonemon_save_pre_v4'; // v4.0 업데이트 직전 저장 원본 (1회 보관)
 const BOX_MAX = 30;
 const EGG_MAX = 3;
 const SPEED_KEY = 'stonemonSpeed';
@@ -34,9 +37,9 @@ export const ITEMS = {
   potion: { name: '회복약', desc: '체력 70% 회복', price: 60, icon: '🧪' },
   bigMeat: { name: '통구이', desc: '체력 100% · 기술 횟수 전부 회복 · 상태이상 치료', price: 90, icon: '🍗' },
   antidote: { name: '해독제', desc: '전투 중 중독·화상·마비·빙결 치료', price: 25, icon: '💊' },
-  evoStone: { name: '진화석', desc: '핵 속성 유전자 +5 (변이 진화 촉진)', price: 220, icon: '💎' },
+  evoStone: { name: '진화석', desc: '포식 3회분의 정수: 핵 속성 누적 +3 · 기본 스탯 영구 상승', price: 220, icon: '💎' },
   stone: { name: '스톤 그물', desc: '쓰러뜨린 야생 스톤몬을 길들여 동료로 영입 (파티 4 · 보관함 30)', price: 50, icon: '🕸️' },
-  amber: { name: '고대 호박', desc: '[희귀 진화] 원하는 속성 유전자 +8 (변이 방향 선택)', price: 0, icon: '🟠' },
+  amber: { name: '고대 호박', desc: `[희귀] 원하는 속성 누적 포식 +5 (${ELEMENT_UNLOCK}회면 속성 습득)`, price: 0, icon: '🟠' },
 };
 const SHOPS = {
   shop: { name: '원시 상점', keeper: '상인', items: ['meat', 'bigMeat', 'stone', 'antidote'], hello: '어서 와! 뼈조각만 있으면 뭐든 팔지!', bye: '또 와! 살아 있다면 말이지. 크하하!' },
@@ -100,7 +103,8 @@ const metaOf = (S) => ({
 
 // 저장 데이터 정리: 빠진 필드는 기본값으로 채움 (v1 · v2 → v3 변환 · 백업 · 클라우드 공용)
 export function normalizeSave(raw) {
-  if (!raw || typeof raw !== 'object' || ![1, 2, 3].includes(raw.v)) return null;
+  if (!raw || typeof raw !== 'object' || ![1, 2, 3, 4].includes(raw.v)) return null;
+  if (raw.v < 4) raw = migrateV4(raw);
   const base = freshRun({ name: raw.name, ownerId: raw.ownerId, runs: Math.max(0, (raw.runs || 1) - 1) });
   const s = { ...base, ...raw, v: SAVE_VER };
   s.flags = { ...base.flags, ...(raw.flags || {}), trainers: { ...(raw.flags?.trainers || {}) }, visited: { ...(raw.flags?.visited || {}) } };
@@ -125,13 +129,28 @@ export function normalizeSave(raw) {
   return s;
 }
 
+// v3 이전 저장 → v4: 도감 번호(1~56 → 신규 100종 번호) 변환. 개체는 normalizeMon 이 변환(밀린 진화 포함)
+function migrateV4(raw) {
+  const map = (id) => LEGACY_SID[Number(id)] || null;
+  const remapKeys = (o) => { const out = {}; for (const [k, v] of Object.entries(o || {})) { const n = map(k); if (n) out[n] = typeof v === 'number' && typeof out[n] === 'number' ? out[n] + v : v; } return out; };
+  const r = JSON.parse(JSON.stringify(raw));
+  if (r.codex) r.codex = { seen: remapKeys(r.codex.seen), eaten: remapKeys(r.codex.eaten), owned: remapKeys(r.codex.owned) };
+  if (Array.isArray(r.eggs)) r.eggs = r.eggs.map((e) => ({ ...e, sid: map(e?.sid) })).filter((e) => e.sid);
+  if (Array.isArray(r.grave)) r.grave = r.grave.map((g) => ({ ...g, sid: map(g?.sid) || 1 }));
+  if (r.starter) r.starter = map(r.starter);
+  if (r.rival?.sid) r.rival = { ...r.rival, sid: map(r.rival.sid) };
+  r.v4Migrated = true;
+  return r;
+}
+
 function loadSave() {
   let raw = null;
   try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
   let data = null;
   try { data = JSON.parse(raw); } catch (e) { data = null; }
   // v3.0 업데이트 직전 저장 원본을 한 번 따로 보관 (만약을 위한 복구용)
-  try { if (data && data.v < SAVE_VER && !localStorage.getItem(PRE_V3_KEY)) localStorage.setItem(PRE_V3_KEY, raw); } catch (e) { /* ignore */ }
+  try { if (data && data.v < 3 && !localStorage.getItem(PRE_V3_KEY)) localStorage.setItem(PRE_V3_KEY, raw); } catch (e) { /* ignore */ }
+  try { if (data && data.v < 4 && !localStorage.getItem(PRE_V4_KEY)) localStorage.setItem(PRE_V4_KEY, raw); } catch (e) { /* ignore */ }
   let s = normalizeSave(data);
   if (!s) { // 본 저장이 깨졌으면 예비 저장으로 복구
     try { s = normalizeSave(JSON.parse(localStorage.getItem(BACKUP_KEY))); } catch (e) { s = null; }
@@ -170,6 +189,67 @@ export class Game {
     let sp = 1;
     try { sp = Number(localStorage.getItem(SPEED_KEY)) || 1; } catch (e) { /* ignore */ }
     this.speed = SPEEDS.includes(sp) ? sp : 1;
+    this.installDebug();
+  }
+
+  // ───────── v4.0 테스트 도구 (개발 서버 또는 주소 끝에 ?debug=1) ─────────
+  // 브라우저 콘솔에서 smDebug.help() — 레벨업 진화 · 포식 누적 · 속성 습득 · 스탯 임계치 각성을 바로 확인
+  installDebug() {
+    if (typeof window === 'undefined') return;
+    let on = false;
+    try { on = !!import.meta.env?.DEV || /[?&]debug=1/.test(window.location.search); } catch (e) { on = false; }
+    if (!on) return;
+    const g = this;
+    const lead = () => g.S?.party?.[0];
+    const need = () => { if (!lead()) { console.warn('스톤몬이 없습니다. 먼저 스타팅을 받으세요.'); return false; } return true; };
+    const go = (fn) => (g.busy ? console.warn('진행 중인 연출이 끝난 뒤 다시 실행하세요.') : g.run(fn));
+    window.smDebug = {
+      game: g,
+      help() {
+        console.log([
+          'smDebug.level(16)            대장을 Lv.16까지 → 레벨업 진화 연출 (티랑이 16 → 티라노스, 36 → 패왕 티라렉스)',
+          'smDebug.devour(7, 1, 20)     대장이 No.7(Lv20)을 포식 (결과 카드 · 속성 카운트 · 각성 알림)',
+          'smDebug.devour(7, 10)        10회 연속 포식 → 물 속성 습득 + 속성 스킬 슬롯 해금',
+          "smDebug.fed('atk', 300)      포식 누적 공격 +300 → 공격 각성(발톱·붉은 투기)",
+          "smDebug.element('ice')       얼음 속성 누적 10회로 설정 (속성 포인트 컬러 + 입자 오라)",
+          'smDebug.battle(61, 30)       No.61 라돈 Lv30 과 야생 배틀 (속성 스킬 · 각성 오라 확인)',
+          "smDebug.give('evoStone', 5)  아이템 지급 · smDebug.heal() 파티 회복",
+          'smDebug.info()               대장 상태 (스탯 · 각성 단계 · 속성 진행도)',
+        ].join('\n'));
+      },
+      info() {
+        const m = lead(); if (!need()) return null;
+        const o = { name: formName(m), no: m.sid, lv: m.lv, stats: eff(m), fed: m.fed, tiers: awakenTiers(m), elements: elementsOf(m), elFed: m.elFed, battleSkills: battleSkills(m), look: lookOf(m) };
+        console.log(o); return o;
+      },
+      level(n) {
+        if (!need()) return;
+        go(async () => {
+          const m = lead();
+          let x = -(m.exp || 0);
+          for (let l = m.lv; l < Math.min(100, n); l++) x += expNext(l);
+          await g.afterLevel(m, gainExp(m, Math.max(0, x)));
+          g.refresh();
+        });
+      },
+      devour(sid, n = 1, lv) {
+        if (!need() || !SPECIES[sid]) return;
+        go(async () => {
+          const m = lead();
+          for (let i = 0; i < n - 1; i++) {
+            const res = absorb(m, createMonster(sid, { lv: lv || m.lv }), 'wild');
+            if (res.element.unlocked) await g.elementUnlockMsg(m, res.element);
+          }
+          await g.devour(m, createMonster(sid, { lv: lv || m.lv }), 'wild');
+        });
+      },
+      fed(stat, v) { if (!need()) return; const m = lead(); m.fed[stat] = (m.fed[stat] || 0) + v; go(() => g.announceAwaken(m)); },
+      element(el, n = ELEMENT_UNLOCK) { if (!need() || !ELEMENTS[el]) return; const m = lead(); const was = m.elFed[el] || 0; m.elFed[el] = n; if (was < ELEMENT_UNLOCK && n >= ELEMENT_UNLOCK) go(() => g.elementUnlockMsg(m, { el, unlocked: true, skill: elementSkillFor(el, m.lv) })); g.refresh(); },
+      battle(sid, lv = 10) { if (!need() || !SPECIES[sid] || g.v.mode !== 'map') return; go(() => g.battle({ kind: 'wild', enemies: [createMonster(sid, { lv })], bg: g.bgHere() })); },
+      give(item, n = 1) { if (ITEMS[item]) { g.S.items[item] = (g.S.items[item] || 0) + n; g.save(); } },
+      heal() { for (const m of g.S.party) { m.hp = maxHp(m); restorePP(m); } g.save(); g.refresh(); },
+    };
+    console.info('🦖 스톤몬스터 v4.0 테스트 도구: smDebug.help()');
   }
 
   // ───────── 배속 (1x / 2x / 3x) ─────────
@@ -364,7 +444,7 @@ export class Game {
   }
   cmdKey(k) {
     const c = this.ui.cmd;
-    const n = c.level === 'main' ? 4 : this.v.battle.player.m.skills.length;
+    const n = c.level === 'main' ? 4 : battleSkills(this.v.battle.player.m).length;
     if (k === 'up') c.idx = (c.idx + n - 2) % n;
     else if (k === 'down') c.idx = (c.idx + 2) % n;
     else if (k === 'left') c.idx = (c.idx + n - 1) % n;
@@ -382,7 +462,7 @@ export class Game {
     const m = this.v.battle.player.m;
     if (c.level === 'main') {
       if (i === 0) {
-        if (!m.skills.some((s) => ppLeft(m, s) > 0)) {
+        if (!battleSkills(m).some((s) => ppLeft(m, s) > 0)) {
           c.pick({ type: 'skill', id: FALLBACK_SKILL, exhausted: true });
           return;
         }
@@ -391,7 +471,8 @@ export class Game {
       c.pick({ type: ['fight', 'party', 'bag', 'run'][i] });
     } else if (i < 0) { c.level = 'main'; c.idx = 0; this.refresh(); }
     else {
-      const id = m.skills[i];
+      const id = battleSkills(m)[i];
+      if (!id) return;
       if (ppLeft(m, id) <= 0) { sfx.bump(); this.toast(`${SKILLS[id].name}: 남은 횟수가 없다!`); return; }
       c.pick({ type: 'skill', id });
     }
@@ -426,6 +507,10 @@ export class Game {
     const lead = this.S.party[0];
     this.run(async () => {
       await this.say(lead ? `${this.S.name}의 모험을 이어서 시작합니다. (${this.S.runs}번째 생 · 대장 ${formName(lead)} Lv.${lead.lv})` : `${this.S.name}의 모험을 이어서 시작합니다. 연구소로 가 보자!`, { auto: 1400 });
+      if (this.S.v4Migrated) {
+        delete this.S.v4Migrated;
+        await this.say('📦 v4.0 업데이트: 도감이 100종으로 확장되고 번호가 새로 매겨졌습니다. 레벨이 진화 레벨을 넘은 스톤몬은 진화형으로, 변이 단계는 능력치 보너스로, 포식 기록은 속성 습득 횟수로 옮겨졌습니다.');
+      }
     });
   }
   toTitle() {
@@ -604,10 +689,11 @@ export class Game {
       `도감 기록: 발견 ${seen} / 포식 ${eaten} / 전체 ${SPECIES_COUNT}종.`,
     ]);
     const tips = [
-      '싸워 이기면 경험치로 레벨이 오르지만, 진짜 변이는 포식으로만 일어난다. 레벨은 체급, 포식은 진화지.',
+      '진화는 레벨로 한다. 티랑이는 Lv.16에 티라노스, Lv.36에 패왕 티라렉스가 되지. 포식은 진화가 아니라 끝없는 단련이다.',
       '상성은 정직하다. 유리하면 1.5배, 천적이면 2배, 불리하면 절반! 같은 속성 기술은 1.2배다.',
       '독은 매 턴 최대 체력의 1/16씩 4턴, 화상은 5%씩 3턴이면 저절로 낫는다. 겁먹지 말고 상성으로 밀어붙여라.',
-      '변이 단계는 흡수한 유전자의 총량으로 정해진다. 3, 8, 15, 24, 35… 끝이 없지. 습지 상점의 진화석으로 앞당길 수도 있다.',
+      '같은 속성을 열 번 먹으면 그 속성을 손에 넣는다. 속성 스킬 칸이 하나 늘어나고, 몸에 그 속성의 빛깔이 깃들지.',
+      '공격이 300·800·1500을 넘으면 발톱과 투기가, 방어가 넘으면 황금 장갑이, 체력이 1000·3000·7000을 넘으면 몸집과 왕관이 자란다. 외형은 그때만 바뀐다.',
       '메뉴 → 스톤몬에서 기술 순서를 ▲▼로 바꿀 수 있다. 자주 쓰는 기술을 맨 앞에 두거라.',
       '동료로 길들인 스톤몬을 대장에게 먹이면(메뉴 → 스톤몬 → 먹이로 바치기) 야생보다 더 많이 흡수한다. 잔인하지만… 효율적이지.',
       '쓰러뜨린 녀석을 먹을지, 스톤 그물로 길들일지는 네 선택이다. 먹으면 강해지고, 길들이면 동료가 는다. 파티는 넷, 나머지는 보관함이다.',
@@ -631,9 +717,9 @@ export class Game {
     await this.talk('고돌 박사', [
       '오, 왔구나 {name}! 나는 화석 박사 고돌이다.',
       '이 세계엔 \'스톤몬스터\'라 불리는 존재들이 살고 있지. 돌알에서 깨어나, 서로를 잡아먹으며 진화하는 원시의 괴물들…',
-      '싸우면 레벨이 오르고 몸집은 커진다. 하지만 진짜 진화는 단 하나 ─ \'포식\'이다.',
-      '쓰러뜨린 상대를 잡아먹으면, 그 녀석의 힘·속성·특성·기술이 네 스톤몬의 피와 뼈에 녹아든다.',
-      '바람 스톤몬을 삼키면 날개가 돋고, 번개를 삼키면 번개 가시가 돋는다. 먹을수록 끝없이 변이하지.',
+      '싸우면 레벨이 오르고, 일정 레벨이 되면 더 강한 모습으로 진화한다.',
+      '그리고 쓰러뜨린 상대를 잡아먹으면, 모습은 그대로지만 힘이 영원히 쌓인다. 끝이 없지.',
+      '같은 속성을 열 번 삼키면 그 속성까지 제 것이 된다. 불을 열 번 먹은 물 공룡이라… 상상만 해도 무섭구나.',
       '…하지만 명심해라. 네가 지면, 네 스톤몬이 먹힌다. 영원히.',
       '모든 스톤몬을 잃으면… 처음부터 다시다. 약육강식. 약자멸시. 적자생존. 그게 이 세계의 법칙이다.',
       '자, 여기 세 개의 돌알이 있다. 하나를 골라라.',
@@ -647,9 +733,9 @@ export class Game {
       sid = STARTERS[i];
       const sp = SPECIES[sid];
       const line = {
-        2: '티랑이는 불/육식! 공격 특화 꼬마 폭군이지. 풀 속성에겐 천적이다.',
-        3: '케톱스는 풀/초식! 단단한 프릴로 버티고 광합성으로 회복한다. 대지 속성에겐 천적이다.',
-        4: '브퉁이는 물/초식! 큰 체력으로 오래 버틴다. 불 속성에겐 천적이다.',
+        1: '티랑이는 불/육식! 공격 특화 꼬마 폭군이지. Lv.16 티라노스 → Lv.36 패왕 티라렉스로 진화한다. 풀 속성에겐 천적이다.',
+        4: '케톱스는 풀/초식! 단단한 프릴로 버틴다. Lv.16 트리케라 → Lv.36 대지의 트리케라톱스. 대지 속성에겐 천적이다.',
+        7: '브퉁이는 물/초식! 큰 체력으로 오래 버틴다. Lv.16 브라키오 → Lv.36 창공의 브라키오사우루스. 불 속성에겐 천적이다.',
       }[sid];
       await this.say(line, { speaker: '고돌 박사' });
       const ok = await this.choose(`정말 ${josa(sp.name, '으로/로')} 하겠느냐?`, ['그래, 이 녀석이다!', '다시 고를래']);
@@ -700,15 +786,15 @@ export class Game {
     this.S.flags.tutorial = true;
     this.save();
     await this.talk('고돌 박사', [
-      '…허, 허허허! 봤느냐 {name}! 날개가 돋았어!',
-      '이것이 포식 진화다. 먹은 것의 일부가 영원히 네 스톤몬의 몸이 되는 거지.',
-      '싸워서 얻은 경험치로 레벨이 오르고, 포식으로 끝없이 변이한다. 둘 다 챙겨라.',
+      '…허, 허허허! 봤느냐 {name}! 겉모습은 그대로인데 힘이 차올랐다!',
+      '이것이 포식이다. 먹은 녀석의 체력·공격·방어·스피드가 영원히 쌓인다. 한계 따윈 없지.',
+      '경험치로 레벨을 올려 진화하고, 포식으로 끝없이 단련해라. 둘 다 챙겨라.',
       '참고로 지금 네 스톤몬의 체력은 줄어 있다. 집에서 쉬면 엄마가 회복시켜 줄 거다.',
     ]);
     const next = await this.choose('이제 무엇을 할까?', [
       { label: '🌿 숲 깊숙이 들어가 더 강한 먹잇감을 찾는다', sub: '야생 스톤몬 사냥 · 수풀을 걸으면 조우 (숲 구석일수록 레벨↑)' },
       { label: '🗿 포식의 제단에서 다른 스톤마스터에게 도전한다', sub: '다른 플레이어의 스톤몬을 먹고 급성장 (패배 시 먹힘)' },
-      { label: '🔬 마을로 돌아가 박사에게 진화 결과를 보고한다', sub: '연구소로 이동 · 공략 조언 듣기' },
+      { label: '🔬 마을로 돌아가 박사에게 포식 결과를 보고한다', sub: '연구소로 이동 · 공략 조언 듣기' },
     ], { wide: true });
     if (next === 0) {
       await this.say('더 강한 먹잇감의 냄새가 숲 깊은 곳에서 풍겨 온다…');
@@ -719,7 +805,7 @@ export class Game {
     } else {
       await this.fadeTo(20, 19, 'up');
       await this.talk('고돌 박사', [
-        '보고는 들었다! 첫 포식으로 바람 유전자를 얻었구나.',
+        '보고는 들었다! 첫 포식으로 바람의 기운을 한 번 얻었구나. 열 번 모으면 바람 속성을 손에 넣는다.',
         '마을 북쪽 사당의 숲의 수호자(파키파 & 가르고)는 다섯 번 이상 포식한 자만 상대해 준다. 그들을 꺾으면 1단계 졸업이다.',
         '숲의 사냥꾼들도 스톤몬을 데리고 있다. 이기면 그들의 스톤몬도 먹을 수 있지.',
       ]);
@@ -961,12 +1047,12 @@ export class Game {
     chip.arena();
     await this.say(`함성이 투기장을 뒤흔든다! (최고 기록 ${S.life.arenaBest || 0}연승)`, { speaker: '투기장 관리인' });
     const i = await this.choose('무한의 원시 투기장', [
-      { label: '⚔️ 연승 도전', sub: '끝없이 강해지는 변이 몬스터와 연전 · 5연승마다 알파 개체 · 투기장에선 먹히지 않고 기절만 한다' },
+      { label: '⚔️ 연승 도전', sub: '연승마다 포식 스탯이 쌓이는 몬스터와 연전 · 5연승마다 알파 개체 · 투기장에선 먹히지 않고 기절만 한다' },
       { label: '📜 보상 안내', sub: '5연승 진화석 · 10연승 고대 호박+칭호 · 20연승 고대 호박×2 · 30연승 고대 호박×3+칭호 · 이후 10연승마다 고대 호박' },
       '떠난다',
     ], { cancel: true, wide: true });
     if (i === 1) {
-      await this.say('매 승리마다 뼈조각, 일정 연승마다 희귀 진화 아이템 「고대 호박」을 준다. 고대 호박은 원하는 속성 유전자를 +8 올린다.', { speaker: '투기장 관리인' });
+      await this.say('매 승리마다 뼈조각, 일정 연승마다 희귀 진화 아이템 「고대 호박」을 준다. 고대 호박은 원하는 속성의 누적 포식을 +5 올린다.', { speaker: '투기장 관리인' });
       await this.say('연승 사이에는 체력 25%만 회복된다. 그만둘 때까지의 연승이 기록으로 남는다.', { speaker: '투기장 관리인' });
       return;
     }
@@ -1152,7 +1238,7 @@ export class Game {
       const ups = gainExp(m, Math.round(expNext(m.lv) * 0.3 * wins));
       sfx.ding();
       await this.say(`그림자가 삼킨 힘이 본체로 흘러들었다! 뼈조각 +${40 * wins}, ${formName(m)}의 경험치 상승!`);
-      for (const u of ups) await this.levelUpMsg(m, u);
+      await this.afterLevel(m, ups);
     }
   }
   async arenaChallenge() {
@@ -1163,7 +1249,7 @@ export class Game {
     const i = await this.choose(`상대를 고르자 (내 대장 Lv.${lead.lv} ★${power(lead)})`, [
       ...list.map((o) => ({
         label: `${o.real ? '🧑' : '🏕️'} ${o.nick} · ${formName(o.mon)} Lv.${o.mon.lv} ★${o.power}`,
-        sub: `${elementsOf(o.mon).map((e) => ELEMENTS[e].icon + ELEMENTS[e].name).join(' ')} · 포식 ${o.mon.devours || 0}회 · 변이 ${o.mon.stage}단계${o.mon.lv > lead.lv + 3 ? ' · ⚠️위험' : ''}`,
+        sub: `${elementsOf(o.mon).map((e) => ELEMENTS[e].icon + ELEMENTS[e].name).join(' ')} · 포식 ${o.mon.devours || 0}회${o.mon.lv > lead.lv + 3 ? ' · ⚠️위험' : ''}`,
         mon: o.mon,
       })),
       '그만둔다',
@@ -1202,7 +1288,7 @@ export class Game {
     const m = f.m;
     return {
       name: formName(m), power: power(m), lv: m.lv, exp: (m.exp || 0) / expNext(m.lv), hp: Math.max(0, m.hp), max: maxHp(m),
-      status: f.status, stTurns: f.stTurns, alpha: !!m.alpha, shiny: !!m.shiny, els: elementsOf(m), stage: m.stage,
+      status: f.status, stTurns: f.stTurns, alpha: !!m.alpha, shiny: !!m.shiny, els: elementsOf(m), tiers: m.v4 ? awakenTiers(m) : null,
       syn: synergiesOf(m), chill: !!f.chill,
     };
   }
@@ -1358,7 +1444,7 @@ export class Game {
       const ups = gainExp(m, n);
       if (full) await this.say(`${josa(formName(m), '은/는')} 경험치 ${n}을(를) 얻었다!`, { auto: 600 });
       else shared = true;
-      for (const u of ups) await this.levelUpMsg(m, u);
+      await this.afterLevel(m, ups);
     }
     if (shared) await this.say('대기 중인 동료들도 경험치를 절반씩 나눠 받았다.', { auto: 500 });
     this.updateHud();
@@ -1370,6 +1456,66 @@ export class Game {
     await this.say(`🎉 ${josa(formName(m), '은/는')} Lv.${u.lv}(으)로 올랐다! (체력 ${maxHp(m)} · 공격 ${e.atk} · 방어 ${e.def} · 스피드 ${e.spd})`);
     for (const s of u.learn) await this.learnPrompt(m, s, `${formName(m)}이(가) 새 기술을 익히려 한다!`);
   }
+  // 레벨업 메시지 → (진화 레벨 도달 시) 레벨업 진화 → 스탯 임계치 각성 알림
+  async afterLevel(m, ups) {
+    for (const u of ups) await this.levelUpMsg(m, u);
+    if (ups.length) await this.tryEvolve(m);
+    await this.announceAwaken(m);
+  }
+  // 레벨업 진화: 진화를 멈추면(B) 다음 레벨업 때 다시 묻는다
+  async tryEvolve(m) {
+    const to = evolutionReady(m);
+    if (!to) return false;
+    const from = SPECIES[m.sid];
+    const ok = await this.choose(`…어라? ${josa(formName(m), '의')} 몸이 빛나기 시작했다! (Lv.${from.evolvesTo.lv} 진화)`, [
+      { label: `✨ 진화시킨다 → ${SPECIES[to].name}`, sub: '종족값 · 기술표 · 외형이 다음 단계로. 포식으로 쌓은 스탯 · 속성 · 특성은 그대로 이어진다', mon: { sid: to } },
+      { label: '✋ 진화를 멈춘다', sub: '다음 레벨업 때 다시 진화할 수 있다' },
+    ], { wide: true });
+    if (ok !== 0) { m.evoStop = m.lv; await this.say(`${josa(formName(m), '은/는')} 진화를 멈췄다.`, { auto: 600 }); return false; }
+    const old = JSON.parse(JSON.stringify(m));
+    const v = this.v;
+    const prevMode = v.mode;
+    v.mode = 'evolve';
+    v.scene = { kind: 'evolve', t0: v.t, old, now: { ...old, sid: to } };
+    this.refresh();
+    sfx.alarm();
+    await this.wait(1600); sfx.alarm();
+    await this.wait(1400);
+    const res = evolveMon(m);
+    v.scene.now = m;
+    sfx.fanfare();
+    v.flash = 1;
+    v.scene.done = true;
+    this.S.codex.seen[m.sid] = true; this.S.codex.owned[m.sid] = true;
+    await this.wait(500);
+    await this.say(`축하한다! ${josa(res.before.name, '은/는')} ${josa(res.after.name, '으로/로')} 진화했다!`);
+    await this.showCard({ kind: 'evolve', old, mon: m, res });
+    v.mode = prevMode;
+    v.scene = null;
+    this.refresh();
+    for (const s of res.learn) await this.learnPrompt(m, s, `${formName(m)}이(가) 진화하며 새 기술을 익히려 한다!`);
+    if (this.v.battle) this.updateHud();
+    this.save();
+    return true;
+  }
+  // 스탯 임계치 각성 알림 (외형 변화는 오직 여기서만) — m.awk 에 마지막으로 본 단계를 기억
+  async announceAwaken(m, silent = false) {
+    if (!m?.v4) return [];
+    const now = awakenTiers(m);
+    if (!m.awk) { m.awk = now; return []; }
+    const fresh = awakenDiff(m.awk, now);
+    m.awk = { atk: Math.max(m.awk.atk || 0, now.atk), def: Math.max(m.awk.def || 0, now.def), hp: Math.max(m.awk.hp || 0, now.hp) };
+    if (silent) return fresh;
+    for (const { stat, tier } of fresh) {
+      const A = AWAKEN_INFO[stat];
+      chip.awaken();
+      this.v.flash = 0.8;
+      await this.say(`${A.icon} ${A.name} ${['', 'Ⅰ', 'Ⅱ', 'Ⅲ'][tier]}! ${formName(m)}: ${A.text[tier - 1]}`);
+    }
+    if (fresh.length && this.v.battle) this.updateHud();
+    return fresh;
+  }
+
   // 기술 습득 (4개 초과 시 하나를 잊음)
   async learnPrompt(m, s, title) {
     if (m.skills.includes(s)) return false;
@@ -1462,7 +1608,7 @@ export class Game {
     } else {
       await this.say(`쓰러진 ${josa(formName(mine), '은/는')} 들짐승들에게 먹혀 사라졌다…`);
     }
-    S.grave.unshift({ name: formName(mine), sid: mine.sid, lv: mine.lv, devours: mine.devours, stage: mine.stage, power: power(mine), cause: B.trainer ? TRAINERS[B.trainer].name : B.opponent ? B.opponent.nick : `야생 ${SPECIES[B.enemy.m.sid].name}`, date: Date.now(), run: S.runs });
+    S.grave.unshift({ name: formName(mine), sid: mine.sid, lv: mine.lv, devours: mine.devours, power: power(mine), cause: B.trainer ? TRAINERS[B.trainer].name : B.opponent ? B.opponent.nick : `야생 ${SPECIES[B.enemy.m.sid].name}`, date: Date.now(), run: S.runs });
     S.grave = S.grave.slice(0, 40);
     S.party = S.party.filter((m) => m !== mine);
     B.pShow = false;
@@ -1496,7 +1642,9 @@ export class Game {
     }
     // v3.0 [포식 vs 길들이기] 딜레마: 먹으면 강해지고, 길들이면 동료가 는다
     const variant = isVariant(prey);
-    const opts = [{ label: `🍖 포식하기`, sub: `능력치·유전자·특성·기술 흡수 + 변이 게이지${variant ? ' · ✨변종: 능력치 3배 흡수 + 희귀 기술 전수!' : ''}` }];
+    const pe = SPECIES[prey.sid].el, pc = pred.elFed?.[pe] || 0;
+    const elNote = pe === SPECIES[pred.sid].el ? '' : pc >= ELEMENT_UNLOCK ? ` · ${ELEMENTS[pe].icon}습득 완료` : ` · ${ELEMENTS[pe].icon}${ELEMENTS[pe].name} ${pc + 1}/${ELEMENT_UNLOCK}`;
+    const opts = [{ label: `🍖 포식하기`, sub: `기본 스탯 영구 상승(외형 유지) · 특성·기술 흡수${elNote}${variant ? ' · ✨변종: 스탯 3배 흡수 + 희귀 기술 전수!' : ''}` }];
     const canSeal = B.kind === 'wild';
     const roomy = S.party.length < PARTY_MAX || (S.box?.length || 0) < BOX_MAX;
     if (canSeal) {
@@ -1558,7 +1706,6 @@ export class Game {
 
   async devour(pred, prey, mode, B = null) {
     const S = this.S;
-    const old = JSON.parse(JSON.stringify(pred));
     const pn = formName(pred), qn = formName(prey);
     await this.say(`${josa(pn, '이/가')} ${josa(qn, '을/를')} 덮쳤다!`, { auto: 450 });
     await this.devourAnim('p');
@@ -1578,8 +1725,10 @@ export class Game {
     S.life.bestStreak = Math.max(S.life.bestStreak || 0, S.life.streak);
     S.codex.eaten[prey.sid] = (S.codex.eaten[prey.sid] || 0) + 1;
     this.updateHud();
-    if (res.variant) { chip.shiny(); await this.say(`✨ 변종의 피! 능력치를 ${3}배로 흡수했다!`, { auto: 800 }); }
+    if (res.variant) { chip.shiny(); await this.say(`✨ 변종의 피! 기본 스탯을 ${3}배로 흡수했다!`, { auto: 800 }); }
     await this.showCard({ kind: 'devour', mon: pred, prey, res });
+    await this.elementUnlockMsg(pred, res.element);
+    await this.announceAwaken(pred);
     // 유전자 시너지 각성
     for (const k of synNew) {
       const Y = SYNERGIES[k];
@@ -1596,7 +1745,6 @@ export class Game {
       ], { cancel: true, wide: true });
       if (i >= 0 && i < res.learnable.length) await this.learnPrompt(pred, res.learnable[i], `${qn}의 기술 흡수`);
     }
-    if (res.stageUp || res.mutations.length) await this.evolve(old, pred, res);
     this.checkAch();
     // 포식 경험치 (전투 경험치의 50%)
     if (B && mode !== 'feed') {
@@ -1608,25 +1756,17 @@ export class Game {
     this.save();
   }
 
-  async evolve(old, now, res) {
-    const v = this.v;
-    const prevMode = v.mode;
-    await this.say(`…어라? ${formName(old)}의 몸이…!`);
-    v.mode = 'evolve';
-    v.scene = { kind: 'evolve', t0: v.t, old, now };
-    this.refresh();
-    sfx.alarm();
-    await this.wait(1600); sfx.alarm();
-    await this.wait(1600);
+  // 속성 습득 연출: 누적 10회 포식 → 속성 정식 습득 + 속성 스킬 슬롯 해금
+  async elementUnlockMsg(m, el) {
+    if (!el?.unlocked) return;
+    const E = ELEMENTS[el.el];
+    chip.awaken();
+    this.v.flash = 1;
     sfx.fanfare();
-    v.flash = 1;
-    v.scene.done = true;
-    await this.wait(500);
-    await this.say(`${josa(formName(old), '은/는')} ${josa(formName(now), '으로/로')} 변이했다!`);
-    await this.showCard({ kind: 'evolve', old, mon: now, res });
-    v.mode = prevMode;
-    v.scene = null;
-    this.refresh();
+    await this.say(`${E.icon} 속성 습득! ${josa(formName(m), '은/는')} ${E.name} 속성 스톤몬을 ${ELEMENT_UNLOCK}번 삼켜 [${E.name}] 속성을 손에 넣었다!`);
+    await this.say(`몸 외곽에 ${E.name}의 포인트 컬러가 깃들었다. ${E.name} 기술 위력 ×1.2 · ${E.name} 피해 ×0.85`, { auto: 1200 });
+    const sk = el.skill || elementSkillFor(el.el, m.lv);
+    if (sk) await this.say(`🔓 속성 스킬 슬롯 해금: ${E.icon} ${SKILLS[sk].name} (전투 기술 목록 맨 아래 · 레벨이 오르면 더 강한 기술로 바뀐다)`, { auto: 1400 });
   }
 
   async useItemMenu(target, B) {
@@ -1644,33 +1784,35 @@ export class Game {
     let m = target;
     if (!B) {
       const evo = k === 'evoStone' || k === 'amber';
-      const j = await this.choose(evo ? `누구에게 ${ITEMS[k].name}을(를) 쓸까?` : '누구에게 먹일까?', [...S.party.map((p) => ({ label: `${formName(p)} Lv.${p.lv}`, sub: evo ? `유전자 ${geneTotal(p)}/${stageThreshold(p.stage + 1)} · 변이 ${p.stage}단계` : `HP ${p.hp}/${maxHp(p)}` })), '취소'], { cancel: true });
+      const goal = (p) => { const g = nextElementGoal(p); return g ? `${ELEMENTS[g.el].icon}${ELEMENTS[g.el].name} ${g.n}/${g.need}` : '습득 진행 중인 속성 없음'; };
+      const j = await this.choose(evo ? `누구에게 ${ITEMS[k].name}을(를) 쓸까?` : '누구에게 먹일까?', [...S.party.map((p) => ({ label: `${formName(p)} Lv.${p.lv}`, sub: evo ? `포식 ${p.devours}회 · ${goal(p)}` : `HP ${p.hp}/${maxHp(p)}` })), '취소'], { cancel: true });
       if (j < 0 || j >= S.party.length) return false;
       m = S.party[j];
     }
-    if (k === 'amber') { // 고대 호박: 원하는 속성 유전자 +8
-      const e = await this.choose('어떤 속성의 유전자를 깨울까? (+8)', [...ELEMENT_KEYS.map((el) => ({ label: `${ELEMENTS[el].icon} ${ELEMENTS[el].name}`, sub: `현재 ${m.genes?.[el] || 0}` })), '취소'], { cancel: true });
-      if (e < 0 || e >= ELEMENT_KEYS.length) return false;
-      const el = ELEMENT_KEYS[e];
+    if (k === 'amber') { // 고대 호박: 원하는 속성 누적 포식 +5
+      const core = SPECIES[m.sid].el;
+      const els = ELEMENT_KEYS.filter((el) => el !== core);
+      const e = await this.choose('어떤 속성의 기운을 깨울까? (누적 포식 +5)', [...els.map((el) => ({ label: `${ELEMENTS[el].icon} ${ELEMENTS[el].name}`, sub: (m.elFed?.[el] || 0) >= ELEMENT_UNLOCK ? '이미 습득' : `현재 ${m.elFed?.[el] || 0}/${ELEMENT_UNLOCK}` })), '취소'], { cancel: true });
+      if (e < 0 || e >= els.length) return false;
+      const el = els[e];
       S.items[k]--;
-      const old = JSON.parse(JSON.stringify(m));
       chip.awaken();
-      await this.say(`${josa(formName(m), '이/가')} 고대 호박을 깨물었다! 갇혀 있던 ${ELEMENTS[el].icon}${ELEMENTS[el].name} 유전자 +8`);
-      const res = applyGenes(m, el, 8);
-      if (res.stageUp || res.mutations.length) await this.evolve(old, m, res);
-      else await this.say(`다음 변이까지 유전자 ${geneTotal(m)}/${stageThreshold(m.stage + 1)}`);
+      await this.say(`${josa(formName(m), '이/가')} 고대 호박을 깨물었다! 갇혀 있던 ${ELEMENTS[el].icon}${ELEMENTS[el].name}의 기운 +5`);
+      const res = applyEssence(m, el, 5);
+      if (res.element.unlocked) await this.elementUnlockMsg(m, res.element);
+      else await this.say(`${ELEMENTS[el].name} 속성 습득까지 ${Math.min(res.element.n, ELEMENT_UNLOCK)}/${ELEMENT_UNLOCK}`);
+      await this.announceAwaken(m);
       this.save();
       return true;
     }
-    if (k === 'evoStone') {
+    if (k === 'evoStone') { // 진화석: 포식 3회분의 정수 (외형은 그대로)
       S.items[k]--;
-      const old = JSON.parse(JSON.stringify(m));
       const el = SPECIES[m.sid].el;
       sfx.ding();
-      await this.say(`${josa(formName(m), '이/가')} 진화석을 삼켰다! ${ELEMENTS[el].icon}${ELEMENTS[el].name} 유전자 +5`);
-      const res = applyGenes(m, el, 5);
-      if (res.stageUp || res.mutations.length) await this.evolve(old, m, res);
-      else await this.say(`다음 변이까지 유전자 ${geneTotal(m)}/${stageThreshold(m.stage + 1)}`);
+      const res = applyEssence(m, el, 3, 3);
+      const d = (key) => res.after.stats[key] - res.before.stats[key];
+      await this.say(`${josa(formName(m), '이/가')} 진화석을 삼켰다! 포식 3회분의 정수가 녹아든다. (체력 +${d('hp')} · 공격 +${d('atk')} · 방어 +${d('def')} · 스피드 +${d('spd')})`);
+      await this.announceAwaken(m);
       this.save();
       return true;
     }
@@ -1856,7 +1998,7 @@ export class Game {
       const S = this.S;
       const others = S.party.filter((m) => m !== prey);
       if (!others.length) { await this.say('먹일 상대가 없다.'); return; }
-      const i = await this.choose(`${josa(formName(prey), '을/를')} 누구에게 먹일까?`, [...others.map((m) => ({ label: `${formName(m)} Lv.${m.lv} ★${power(m)}`, sub: `포식 ${m.devours}회 · 변이 ${m.stage}단계`, mon: m })), '취소'], { cancel: true });
+      const i = await this.choose(`${josa(formName(prey), '을/를')} 누구에게 먹일까?`, [...others.map((m) => ({ label: `${formName(m)} Lv.${m.lv} ★${power(m)}`, sub: `포식 ${m.devours}회 · 습득 속성 ${acquiredElements(m).map((e) => ELEMENTS[e].icon).join('') || '없음'}`, mon: m })), '취소'], { cancel: true });
       if (i < 0 || i >= others.length) return;
       const pred = others[i];
       const ok = await this.choose(`정말로 ${josa(formName(prey), '을/를')} ${formName(pred)}에게 바칠까? 되돌릴 수 없다.`, ['바친다', '그만둔다']);
@@ -1867,14 +2009,14 @@ export class Game {
       this.updateHud();
       await this.say(`${josa(formName(prey), '은/는')} 체념한 듯 눈을 감았다…`);
       S.party = S.party.filter((m) => m !== prey);
-      S.grave.unshift({ name: formName(prey), sid: prey.sid, lv: prey.lv, devours: prey.devours, stage: prey.stage, power: power(prey), cause: `${formName(pred)}에게 바쳐짐`, date: Date.now(), run: S.runs });
+      S.grave.unshift({ name: formName(prey), sid: prey.sid, lv: prey.lv, devours: prey.devours, power: power(prey), cause: `${formName(pred)}에게 바쳐짐`, date: Date.now(), run: S.runs });
       await this.devour(pred, prey, 'feed');
       // 바친 동료 레벨에 비례한 경험치
       const ups = gainExp(pred, Math.round(expYield(prey, 'trainer') * 0.6));
-      for (const u of ups) await this.levelUpMsg(pred, u);
+      await this.afterLevel(pred, ups);
       this.endBattle({});
     });
   }
 }
 
-export { SPECIES, SKILLS, TRAITS, ELEMENTS, TIER_NAME, STATUS, PARTY_MAX, BOX_MAX, EGG_MAX, eff, geneTotal, stageThreshold, MAP_W, MAP_H, rand, zoneAt };
+export { SPECIES, SKILLS, TRAITS, ELEMENTS, TIER_NAME, STATUS, PARTY_MAX, BOX_MAX, EGG_MAX, eff, MAP_W, MAP_H, rand, zoneAt, lookOf };

@@ -2,7 +2,8 @@
 //  v3.0 타격감: 피격 흔들림 · 화면 미세 진동 · 속성별 파티클 · 데미지 숫자 팝업 · 강조 텍스트 · 황금 오라 · 변종 반짝임 · 날씨
 import { MAP_W, MAP_H, LOOKS, mapOf, OBJ_RESPAWN } from './world';
 import { SPECIES, ELEMENTS, STARTERS } from './data';
-import { monSprite, monScale, charSprite, tiles, building, eggSprite, objSprite } from './sprites';
+import { monSprite, monScale, charSprite, tiles, building, eggSprite, objSprite, drawMonster, spriteSize } from './sprites';
+import { lookOf } from './monster';
 import { hasSyn, SYNERGIES } from './synergy';
 
 export const SW = 240, SH = 176;
@@ -305,16 +306,18 @@ function drawBattleBg(ctx, bg, t) {
   plat(PPOS.x, PPOS.y - 4, 56, 12);
 }
 
+// v4.0 도트 스프라이트 상자: 32x32(일반)·48x48(최종 진화·전설) 도트를 2배로 출력 (+ 체력 각성 거대화 · 변종)
 function spriteRect(m, side) {
-  const s = Math.min(m.alpha || m.shiny ? 1.62 : 1.45, monScale(m)) * (side === 'p' ? 1.15 : 1);
-  const size = 64 * s;
+  const s = Math.min(1.35, monScale(m));
+  const n = spriteSize(m.sid);
+  const px = side === 'p' ? (n === 48 ? 1.8 : 2.2) : (n === 48 ? 1.6 : 2); // 48 도트는 조금 작은 배율로 (화면 밖으로 잘리지 않게)
+  const size = Math.round(n * px * s);
   const pos = side === 'p' ? PPOS : EPOS;
-  return { x: pos.x - size / 2, y: pos.y - size + 6 * s, size, cx: pos.x, cy: pos.y - size / 2 };
+  return { x: pos.x - size / 2, y: pos.y - size + 4, size, cx: pos.x, cy: pos.y - size / 2 };
 }
 
 function drawMon(ctx, m, side, v, { alpha = 1, dx = 0, dy = 0, scale = 1, white = false } = {}) {
   const r = spriteRect(m, side);
-  const img = monSprite(m, { white });
   const size = r.size * scale;
   const x = Math.round(r.cx - size / 2 + dx), y = Math.round(r.y + (r.size - size) + dy);
   // 순혈 패왕: 황금빛 오라 (몸 뒤에서 일렁임)
@@ -324,18 +327,10 @@ function drawMon(ctx, m, side, v, { alpha = 1, dx = 0, dy = 0, scale = 1, white 
     const gr = ctx.createRadialGradient(r.cx + dx, r.cy + dy, 4, r.cx + dx, r.cy + dy, size * 0.62);
     gr.addColorStop(0, `rgba(255,236,140,${0.45 + 0.2 * pulse})`); gr.addColorStop(0.6, `rgba(255,200,40,${0.22 + 0.12 * pulse})`); gr.addColorStop(1, 'rgba(255,200,40,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(r.cx + dx, r.cy + dy, size * 0.62, size * 0.56, 0, 0, Math.PI * 2); ctx.fill();
-    for (let i = 0; i < 6; i++) {
-      const a = v.t / 600 + i * 1.05, rr = size * 0.42;
-      const px2 = r.cx + dx + Math.cos(a) * rr, py2 = r.cy + dy + Math.sin(a) * rr * 0.7 - ((v.t / 12 + i * 9) % 18);
-      ctx.fillStyle = i % 2 ? '#fff2a0' : '#ffd23a'; ctx.fillRect(Math.round(px2), Math.round(py2), 2, 2);
-    }
     ctx.restore();
   }
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  if (side === 'e') { ctx.translate(x + size, y); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, size, size); }
-  else ctx.drawImage(img, x, y, size, size);
-  ctx.restore();
+  // 도트 렌더러: 대기 2프레임 바운스 + 각성 오라(붉은 투기 · 황금 수호 결계 · 속성 입자) 합성, 적은 왼쪽을 바라봄
+  drawMonster(ctx, lookOf(m), x, y, size, { t: v.t + (side === 'e' ? 260 : 0), flip: side === 'e', alpha, white, still: alpha < 1 });
   // 알파 개체 붉은 오라
   if (m.alpha && side === 'e') {
     ctx.save(); ctx.globalAlpha = 0.25 + 0.15 * Math.sin(v.t / 150); ctx.fillStyle = '#ff2a2a';
@@ -673,7 +668,7 @@ function drawEvolve(ctx, g) {
   const size = 112;
   const x = SW / 2 - size / 2, y = SH / 2 - size / 2 - 10;
   let img;
-  if (sc.done) img = monSprite(sc.now);
+  if (sc.done) img = monSprite(sc.now, { frame: Math.floor(v.t / 520) % 2 });
   else {
     const period = Math.max(70, 520 - e * 0.15);
     const showNew = Math.floor(e / period) % 2 === 1;
@@ -728,7 +723,7 @@ function drawHatch(ctx, v, sc) {
       if (e > 1300) { ctx.fillRect(SW / 2 + 4, 66, 2, 10); ctx.fillRect(SW / 2 - 2, 90, 10, 2); }
     } else {
       if (e < 2500) { ctx.fillStyle = `rgba(255,255,255,${1 - (e - 2200) / 300})`; ctx.fillRect(0, 0, SW, SH); }
-      ctx.drawImage(monSprite(sc.mon), SW / 2 - 48, 36, 96, 96);
+      drawMonster(ctx, lookOf(sc.mon), SW / 2 - 48, 36, 96, { t: v.t });
     }
   }
 }
@@ -745,12 +740,12 @@ function drawTitle(ctx, g) {
   for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(80,60,70,0.5)'; ctx.beginPath(); ctx.arc(126 + Math.sin(t / 900 + i) * 6 + i * 3, 50 - ((t / 40 + i * 12) % 60), 4 + i % 3, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = '#2a0c14'; ctx.fillRect(0, 150, SW, 26);
   // 행진하는 스톤몬 실루엣
-  const parade = [2, 5, 29, 15, 47, 36, 3, 26, 4, 28, 7, 18];
+  const parade = [1, 13, 89, 63, 82, 79, 4, 61, 7, 90, 31, 25];
   parade.forEach((sid, i) => {
     const x = ((t / 30 + i * 52) % (SW + 520)) - 60;
     const m = { sid };
-    const s = 0.7 * Math.min(1.3, SPECIES[sid].size);
-    ctx.drawImage(monSprite(m, { silhouette: true }), Math.round(x), Math.round(158 - 64 * s), 64 * s, 64 * s);
+    const n = spriteSize(sid) * 1.4;
+    drawMonster(ctx, m, Math.round(x), Math.round(160 - n), n, { t: t + i * 300, silhouette: true });
   });
   drawEmbers(ctx, t);
 }
